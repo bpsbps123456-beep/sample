@@ -1,0 +1,823 @@
+﻿"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import type { SingleChoiceComponent, MultiChoiceComponent } from "@/lib/types/domain";
+import { useClassroomStore } from "@/lib/store/classroom-store";
+import { formatCountdown } from "@/lib/utils";
+import { LiveDrawingOverlay } from "@/components/shared/live-drawing-overlay";
+
+function inputToSeconds(value: string) {
+  const [minutes = "0", seconds = "0"] = value.split(":");
+  const parsedMinutes = Number(minutes);
+  const parsedSeconds = Number(seconds);
+  return Number.isFinite(parsedMinutes) && Number.isFinite(parsedSeconds)
+    ? Math.max(0, parsedMinutes * 60 + parsedSeconds)
+    : 0;
+}
+
+export function TeacherDashboardPreview() {
+  const [teacherMessage, setTeacherMessage] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [timerInput, setTimerInput] = useState("05:00");
+  const [showVotePanel, setShowVotePanel] = useState(false);
+  const [galleryViewMode, setGalleryViewMode] = useState<"grid" | "slide">("grid");
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [showConnectedStudents, setShowConnectedStudents] = useState(false);
+  
+  // Widget visibility states (from store, toggled via navbar)
+  const showChat = useClassroomStore((s) => s.showChat);
+  const showTimer = useClassroomStore((s) => s.showTimer);
+  const showVote = useClassroomStore((s) => s.showVote);
+  const toggleShowChat = useClassroomStore((s) => s.toggleShowChat);
+  const toggleShowTimer = useClassroomStore((s) => s.toggleShowTimer);
+  const toggleShowVote = useClassroomStore((s) => s.toggleShowVote);
+
+  const hasVisibleWidget = (showChat || showTimer || showVote);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Store state
+  const worksheetId = useClassroomStore((s) => s.worksheetId);
+  const currentPage = useClassroomStore((s) => s.currentPage);
+  const sessionCode = useClassroomStore((s) => s.sessionCode);
+  const students = useClassroomStore((s) => s.students);
+  const helpRequests = useClassroomStore((s) => s.helpRequests);
+  const chatMessages = useClassroomStore((s) => s.chatMessages);
+  const voteSummary = useClassroomStore((s) => s.voteSummary);
+  const timerSecondsRemaining = useClassroomStore((s) => s.timerSecondsRemaining);
+  const timerRunning = useClassroomStore((s) => s.timerRunning);
+  const focusMode = useClassroomStore((s) => s.focusMode);
+  const chatEnabled = useClassroomStore((s) => s.chatEnabled);
+  const chatPaused = useClassroomStore((s) => s.chatPaused);
+  const chatAnonymousMode = useClassroomStore((s) => s.chatAnonymousMode);
+  const groups = useClassroomStore((s) => s.groups);
+  const galleryCards = useClassroomStore((s) => s.galleryCards);
+  const galleryOpen = useClassroomStore((s) => s.galleryOpen);
+  const anonymousGallery = useClassroomStore((s) => s.anonymousGallery);
+  const galleryFilterQuestion = useClassroomStore((s) => s.galleryFilterQuestion);
+  const components = useClassroomStore((s) => s.components);
+  const projectedType = useClassroomStore((s) => s.projectedType);
+  const projectedTargetId = useClassroomStore((s) => s.projectedTargetId);
+
+  // Store actions
+  const startTimer = useClassroomStore((s) => s.startTimer);
+  const pauseTimer = useClassroomStore((s) => s.pauseTimer);
+  const resetTimer = useClassroomStore((s) => s.resetTimer);
+  const setTimer = useClassroomStore((s) => s.setTimer);
+  const decideTimerTimeout = useClassroomStore((s) => s.decideTimerTimeout);
+  const toggleChat = useClassroomStore((s) => s.toggleChat);
+  const toggleChatPaused = useClassroomStore((s) => s.toggleChatPaused);
+  const toggleChatAnonymousMode = useClassroomStore((s) => s.toggleChatAnonymousMode);
+  const sendChatMessage = useClassroomStore((s) => s.sendChatMessage);
+  const clearChat = useClassroomStore((s) => s.clearChat);
+  const setProjection = useClassroomStore((s) => s.setProjection);
+  const resolveHelpRequest = useClassroomStore((s) => s.resolveHelpRequest);
+  const openVote = useClassroomStore((s) => s.openVote);
+  const closeVote = useClassroomStore((s) => s.closeVote);
+  const toggleVoteResultPublic = useClassroomStore((s) => s.toggleVoteResultPublic);
+  const resetVote = useClassroomStore((s) => s.resetVote);
+  const assignStudentGroup = useClassroomStore((s) => s.assignStudentGroup);
+  const muteStudent = useClassroomStore((s) => s.muteStudent);
+  const lockStudent = useClassroomStore((s) => s.lockStudent);
+  const removeStudent = useClassroomStore((s) => s.removeStudent);
+  const toggleGalleryOpen = useClassroomStore((s) => s.toggleGalleryOpen);
+  const toggleAnonymousGallery = useClassroomStore((s) => s.toggleAnonymousGallery);
+  const setGalleryFilterQuestion = useClassroomStore((s) => s.setGalleryFilterQuestion);
+  const toggleGalleryCard = useClassroomStore((s) => s.toggleGalleryCard);
+  const toggleGalleryProject = useClassroomStore((s) => s.toggleGalleryProject);
+
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages]);
+
+  // 페이지가 바뀌면 문항 필터를 초기화해 현재 페이지 기준으로 다시 본다.
+  useEffect(() => {
+    setGalleryFilterQuestion(null);
+  }, [currentPage, setGalleryFilterQuestion]);
+
+  const selectedStudent = useMemo(
+    () => students.find((s) => s.id === selectedStudentId) ?? null,
+    [selectedStudentId, students],
+  );
+
+  // 부분 송출 모드: 선택한 문항에서 일부 학생 카드만 골라 송출하는 상태
+  const isPartialMode =
+    projectedType === "gallery_partial" &&
+    projectedTargetId === galleryFilterQuestion &&
+    !!galleryFilterQuestion;
+  const submittedCount = students.filter((s) => s.submitted).length;
+  const connectedStudents = students.filter((s) => s.status !== "offline");
+  const connectedCount = connectedStudents.length;
+  const timerLow = timerSecondsRemaining > 0 && timerSecondsRemaining <= 60;
+  const visibleGalleryCount = galleryCards.filter((c) => c.visible).length;
+  const projectedCardsCount = galleryCards.filter((c) => c.isProjected).length;
+  const galleryQuestions = useMemo(
+    () => components.filter((c) => !["prompt", "divider"].includes(c.type)),
+    [components],
+  );
+
+  const pageGroups = useMemo(() => {
+    const maxPage = Math.max(...components.map((c) => c.page), 1);
+    return Array.from({ length: maxPage }, (_, i) => ({
+      page: i + 1,
+      questions: components
+        .filter((c) => c.page === i + 1 && !["prompt", "divider"].includes(c.type)),
+    }));
+  }, [components]);
+
+  const choiceStats = useMemo(() => {
+    const choiceComps = components.filter(
+      (c) => c.page === currentPage && (c.type === "single_choice" || c.type === "multi_choice" || c.type === "ox"),
+    );
+    return choiceComps.map((comp) => {
+      const options =
+        comp.type === "ox"
+          ? ["O", "X"]
+          : (comp as SingleChoiceComponent | MultiChoiceComponent).options;
+      const counts: Record<string, number> = {};
+      for (const opt of options) counts[opt] = 0;
+      let respondedCount = 0;
+      for (const student of students) {
+        const answer = student.answers?.find((a) => a.componentId === comp.id);
+        if (answer?.choiceValues?.length) {
+          respondedCount++;
+          for (const val of answer.choiceValues) {
+            if (val in counts) counts[val]++;
+          }
+        }
+      }
+      return { comp, options, counts, respondedCount };
+    });
+  }, [components, students, currentPage]);
+
+  const currentPageComponents = useMemo(
+    () => components.filter((c) => c.page === currentPage && !["prompt", "divider"].includes(c.type)),
+    [components, currentPage]
+  );
+
+  const contextStats = useMemo(() => {
+    if (galleryFilterQuestion) {
+      const respondedCount = students.filter((s) =>
+        s.answers?.some((a) => a.componentId === galleryFilterQuestion),
+      ).length;
+      return { count: respondedCount, label: "응답" };
+    }
+
+    if (currentPageComponents.length === 0) return { count: 0, label: "완료" };
+
+    const completedCount = students.filter((s) => {
+      const studentAnswerIds = new Set((s.answers ?? []).map((a) => a.componentId));
+      return currentPageComponents.every((c) => studentAnswerIds.has(c.id));
+    }).length;
+
+    return { count: completedCount, label: "완료" };
+  }, [students, galleryFilterQuestion, currentPageComponents]);
+
+  return (
+    <div className="space-y-3">
+      {/* Main layout */}
+      <div className={`grid gap-3 transition-all duration-500 ease-in-out ${
+        hasVisibleWidget 
+          ? "xl:grid-cols-[1fr_400px] 2xl:grid-cols-[1fr_460px]" 
+          : "grid-cols-1"
+      }`}>
+
+        {/* Left column: student roster + gallery controls */}
+        <div className="space-y-3">
+
+          {/* Student roster card */}
+          <div className="surface rounded-2xl pt-2 px-4 pb-3">
+             <div className="flex flex-col gap-3">
+                {/* Top controls: connected students + page/question filter */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowConnectedStudents((open) => !open)}
+                      className="flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-5 py-2.5 transition-all hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <span className="text-[17px] font-black leading-none tracking-wide text-slate-900">
+                        접속 학생
+                      </span>
+                      <span className="text-[15px] font-bold leading-none text-teal-600">
+                        {connectedCount}?
+                      </span>
+                    </button>
+                    {showConnectedStudents && (
+                      <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                            현재 접속
+                          </span>
+                          <span className="text-xs font-bold text-teal-600">{connectedCount}명</span>
+                        </div>
+                        {connectedStudents.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {connectedStudents.map((student) => (
+                              <span
+                                key={`connected-${student.id}`}
+                                className="rounded-full bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-700 ring-1 ring-teal-100"
+                              >
+                                {student.studentName}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm font-medium text-slate-400">아직 접속한 학생이 없습니다.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setGalleryFilterQuestion(null)}
+                    className={`flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 transition-all ${
+                      !galleryFilterQuestion
+                        ? "border-transparent bg-slate-900 text-white shadow-md"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="text-[17px] font-black leading-none tracking-wide">
+                      {galleryFilterQuestion ? "전체 보기" : `${currentPage}페이지 전체`}
+                    </span>
+                    <span className={`text-[15px] font-bold leading-none ${!galleryFilterQuestion ? "text-teal-300" : "text-slate-400"}`}>
+                      ({contextStats.count} / {students.length}? {contextStats.label})
+                    </span>
+                  </button>
+
+                  {currentPageComponents.length > 0 && (
+                    <div className="h-6 w-px bg-slate-200 shrink-0" />
+                  )}
+
+                  {currentPageComponents.map((q, index) => {
+                    const desc = "description" in q ? q.description : undefined;
+                    return (
+                      <button
+                        key={q.id}
+                        onClick={() => setGalleryFilterQuestion(q.id)}
+                        title={desc ? `${q.title}: ${desc}` : q.title}
+                        className={`rounded-xl px-5 py-2.5 text-[15px] font-bold transition-all whitespace-nowrap border-2 ${
+                          galleryFilterQuestion === q.id
+                            ? "bg-slate-900 text-white border-transparent shadow-md"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        {index + 1}. {q.title}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-1 flex-wrap items-center gap-3">
+                    <div className="h-4 w-px bg-slate-200" />
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        onClick={toggleGalleryOpen}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${galleryOpen ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+                      >
+                        {galleryOpen ? "공유 중 ✓" : "답변 공유"}
+                      </button>
+                      <button
+                        onClick={toggleAnonymousGallery}
+                        title={anonymousGallery ? "익명 표시 끄기" : "익명 표시 켜기"}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${anonymousGallery ? "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50" : "bg-slate-900 text-white"}`}
+                      >
+                        {anonymousGallery ? "익명 ON" : "익명 OFF"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (projectedType === "gallery_partial" && projectedTargetId === galleryFilterQuestion) {
+                            setProjection(null);
+                          } else {
+                            setProjection("gallery_partial", galleryFilterQuestion);
+                          }
+                        }}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                          projectedType === "gallery_partial" && projectedTargetId === galleryFilterQuestion
+                            ? "bg-slate-900 text-white"
+                            : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {projectedType === "gallery_partial" && projectedTargetId === galleryFilterQuestion ? "부분 송출 중" : "부분 송출"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (projectedType === "gallery_all" && projectedTargetId === galleryFilterQuestion) {
+                            setProjection(null);
+                          } else {
+                            setProjection("gallery_all", galleryFilterQuestion);
+                          }
+                        }}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                          projectedType === "gallery_all" && projectedTargetId === galleryFilterQuestion
+                            ? "bg-slate-900 text-white"
+                            : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {projectedType === "gallery_all" && projectedTargetId === galleryFilterQuestion ? "전체 송출 중" : "전체 송출"}
+                      </button>
+                      {visibleGalleryCount > 0 && (
+                        <span className="rounded-lg bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-600">
+                          {visibleGalleryCount}개 공개
+                        </span>
+                      )}
+                      {projectedCardsCount > 0 && (
+                        <span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600">
+                          {projectedCardsCount}개 송출
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {helpRequests.length > 0 && (
+                    <div className="animate-pulse rounded-lg bg-rose-50 px-3 py-1.5 text-center ring-1 ring-rose-200/60">
+                      <div className="text-sm font-bold text-rose-600">{helpRequests.length}</div>
+                      <div className="text-[10px] font-semibold text-rose-400">도움 요청</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            {students.length === 0 ? (
+              <div className="mt-3 rounded-xl border-2 border-dashed border-slate-200 p-8 text-center">
+                <div className="text-5xl font-bold tracking-[0.14em] text-slate-950">{sessionCode}</div>
+                <div className="mt-2 text-xl text-slate-400">학생이 입장하면 여기에 목록이 표시됩니다.</div>
+              </div>
+            ) : (
+              <>
+                {isPartialMode && (
+                  <div className="mt-3 flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
+                    <span className="text-base">안내</span>
+                    <span>학생 카드를 눌러 공개할 답변만 고를 수 있습니다. 다시 누르면 선택이 해제됩니다.</span>
+                    {visibleGalleryCount > 0 && (
+                      <span className="ml-auto shrink-0 rounded-full bg-indigo-600 px-2 py-0.5 text-white">
+                        {visibleGalleryCount}개 공개
+                      </span>
+                    )}
+                  </div>
+                )}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {students.map((student) => {
+                  const isOffline = student.status === "offline";
+                  const isOnline = student.status === "online";
+                  const isPartialSelected = isPartialMode && !!galleryCards.find((c) => c.id === student.id)?.visible;
+                  const isNormalSelected = !isPartialMode && selectedStudent?.id === student.id;
+                  return (
+                    <div
+                      key={student.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (isPartialMode) {
+                          toggleGalleryProject(student.id);
+                        } else {
+                          setSelectedStudentId(selectedStudentId === student.id ? null : student.id);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          if (isPartialMode) {
+                            toggleGalleryCard(student.id);
+                          } else {
+                            setSelectedStudentId(selectedStudentId === student.id ? null : student.id);
+                          }
+                        }
+                      }}
+                      className={`flex w-full cursor-pointer flex-col overflow-hidden rounded-xl border transition-all ${
+                        isPartialSelected
+                          ? "border-indigo-400/60 bg-indigo-50 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-300/40"
+                          : isNormalSelected
+                          ? "border-teal-400/40 bg-teal-50 shadow-md shadow-teal-500/5"
+                          : "border-slate-100 bg-white hover:border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 p-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate text-lg font-semibold text-slate-900">{student.studentName}</span>
+                            <span className={`shrink-0 text-base font-bold ${
+                              student.submitted ? "text-emerald-600" : isOffline ? "text-slate-300" : "text-slate-400"
+                            }`}>
+                              {(() => {
+                                if (isOffline) return "오프라인";
+                                if (galleryFilterQuestion) {
+                                  return student.answers?.some((a) => a.componentId === galleryFilterQuestion) ? "응답" : "미응답";
+                                }
+                                const pageAnswerCount = (student.answers ?? []).filter((a) =>
+                                  currentPageComponents.some((c) => c.id === a.componentId),
+                                ).length;
+                                const totalPageItems = currentPageComponents.length;
+                                if (totalPageItems > 0 && pageAnswerCount >= totalPageItems) return "완료";
+                                return student.submitted ? "제출" : `${Math.min(100, student.progress)}%`;
+                              })()}
+                            </span>
+                          </div>
+                          {!galleryFilterQuestion && (
+                            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-100">
+                               <div className={`h-full rounded-full transition-all duration-500 ${student.submitted ? "bg-emerald-400" : "bg-teal-500"}`}
+                                  style={{ 
+                                    width: `${(() => {
+                                      const pageAnswerCount = (student.answers ?? []).filter(a => 
+                                        currentPageComponents.some(c => c.id === a.componentId)
+                                      ).length;
+                                      const totalPageItems = currentPageComponents.length;
+                                      return totalPageItems > 0 ? Math.min(100, Math.round((pageAnswerCount / totalPageItems) * 100)) : student.progress;
+                                    })()}%` 
+                                  }} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" onClick={() => muteStudent(student.id, !student.chatMuted)}
+                            className={`relative rounded-lg p-1.5 text-xs transition-colors ${student.chatMuted ? "bg-rose-50" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}>
+                            <span className={student.chatMuted ? "opacity-40" : ""}>💬</span>
+                            {student.chatMuted && (
+                              <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <span className="block w-[140%] h-0.5 bg-rose-300 rotate-[-45deg] rounded-full" />
+                              </span>
+                            )}
+                          </button>
+                          <button type="button" onClick={() => lockStudent(student.id, !student.writingLocked)}
+                            className={`relative rounded-lg p-1.5 text-xs transition-colors ${student.writingLocked ? "bg-rose-50" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}>
+                            <span className={student.writingLocked ? "opacity-40" : ""}>✍</span>
+                            {student.writingLocked && (
+                              <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <span className="block w-[140%] h-0.5 bg-rose-300 rotate-[-45deg] rounded-full" />
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`${student.studentName} 학생을 수업에서 내보내시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+                                removeStudent(student.id);
+                                if (selectedStudentId === student.id) setSelectedStudentId(null);
+                              }
+                            }}
+                            className="rounded-lg bg-slate-100 p-1.5 text-xs text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                            title="학생 내보내기"
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 선택한 문항의 답변 미리보기 */}
+                      {galleryFilterQuestion && (
+                        <div className="border-t border-slate-100 bg-slate-50/50 p-3">
+                          {(() => {
+                            const card = galleryCards.find((c) => c.id === student.id);
+                            if (!card) return <div className="text-[11px] text-slate-400 italic">아직 이 문항에 제출한 내용이 없습니다.</div>;
+                            
+                            return (
+                              <div className="space-y-2">
+                                {card.excerpt ? <p className="line-clamp-2 text-[14px] leading-relaxed text-slate-600">{card.excerpt}</p> : null}
+                                {card.imageUrl ? (
+                                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                    <Image src={card.imageUrl} alt={student.studentName} fill className="object-contain" unoptimized />
+                                    <LiveDrawingOverlay 
+                                      worksheetId={worksheetId} 
+                                      studentName={student.studentName} 
+                                      componentId={galleryFilterQuestion || ""} 
+                                    />
+                                  </div>
+                                ) : null}
+                                <div className="flex items-center justify-between gap-1.5 pt-1">
+                                  <div className="flex gap-1">
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); toggleGalleryCard(card.id); }}
+                                      title={card.visible ? "학생 공개 해제" : "학생 공개"}
+                                      className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${card.visible ? "bg-emerald-500 text-white shadow-sm" : "bg-white text-slate-400 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+                                    >
+                                      {card.visible ? "공개됨" : "공개"}
+                                    </button>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); toggleGalleryProject(card.id); }}
+                                      title={card.isProjected ? "부분 송출 해제" : "부분 송출"}
+                                      className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${card.isProjected ? "bg-indigo-500 text-white shadow-sm" : "bg-white text-slate-400 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+                                    >
+                                      {card.isProjected ? "송출 중" : "송출"}
+                                    </button>
+                                  </div>
+                                  <button 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      if (projectedType === 'gallery' && projectedTargetId === card.id) {
+                                        setProjection(null);
+                                      } else {
+                                        setProjection("gallery", card.id); 
+                                      }
+                                    }}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${projectedType === 'gallery' && projectedTargetId === card.id ? "bg-teal-500 text-white shadow-lg" : "bg-slate-900 text-white hover:bg-slate-800"}`}
+                                  >
+                                    {projectedType === 'gallery' && projectedTargetId === card.id ? "전체화면 해제" : "전체화면"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              </>
+            )}
+
+            {/* Help requests */}
+            {helpRequests.length > 0 ? (
+              <div className="mt-3 space-y-2 rounded-xl border border-rose-100 bg-rose-50 p-3">
+                <div className="text-xs font-bold text-rose-600">도움 요청 {helpRequests.length}건</div>
+                {helpRequests.map((req) => (
+                  <div key={req.id} className="flex items-center gap-2.5">
+                    <div className="min-w-0 flex-1 text-xs">
+                      <span className="font-semibold text-slate-900">{req.studentName}</span>
+                      <span className="ml-1.5 text-slate-400">{req.questionLabel}</span>
+                    </div>
+                    <button onClick={() => resolveHelpRequest(req.id)}
+                      className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
+                      해결
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {/* Selected student detail */}
+          {selectedStudent ? (
+            <div className="surface rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="muted-label">학생 상세 보기</div>
+                  <div className="mt-0.5 text-lg font-bold text-slate-950">{selectedStudent.studentName}</div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (projectedType === 'student' && projectedTargetId === selectedStudent.id) {
+                        setProjection(null);
+                      } else {
+                        setProjection("student", selectedStudent.id);
+                      }
+                    }}
+                    className={`rounded-xl px-3.5 py-2 text-xs font-semibold ${projectedType === 'student' && projectedTargetId === selectedStudent.id ? "bg-teal-500 text-white shadow-md shadow-teal-500/20 hover:bg-teal-600" : "action-primary"}`}
+                  >
+                    {projectedType === 'student' && projectedTargetId === selectedStudent.id ? "송출 해제" : "학생 송출"}
+                  </button>
+                  {groups.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {groups.map((group) => (
+                        <button key={group.id} onClick={() => assignStudentGroup(selectedStudent.id, group.id)}
+                          className="action-secondary rounded-lg px-2.5 py-1.5 text-xs font-semibold">
+                          {group.icon} {group.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {(selectedStudent.answers ?? []).map((answer) => (
+                  <div key={answer.componentId} className={`rounded-xl border border-slate-100 bg-slate-50 p-3.5 ${answer.imageUrl ? "sm:col-span-2" : ""}`}>
+                    <div className="text-xs font-bold text-slate-400">{answer.questionTitle}</div>
+                    {answer.textValue ? <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{answer.textValue}</p> : null}
+                    {answer.choiceValues?.length ? <p className="mt-1.5 text-sm text-slate-700">{answer.choiceValues.join(", ")}</p> : null}
+                    {answer.imageUrl ? (
+                      <div className="relative mt-2 h-40 w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+                        <Image src={answer.imageUrl} alt={answer.questionTitle} fill className="object-contain" unoptimized />
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Choice response stats */}
+          {choiceStats.length > 0 ? (
+            <div className="surface rounded-2xl p-5">
+              <div className="muted-label">선택형 응답 현황</div>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {choiceStats.map(({ comp, options, counts, respondedCount }) => (
+                  <div key={comp.id}>
+                    <div className="mb-1.5 text-[15.9px] font-semibold text-slate-700">{comp.title}</div>
+                    <div className="space-y-1">
+                      {options.map((opt) => {
+                        const count = counts[opt] ?? 0;
+                        const pct = respondedCount > 0 ? Math.round((count / respondedCount) * 100) : 0;
+                        return (
+                          <div key={opt}>
+                            <div className="mb-0.5 flex items-center justify-between text-[14.5px]">
+                              <span className="text-slate-600">{opt}</span>
+                              <span className="font-semibold text-slate-400">{count}명 ({pct}%)</span>
+                            </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-1.5 rounded-full bg-teal-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {respondedCount > 0 ? <div className="mt-0.5 text-[13.2px] text-slate-400">{respondedCount}명 응답</div> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        {hasVisibleWidget ? (
+          <div className="sticky top-[88px] flex h-[calc(100vh-112px)] flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
+            {showChat && (
+              <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base font-bold text-slate-800">채팅</span>
+                    {chatMessages.filter((m) => !m.isTeacher).length > 0 ? (
+                      <span className="rounded-full bg-teal-500 px-2.5 py-1 text-xs font-bold text-white">
+                        {chatMessages.filter((m) => !m.isTeacher).length}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                    <button
+                      onClick={() => { if (confirm("채팅 내용을 모두 삭제할까요?")) clearChat(); }}
+                      title="채팅 삭제"
+                      className="action-secondary h-10 rounded-xl px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                    >
+                      삭제
+                    </button>
+                    <button
+                      onClick={toggleChatAnonymousMode}
+                      title={chatAnonymousMode ? "익명 모드 끄기" : "익명 모드 켜기"}
+                      className={`h-10 rounded-xl px-4 text-sm font-bold transition-all ${chatAnonymousMode ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
+                    >
+                      익명
+                    </button>
+                    <button
+                      onClick={toggleChat}
+                      className={`h-10 rounded-xl px-4 text-sm font-bold ${chatEnabled ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
+                    >
+                      {chatEnabled ? "ON" : "OFF"}
+                    </button>
+                    <button
+                      onClick={toggleChatPaused}
+                      title={chatPaused ? "채팅 재개" : "채팅 일시중지"}
+                      className={`h-10 rounded-xl px-4 text-sm font-semibold ${chatPaused ? "border border-amber-200 bg-amber-50 text-amber-700" : "action-secondary"}`}
+                    >
+                      {chatPaused ? "재개" : "일시중지"}
+                    </button>
+                    <button
+                      onClick={() => setProjection(projectedType === "chat" ? null : "chat")}
+                      title="화면에 송출"
+                      className={`rounded-xl p-3 transition-all ${projectedType === "chat" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </button>
+                    <button onClick={toggleShowChat} className="rounded-xl p-2.5 text-slate-300 hover:bg-slate-50 hover:text-slate-500">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-1 flex-col overflow-hidden">
+                  <div ref={chatScrollRef} className="flex-1 space-y-2 overflow-auto p-4">
+                    {chatMessages.length === 0 ? (
+                      <p className="py-5 text-center text-sm text-slate-300">아직 메시지가 없습니다.</p>
+                    ) : chatMessages.map((msg) => {
+                      const isTeacher = msg.isTeacher;
+                      return (
+                        <div key={msg.id} className={`flex flex-col ${isTeacher ? "items-end" : "items-start"}`}>
+                          {!isTeacher && (
+                            <div className="mb-0.5 ml-1 flex items-center gap-1.5 text-[12px] font-semibold text-slate-400">
+                              {msg.senderName}
+                              {(chatAnonymousMode || msg.isAnonymous) && (
+                                <span className="rounded-md border border-slate-200 bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-400">익명</span>
+                              )}
+                            </div>
+                          )}
+                          <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-[14px] leading-relaxed ${isTeacher ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 border-t border-slate-100 p-3">
+                    <input
+                      value={teacherMessage}
+                      onChange={(e) => setTeacherMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && teacherMessage.trim()) {
+                          e.preventDefault();
+                          sendChatMessage("교사", teacherMessage, true);
+                          setTeacherMessage("");
+                        }
+                      }}
+                      placeholder="메시지 입력..."
+                      className="field-input flex-1 rounded-2xl px-4 py-3 text-base"
+                    />
+                    <button
+                      onClick={() => { if (teacherMessage.trim()) { sendChatMessage("교사", teacherMessage, true); setTeacherMessage(""); } }}
+                      className="action-primary rounded-2xl px-5 py-3 text-base font-semibold"
+                    >전송</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showTimer && (
+              <div className="surface rounded-2xl p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-base font-bold text-slate-800">타이머</span>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setProjection(projectedType === "timer" ? null : "timer")}
+                      title="화면에 송출"
+                      className={`rounded-xl p-3 transition-all ${projectedType === "timer" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </button>
+                    <button onClick={toggleShowTimer} className="rounded-xl p-2.5 text-slate-300 hover:bg-slate-50 hover:text-slate-500">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className={`text-[2.8rem] font-mono font-bold tracking-tight tabular-nums ${
+                    timerLow ? "text-rose-600" : timerSecondsRemaining === 0 ? "text-slate-200" : "text-slate-950"
+                  }`}>
+                    {formatCountdown(timerSecondsRemaining)}
+                  </div>
+                  <div className="flex flex-1 gap-2">
+                    <button onClick={startTimer} disabled={timerRunning} className="action-primary flex-1 rounded-2xl py-3 text-sm font-bold disabled:opacity-40">시작</button>
+                    <button onClick={pauseTimer} disabled={!timerRunning} className="action-secondary flex-1 rounded-2xl py-3 text-sm font-semibold disabled:opacity-40">일시정지</button>
+                    <button onClick={resetTimer} className="action-secondary flex-1 rounded-2xl py-3 text-sm font-semibold">초기화</button>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2.5">
+                  <input value={timerInput} onChange={(e) => setTimerInput(e.target.value)}
+                    placeholder="05:00" className="field-input flex-1 rounded-2xl px-4 py-3 text-base font-mono" />
+                  <button onClick={() => setTimer(inputToSeconds(timerInput))} className="action-secondary rounded-2xl px-5 py-3 text-base font-semibold">적용</button>
+                </div>
+              </div>
+            )}
+
+            {showVote && (
+              <div className="surface rounded-2xl p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base font-bold text-slate-800">투표</span>
+                    {voteSummary.isActive ? <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs font-bold text-teal-700">진행 중</span> : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setProjection(projectedType === "vote" ? null : "vote")}
+                      title="화면에 송출"
+                      className={`rounded-xl p-3 transition-all ${projectedType === "vote" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </button>
+                    <button onClick={toggleShowVote} className="rounded-xl p-2.5 text-slate-300 hover:bg-slate-50 hover:text-slate-500">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
+                    <button key={vType} onClick={() => openVote(vType)} className="action-secondary rounded-2xl py-3 text-sm font-semibold transition-all hover:bg-slate-50">
+                      {vType === "ox" ? "O/X" : vType === "choice" ? "객관식" : vType === "slider" ? "슬라이더" : "워드클라우드"}
+                    </button>
+                  ))}
+                </div>
+                {voteSummary.isActive && (
+                  <div className="mt-4 space-y-2 border-t border-slate-50 pt-3">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="text-slate-600">응답 수</span>
+                      <span className="text-teal-600">{voteSummary.responseCount}명 참여</span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button onClick={closeVote} className="action-primary flex-1 rounded-lg py-1.5 text-[11px] font-bold">종료</button>
+                      <button onClick={resetVote} className="action-secondary flex-1 rounded-lg py-1.5 text-[11px] font-bold">초기화</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
