@@ -592,7 +592,8 @@ function buildWorksheetFromRows(input: {
     groups,
     students,
     helpRequests,
-    chatMessages: input.chatMessages
+    chatMessages: [...input.chatMessages]
+      .reverse()
       .filter((message) => !message.is_deleted)
       .map((message) => ({
         id: message.id,
@@ -669,7 +670,8 @@ async function fetchWorksheetByField(
       .from("chat_messages")
       .select("id, sender_name, content, is_pinned, is_teacher, is_deleted, is_anonymous")
       .eq("worksheet_id", worksheet.id)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
+      .limit(200)
       .returns<ChatMessageRow[]>(),
     supabase
       .from("votes")
