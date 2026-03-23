@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SingleChoiceComponent, MultiChoiceComponent } from "@/lib/types/domain";
+import {
+  parseGalleryProjectionTarget,
+  serializeGalleryPartialTarget,
+} from "@/lib/projection-target";
 import { useClassroomStore } from "@/lib/store/classroom-store";
 import { formatCountdown } from "@/lib/utils";
 import { LiveDrawingOverlay } from "@/components/shared/live-drawing-overlay";
@@ -25,7 +29,7 @@ export function TeacherDashboardPreview() {
   const [showVotePanel, setShowVotePanel] = useState(false);
   const [galleryViewMode, setGalleryViewMode] = useState<"grid" | "slide">("grid");
   const [slideIndex, setSlideIndex] = useState(0);
-  const [showConnectedStudents, setShowConnectedStudents] = useState(false);
+  const [showConnectedOnly, setShowConnectedOnly] = useState(false);
   
   // Widget visibility states (from store, toggled via navbar)
   const showChat = useClassroomStore((s) => s.showChat);
@@ -93,24 +97,34 @@ export function TeacherDashboardPreview() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [chatMessages]);
 
-  // 페이지가 바뀌면 문항 필터를 초기화해 현재 페이지 기준으로 다시 본다.
-  useEffect(() => {
-    setGalleryFilterQuestion(null);
-  }, [currentPage, setGalleryFilterQuestion]);
-
   const selectedStudent = useMemo(
     () => students.find((s) => s.id === selectedStudentId) ?? null,
     [selectedStudentId, students],
   );
 
+  const projectedGalleryTarget = useMemo(
+    () => parseGalleryProjectionTarget(projectedTargetId),
+    [projectedTargetId],
+  );
+  const projectedGalleryQuestionId = projectedGalleryTarget.questionId;
+  const partialProjectionTarget = useMemo(
+    () =>
+      serializeGalleryPartialTarget(
+        galleryFilterQuestion,
+        galleryCards.filter((card) => card.isProjected).map((card) => card.id),
+      ),
+    [galleryCards, galleryFilterQuestion],
+  );
+
   // 부분 송출 모드: 선택한 문항에서 일부 학생 카드만 골라 송출하는 상태
   const isPartialMode =
     projectedType === "gallery_partial" &&
-    projectedTargetId === galleryFilterQuestion &&
+    projectedGalleryQuestionId === galleryFilterQuestion &&
     !!galleryFilterQuestion;
   const submittedCount = students.filter((s) => s.submitted).length;
   const connectedStudents = students.filter((s) => s.status !== "offline");
   const connectedCount = connectedStudents.length;
+  const visibleStudents = showConnectedOnly ? connectedStudents : students;
   const timerLow = timerSecondsRemaining > 0 && timerSecondsRemaining <= 60;
   const visibleGalleryCount = galleryCards.filter((c) => c.visible).length;
   const projectedCardsCount = galleryCards.filter((c) => c.isProjected).length;
@@ -159,8 +173,10 @@ export function TeacherDashboardPreview() {
   );
 
   const contextStats = useMemo(() => {
+    const statsStudents = showConnectedOnly ? connectedStudents : students;
+
     if (galleryFilterQuestion) {
-      const respondedCount = students.filter((s) =>
+      const respondedCount = statsStudents.filter((s) =>
         s.answers?.some((a) => a.componentId === galleryFilterQuestion),
       ).length;
       return { count: respondedCount, label: "응답" };
@@ -168,13 +184,13 @@ export function TeacherDashboardPreview() {
 
     if (currentPageComponents.length === 0) return { count: 0, label: "완료" };
 
-    const completedCount = students.filter((s) => {
+    const completedCount = statsStudents.filter((s) => {
       const studentAnswerIds = new Set((s.answers ?? []).map((a) => a.componentId));
       return currentPageComponents.every((c) => studentAnswerIds.has(c.id));
     }).length;
 
     return { count: completedCount, label: "완료" };
-  }, [students, galleryFilterQuestion, currentPageComponents]);
+  }, [showConnectedOnly, connectedStudents, students, galleryFilterQuestion, currentPageComponents]);
 
   return (
     <div className="space-y-3">
@@ -193,49 +209,33 @@ export function TeacherDashboardPreview() {
              <div className="flex flex-col gap-3">
                 {/* Top controls: connected students + page/question filter */}
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowConnectedStudents((open) => !open)}
-                      className="flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-5 py-2.5 transition-all hover:border-slate-300 hover:bg-slate-50"
-                    >
-                      <span className="text-[17px] font-black leading-none tracking-wide text-slate-900">
-                        접속 학생
-                      </span>
-                      <span className="text-[15px] font-bold leading-none text-teal-600">
-                        {connectedCount}?
-                      </span>
-                    </button>
-                    {showConnectedStudents && (
-                      <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                            현재 접속
-                          </span>
-                          <span className="text-xs font-bold text-teal-600">{connectedCount}명</span>
-                        </div>
-                        {connectedStudents.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {connectedStudents.map((student) => (
-                              <span
-                                key={`connected-${student.id}`}
-                                className="rounded-full bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-700 ring-1 ring-teal-100"
-                              >
-                                {student.studentName}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm font-medium text-slate-400">아직 접속한 학생이 없습니다.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGalleryFilterQuestion(null);
+                      setShowConnectedOnly((open) => !open);
+                    }}
+                    className={`flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 transition-all ${
+                      showConnectedOnly
+                        ? "border-transparent bg-slate-900 text-white shadow-md"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="text-[17px] font-black leading-none tracking-wide">
+                      현재 접속
+                    </span>
+                    <span className={`text-[15px] font-bold leading-none ${showConnectedOnly ? "text-teal-300" : "text-teal-600"}`}>
+                      {connectedCount}명
+                    </span>
+                  </button>
 
                   <button
-                    onClick={() => setGalleryFilterQuestion(null)}
+                    onClick={() => {
+                      setShowConnectedOnly(false);
+                      setGalleryFilterQuestion(null);
+                    }}
                     className={`flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 transition-all ${
-                      !galleryFilterQuestion
+                      !galleryFilterQuestion && !showConnectedOnly
                         ? "border-transparent bg-slate-900 text-white shadow-md"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                     }`}
@@ -244,7 +244,7 @@ export function TeacherDashboardPreview() {
                       {galleryFilterQuestion ? "전체 보기" : `${currentPage}페이지 전체`}
                     </span>
                     <span className={`text-[15px] font-bold leading-none ${!galleryFilterQuestion ? "text-teal-300" : "text-slate-400"}`}>
-                      ({contextStats.count} / {students.length}? {contextStats.label})
+                      ({contextStats.count}/{visibleStudents.length}명 {contextStats.label})
                     </span>
                   </button>
 
@@ -257,7 +257,10 @@ export function TeacherDashboardPreview() {
                     return (
                       <button
                         key={q.id}
-                        onClick={() => setGalleryFilterQuestion(q.id)}
+                        onClick={() => {
+                          setShowConnectedOnly(false);
+                          setGalleryFilterQuestion(q.id);
+                        }}
                         title={desc ? `${q.title}: ${desc}` : q.title}
                         className={`rounded-xl px-5 py-2.5 text-[15px] font-bold transition-all whitespace-nowrap border-2 ${
                           galleryFilterQuestion === q.id
@@ -291,35 +294,35 @@ export function TeacherDashboardPreview() {
                       </button>
                       <button
                         onClick={() => {
-                          if (projectedType === "gallery_partial" && projectedTargetId === galleryFilterQuestion) {
+                          if (projectedType === "gallery_partial" && projectedGalleryQuestionId === galleryFilterQuestion) {
                             setProjection(null);
                           } else {
-                            setProjection("gallery_partial", galleryFilterQuestion);
+                            setProjection("gallery_partial", partialProjectionTarget);
                           }
                         }}
                         className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                          projectedType === "gallery_partial" && projectedTargetId === galleryFilterQuestion
+                          projectedType === "gallery_partial" && projectedGalleryQuestionId === galleryFilterQuestion
                             ? "bg-slate-900 text-white"
                             : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                         }`}
                       >
-                        {projectedType === "gallery_partial" && projectedTargetId === galleryFilterQuestion ? "부분 송출 중" : "부분 송출"}
+                        {projectedType === "gallery_partial" && projectedGalleryQuestionId === galleryFilterQuestion ? "부분 송출 중" : "부분 송출"}
                       </button>
                       <button
                         onClick={() => {
-                          if (projectedType === "gallery_all" && projectedTargetId === galleryFilterQuestion) {
+                          if (projectedType === "gallery_all" && projectedGalleryQuestionId === galleryFilterQuestion) {
                             setProjection(null);
                           } else {
                             setProjection("gallery_all", galleryFilterQuestion);
                           }
                         }}
                         className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                          projectedType === "gallery_all" && projectedTargetId === galleryFilterQuestion
+                          projectedType === "gallery_all" && projectedGalleryQuestionId === galleryFilterQuestion
                             ? "bg-slate-900 text-white"
                             : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                         }`}
                       >
-                        {projectedType === "gallery_all" && projectedTargetId === galleryFilterQuestion ? "전체 송출 중" : "전체 송출"}
+                        {projectedType === "gallery_all" && projectedGalleryQuestionId === galleryFilterQuestion ? "전체 송출 중" : "전체 송출"}
                       </button>
                       {visibleGalleryCount > 0 && (
                         <span className="rounded-lg bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-600">
@@ -343,10 +346,19 @@ export function TeacherDashboardPreview() {
                 </div>
               </div>
 
-            {students.length === 0 ? (
+            {visibleStudents.length === 0 ? (
               <div className="mt-3 rounded-xl border-2 border-dashed border-slate-200 p-8 text-center">
-                <div className="text-5xl font-bold tracking-[0.14em] text-slate-950">{sessionCode}</div>
-                <div className="mt-2 text-xl text-slate-400">학생이 입장하면 여기에 목록이 표시됩니다.</div>
+                {showConnectedOnly ? (
+                  <>
+                    <div className="text-2xl font-bold text-slate-700">현재 접속 중인 학생이 없습니다.</div>
+                    <div className="mt-2 text-base text-slate-400">버튼을 한 번 더 누르면 전체 학생 목록으로 돌아갑니다.</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-5xl font-bold tracking-[0.14em] text-slate-950">{sessionCode}</div>
+                    <div className="mt-2 text-xl text-slate-400">학생이 입장하면 여기에 목록이 표시됩니다.</div>
+                  </>
+                )}
               </div>
             ) : (
               <>
@@ -362,7 +374,7 @@ export function TeacherDashboardPreview() {
                   </div>
                 )}
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {students.map((student) => {
+                {visibleStudents.map((student) => {
                   const isOffline = student.status === "offline";
                   const isOnline = student.status === "online";
                   const isPartialSelected = isPartialMode && !!galleryCards.find((c) => c.id === student.id)?.visible;
@@ -642,41 +654,55 @@ export function TeacherDashboardPreview() {
             {showChat && (
               <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base font-bold text-slate-800">채팅</span>
+                  <div className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
+                    <span className="whitespace-nowrap text-base font-bold text-slate-800">채팅</span>
                     {chatMessages.filter((m) => !m.isTeacher).length > 0 ? (
                       <span className="rounded-full bg-teal-500 px-2.5 py-1 text-xs font-bold text-white">
                         {chatMessages.filter((m) => !m.isTeacher).length}
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center justify-end gap-2 overflow-x-auto">
                     <button
-                      onClick={() => { if (confirm("채팅 내용을 모두 삭제할까요?")) clearChat(); }}
-                      title="채팅 삭제"
-                      className="action-secondary h-10 rounded-xl px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                      onClick={() => { if (confirm("채팅 내용을 모두 초기화할까요?")) clearChat(); }}
+                      title="채팅 초기화"
+                      className="action-secondary h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50"
                     >
-                      삭제
+                      초기화
                     </button>
                     <button
                       onClick={toggleChatAnonymousMode}
                       title={chatAnonymousMode ? "익명 모드 끄기" : "익명 모드 켜기"}
-                      className={`h-10 rounded-xl px-4 text-sm font-bold transition-all ${chatAnonymousMode ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
+                      className={`h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-bold transition-all ${chatAnonymousMode ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
                     >
                       익명
                     </button>
                     <button
                       onClick={toggleChat}
-                      className={`h-10 rounded-xl px-4 text-sm font-bold ${chatEnabled ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
+                      className={`h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-bold ${chatEnabled ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
                     >
                       {chatEnabled ? "ON" : "OFF"}
                     </button>
                     <button
                       onClick={toggleChatPaused}
                       title={chatPaused ? "채팅 재개" : "채팅 일시중지"}
-                      className={`h-10 rounded-xl px-4 text-sm font-semibold ${chatPaused ? "border border-amber-200 bg-amber-50 text-amber-700" : "action-secondary"}`}
+                      aria-label={chatPaused ? "채팅 재개" : "채팅 일시중지"}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${
+                        chatPaused
+                          ? "border border-amber-200 bg-amber-50 text-amber-700"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      }`}
                     >
-                      {chatPaused ? "재개" : "일시중지"}
+                      {chatPaused ? (
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M6 4.5v11l9-5.5-9-5.5Z" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M6.5 4.5h2.5v11H6.5zM11 4.5h2.5v11H11z" />
+                        </svg>
+                      )}
                     </button>
                     <button
                       onClick={() => setProjection(projectedType === "chat" ? null : "chat")}
@@ -688,6 +714,7 @@ export function TeacherDashboardPreview() {
                     <button onClick={toggleShowChat} className="rounded-xl p-2.5 text-slate-300 hover:bg-slate-50 hover:text-slate-500">
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
+                    </div>
                   </div>
                 </div>
 

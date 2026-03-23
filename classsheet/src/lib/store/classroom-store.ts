@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 
+import { type UISlice, uiSliceDefaults, createUIActions } from "./slices/ui-slice";
+
 import type { ClassroomSyncAction } from "@/lib/types/classroom-actions";
 import type {
   ActiveVote,
@@ -34,8 +36,13 @@ import {
   voteRowToSummary,
   worksheetRowToPartialState,
 } from "@/lib/realtime-transforms";
+import {
+  parseGalleryProjectionTarget,
+  serializeGalleryPartialTarget,
+} from "@/lib/projection-target";
 
 type ReactionKind = "thumbsUp" | "heart" | "wow" | "laugh";
+type GalleryProjectedSelections = Record<string, string[]>;
 
 const EMOJI_BY_REACTION: Record<ReactionKind, "👍" | "❤️" | "😮" | "😂"> = {
   thumbsUp: "👍",
@@ -44,7 +51,7 @@ const EMOJI_BY_REACTION: Record<ReactionKind, "👍" | "❤️" | "😮" | "😂
   laugh: "😂",
 };
 
-interface ClassroomState {
+interface ClassroomState extends UISlice {
   worksheetId: string;
   sessionCode: string;
   worksheetTitle: string;
@@ -71,6 +78,7 @@ interface ClassroomState {
   voteSummary: VoteSummary;
   activeVote: ActiveVote | null;
   galleryCards: GalleryCard[];
+  galleryProjectedSelections: GalleryProjectedSelections;
   groups: Group[];
   components: WorksheetComponent[];
   initializeFromWorksheet: (worksheet: Worksheet) => void;
@@ -154,12 +162,6 @@ interface ClassroomState {
   projectedType?: string | null;
   projectedTargetId?: string | null;
   setProjection: (type: string | null, targetId?: string | null) => void;
-  showChat: boolean;
-  showTimer: boolean;
-  showVote: boolean;
-  toggleShowChat: () => void;
-  toggleShowTimer: () => void;
-  toggleShowVote: () => void;
 }
 
 const EMPTY_VOTE_SUMMARY: VoteSummary = {
@@ -277,14 +279,13 @@ function emptySnapshot() {
     voteSummary: EMPTY_VOTE_SUMMARY,
     activeVote: null as ActiveVote | null,
     galleryCards: [] as GalleryCard[],
+    galleryProjectedSelections: {} as GalleryProjectedSelections,
     groups: [] as Group[],
     components: [] as WorksheetComponent[],
     chatAnonymousMode: false,
     projectedType: null,
     projectedTargetId: null,
-    showChat: true,
-    showTimer: false,
-    showVote: false,
+    ...uiSliceDefaults,
   };
 }
 
@@ -345,6 +346,85 @@ function ensureStudent(
   ];
 }
 
+function hasProjectedSelection(
+  selections: GalleryProjectedSelections,
+  questionId: string | null,
+) {
+  return !!questionId && Object.prototype.hasOwnProperty.call(selections, questionId);
+}
+
+function projectedIdsForQuestion(
+  selections: GalleryProjectedSelections,
+  questionId: string | null,
+  fallbackCards: GalleryCard[] = [],
+) {
+  if (!questionId) {
+    return [];
+  }
+
+  if (hasProjectedSelection(selections, questionId)) {
+    return selections[questionId] ?? [];
+  }
+
+  return fallbackCards
+    .filter((card) => card.questionId === questionId && card.isProjected)
+    .map((card) => card.id);
+}
+
+function buildGalleryCardsFromStudents(
+  students: StudentSubmissionSummary[],
+  components: WorksheetComponent[],
+  questionId: string | null,
+  existingCards: GalleryCard[],
+  projectedSelections: GalleryProjectedSelections,
+) {
+  const projectedIdSet = new Set(
+    projectedIdsForQuestion(projectedSelections, questionId, existingCards),
+  );
+
+  return students.map((student) => {
+    const existingCard = existingCards.find((card) => card.id === student.id);
+    const nextCard = studentToGalleryCard(
+      student,
+      components,
+      questionId,
+      existingCard?.anonymousLabel ?? "친구",
+      existingCard?.visible ?? false,
+      existingCard?.reactions,
+      questionId ? projectedIdSet.has(student.id) : existingCard?.isProjected ?? false,
+    );
+
+    return nextCard;
+  });
+}
+
+function createProjectedSelections(
+  projectedType: string | null | undefined,
+  projectedTargetId: string | null | undefined,
+  galleryFilterQuestion: string | null,
+  galleryCards: GalleryCard[],
+) {
+  const selections: GalleryProjectedSelections = {};
+
+  if (galleryFilterQuestion) {
+    selections[galleryFilterQuestion] = galleryCards
+      .filter((card) => card.isProjected)
+      .map((card) => card.id);
+  }
+
+  if (projectedType === "gallery_partial") {
+    const parsedTarget = parseGalleryProjectionTarget(projectedTargetId);
+    if (parsedTarget.questionId) {
+      selections[parsedTarget.questionId] =
+        parsedTarget.submissionIds.length > 0
+          ? parsedTarget.submissionIds
+          : projectedIdsForQuestion(selections, parsedTarget.questionId, galleryCards);
+    }
+  }
+
+  return selections;
+}
+
 function syncClassroomAction(worksheetId: string, action: ClassroomSyncAction) {
   if (typeof window === "undefined" || !worksheetId) {
     return;
@@ -364,7 +444,23 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
   initializeFromWorksheet: (worksheet) => {
     clearTimerHandle();
     const snapshot = createClassroomSnapshot(worksheet);
-    set(snapshot);
+    const galleryProjectedSelections = createProjectedSelections(
+      snapshot.projectedType,
+      snapshot.projectedTargetId,
+      snapshot.galleryFilterQuestion,
+      snapshot.galleryCards,
+    );
+    set({
+      ...snapshot,
+      galleryProjectedSelections,
+      galleryCards: buildGalleryCardsFromStudents(
+        worksheet.students,
+        worksheet.components,
+        snapshot.galleryFilterQuestion,
+        snapshot.galleryCards,
+        galleryProjectedSelections,
+      ),
+    });
 
     if (snapshot.timerRunning) {
       startLocalTimer(set, worksheet.timerEndAt);
@@ -737,17 +833,13 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
   setGalleryFilterQuestion: (questionId) => {
     set((state) => ({
       galleryFilterQuestion: questionId,
-      galleryCards: state.students.map((student) => {
-        const existingCard = state.galleryCards.find((c) => c.id === student.id);
-        return studentToGalleryCard(
-          student,
-          state.components,
-          questionId,
-          existingCard?.anonymousLabel ?? `친구`,
-          existingCard?.visible ?? false,
-          existingCard?.reactions,
-        );
-      }),
+      galleryCards: buildGalleryCardsFromStudents(
+        state.students,
+        state.components,
+        questionId,
+        state.galleryCards,
+        state.galleryProjectedSelections,
+      ),
     }));
     syncClassroomAction(get().worksheetId, { type: "gallery_filter", questionId });
   },
@@ -762,14 +854,54 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
     syncClassroomAction(get().worksheetId, { type: "gallery_card", submissionId: id, visible });
   },
   toggleGalleryProject: (id) => {
-    const card = get().galleryCards.find((c) => c.id === id);
-    const projected = card ? !card.isProjected : false;
-    set((state) => ({
-      galleryCards: state.galleryCards.map((card) =>
-        card.id === id ? { ...card, isProjected: projected } : card,
+    const state = get();
+    const card = state.galleryCards.find((galleryCard) => galleryCard.id === id);
+    if (!card) return;
+
+    const questionId = state.galleryFilterQuestion ?? card.questionId ?? null;
+    const projected = !card.isProjected;
+    const nextProjectedSelections = { ...state.galleryProjectedSelections };
+    let nextProjectedTargetId = state.projectedTargetId ?? null;
+
+    if (questionId) {
+      const selectedIds = projectedIdsForQuestion(
+        state.galleryProjectedSelections,
+        questionId,
+        state.galleryCards,
+      );
+      const nextSelectedIds = projected
+        ? [...selectedIds, id]
+        : selectedIds.filter((submissionId) => submissionId !== id);
+
+      nextProjectedSelections[questionId] = [...new Set(nextSelectedIds)];
+
+      if (state.projectedType === "gallery_partial") {
+        const activePartialQuestionId = parseGalleryProjectionTarget(state.projectedTargetId).questionId;
+        if (activePartialQuestionId === questionId) {
+          nextProjectedTargetId = serializeGalleryPartialTarget(
+            questionId,
+            nextProjectedSelections[questionId],
+          );
+        }
+      }
+    }
+
+    set({
+      galleryProjectedSelections: nextProjectedSelections,
+      galleryCards: state.galleryCards.map((galleryCard) =>
+        galleryCard.id === id ? { ...galleryCard, isProjected: projected } : galleryCard,
       ),
-    }));
-    syncClassroomAction(get().worksheetId, { type: "gallery_project", submissionId: id, projected });
+      projectedTargetId: nextProjectedTargetId,
+    });
+
+    syncClassroomAction(state.worksheetId, { type: "gallery_project", submissionId: id, projected });
+    if (state.projectedType === "gallery_partial" && questionId && nextProjectedTargetId) {
+      syncClassroomAction(state.worksheetId, {
+        type: "set_projection",
+        projectedType: "gallery_partial",
+        targetId: nextProjectedTargetId,
+      });
+    }
   },
   addReaction: (id, kind, studentName, studentToken) => {
     set((state) => ({
@@ -846,12 +978,31 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
     syncClassroomAction(get().worksheetId, { type: "session_code_change", newCode: code });
   },
   setProjection: (type, targetId) => {
-    set({ projectedType: type, projectedTargetId: targetId });
-    syncClassroomAction(get().worksheetId, { type: "set_projection", projectedType: type, targetId });
+    const state = get();
+    const targetQuestionId =
+      type === "gallery_partial"
+        ? parseGalleryProjectionTarget(targetId ?? state.galleryFilterQuestion).questionId
+        : targetId ?? null;
+    const normalizedTargetId =
+      type === "gallery_partial"
+        ? serializeGalleryPartialTarget(
+            targetQuestionId,
+            projectedIdsForQuestion(
+              state.galleryProjectedSelections,
+              targetQuestionId,
+              state.galleryCards,
+            ),
+          )
+        : targetId ?? null;
+
+    set({ projectedType: type, projectedTargetId: normalizedTargetId });
+    syncClassroomAction(state.worksheetId, {
+      type: "set_projection",
+      projectedType: type,
+      targetId: normalizedTargetId,
+    });
   },
-  toggleShowChat: () => set((s) => ({ showChat: !s.showChat })),
-  toggleShowTimer: () => set((s) => ({ showTimer: !s.showTimer })),
-  toggleShowVote: () => set((s) => ({ showVote: !s.showVote })),
+  ...createUIActions(set),
   closeSession: () => {
     clearTimerHandle();
     set({
@@ -878,22 +1029,42 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
   handleWorksheetUpdate: (row) => {
     const partial = worksheetRowToPartialState(row);
     const state = get();
+    const nextProjectedSelections = { ...state.galleryProjectedSelections };
+    const parsedProjectedTarget =
+      partial.projectedType === "gallery_partial"
+        ? parseGalleryProjectionTarget(partial.projectedTargetId)
+        : { questionId: null, submissionIds: [] as string[] };
 
-    // 필터가 변경된 경우 갤러리 카드 미리보기 갱신
+    if (parsedProjectedTarget.questionId) {
+      nextProjectedSelections[parsedProjectedTarget.questionId] =
+        parsedProjectedTarget.submissionIds.length > 0
+          ? parsedProjectedTarget.submissionIds
+          : projectedIdsForQuestion(
+              state.galleryProjectedSelections,
+              parsedProjectedTarget.questionId,
+              state.galleryCards,
+            );
+    }
+
     let extra = {};
-    if (partial.galleryFilterQuestion !== state.galleryFilterQuestion) {
+    if (
+      partial.galleryFilterQuestion !== state.galleryFilterQuestion ||
+      (parsedProjectedTarget.questionId &&
+        parsedProjectedTarget.questionId === (partial.galleryFilterQuestion ?? state.galleryFilterQuestion))
+    ) {
       extra = {
-        galleryCards: state.students.map((student) => {
-          const existingCard = state.galleryCards.find((c) => c.id === student.id);
-          return studentToGalleryCard(
-            student,
-            state.components,
-            partial.galleryFilterQuestion,
-            existingCard?.anonymousLabel ?? `친구`,
-            existingCard?.visible ?? false,
-            existingCard?.reactions,
-          );
-        }),
+        galleryProjectedSelections: nextProjectedSelections,
+        galleryCards: buildGalleryCardsFromStudents(
+          state.students,
+          state.components,
+          partial.galleryFilterQuestion,
+          state.galleryCards,
+          nextProjectedSelections,
+        ),
+      };
+    } else {
+      extra = {
+        galleryProjectedSelections: nextProjectedSelections,
       };
     }
 
@@ -924,12 +1095,18 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
 
       const existingCard = state.galleryCards.find((card) => card.id === row.id);
       const anonymousLabel = existingCard?.anonymousLabel ?? `친구 ${state.galleryCards.length + 1}`;
+      const projectedIds = projectedIdsForQuestion(
+        state.galleryProjectedSelections,
+        state.galleryFilterQuestion,
+        state.galleryCards,
+      );
       const updatedCard = submissionRowToGalleryCard(
         row,
         state.components,
         state.galleryFilterQuestion,
         anonymousLabel,
         existingCard?.reactions,
+        state.galleryFilterQuestion ? projectedIds.includes(row.id) : row.is_projected,
       );
 
       const galleryIdx = state.galleryCards.findIndex((card) => card.id === row.id);

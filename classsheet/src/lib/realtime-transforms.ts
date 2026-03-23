@@ -8,6 +8,7 @@ import type {
   VoteType,
   WorksheetComponent,
 } from "@/lib/types/domain";
+import { decodeTimerSeconds } from "@/lib/timer-state";
 
 // Row types matching Supabase DB columns — no server-only restriction
 export interface WorksheetRow {
@@ -102,22 +103,6 @@ export interface PresenceRow {
 
 // Helpers
 
-function calculateTimerSeconds(timerEndAt: string | null, timerActive: boolean): number {
-  if (!timerEndAt) return 0;
-  const target = new Date(timerEndAt).getTime();
-  if (timerActive) {
-    const remaining = Math.round((target - Date.now()) / 1000);
-    return Math.max(0, remaining);
-  } else {
-    const YEAR_2000 = 946684800000;
-    if (target < YEAR_2000) {
-      return Math.round(target / 1000);
-    }
-    const remaining = Math.round((target - Date.now()) / 1000);
-    return Math.max(0, remaining);
-  }
-}
-
 function isFilledAnswer(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === "string") return value.trim().length > 0;
@@ -152,7 +137,7 @@ export function presenceRowToStatus(row: PresenceRow): PresenceStatus {
 // Transform functions
 
 export function worksheetRowToPartialState(row: WorksheetRow) {
-  const timerSecondsRemaining = calculateTimerSeconds(row.timer_end_at, row.timer_active);
+  const timerSecondsRemaining = decodeTimerSeconds(row.timer_end_at, row.timer_active);
   return {
     isActive: row.is_active,
     isLocked: row.is_locked,
@@ -273,6 +258,7 @@ export function submissionRowToGalleryCard(
   filterQuestionId: string | null,
   anonymousLabel: string,
   existingReactions?: GalleryCard["reactions"],
+  isProjected = row.is_projected,
 ): GalleryCard {
   const answers = row.answers ?? {};
   const answerEntries = Object.entries(answers);
@@ -324,7 +310,7 @@ export function submissionRowToGalleryCard(
     questionTitle: qTitle,
     reactions: existingReactions ?? { thumbsUp: 0, heart: 0, wow: 0, laugh: 0 },
     visible: row.is_gallery_visible,
-    isProjected: row.is_projected,
+    isProjected,
   };
 }
 
@@ -335,6 +321,7 @@ export function studentToGalleryCard(
   anonymousLabel: string,
   visible: boolean,
   existingReactions?: GalleryCard["reactions"],
+  isProjected = false,
 ): GalleryCard {
   const answerDetails = student.answers ?? [];
   const entriesToSearch = filterQuestionId
@@ -378,6 +365,6 @@ export function studentToGalleryCard(
     questionTitle: qTitle,
     reactions: existingReactions ?? { thumbsUp: 0, heart: 0, wow: 0, laugh: 0 },
     visible,
-    isProjected: false, // Local objects from student summaries don't have this by default (they usually come from rows though)
+    isProjected,
   };
 }

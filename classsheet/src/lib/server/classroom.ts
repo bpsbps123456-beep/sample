@@ -4,6 +4,7 @@ import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
 } from "@/lib/supabase/server";
+import { decodeTimerSeconds } from "@/lib/timer-state";
 import type {
   ActiveVote,
   FontSizeMode,
@@ -217,25 +218,6 @@ function parseComponents(input: unknown): WorksheetComponent[] {
     accumulator.push({ ...base, type });
     return accumulator;
   }, []);
-}
-
-function calculateTimerSeconds(timerEndAt: string | null, timerActive: boolean) {
-  if (!timerEndAt) {
-    return 0;
-  }
-
-  const target = new Date(timerEndAt).getTime();
-  if (timerActive) {
-    const remaining = Math.round((target - Date.now()) / 1000);
-    return Math.max(0, remaining);
-  } else {
-    const YEAR_2000 = 946684800000;
-    if (target < YEAR_2000) {
-      return Math.round(target / 1000);
-    }
-    const remaining = Math.round((target - Date.now()) / 1000);
-    return Math.max(0, remaining);
-  }
 }
 
 function formatRelativeLabel(timestamp: string) {
@@ -595,7 +577,7 @@ function buildWorksheetFromRows(input: {
     isActive: input.worksheet.is_active,
     isLocked: input.worksheet.is_locked,
     sessionClosed: !input.worksheet.is_active && input.worksheet.is_locked,
-    timerSecondsRemaining: calculateTimerSeconds(input.worksheet.timer_end_at, input.worksheet.timer_active),
+    timerSecondsRemaining: decodeTimerSeconds(input.worksheet.timer_end_at, input.worksheet.timer_active),
     timerRunning: input.worksheet.timer_active,
     timerEndAt: input.worksheet.timer_end_at,
     chatEnabled: input.worksheet.chat_active,

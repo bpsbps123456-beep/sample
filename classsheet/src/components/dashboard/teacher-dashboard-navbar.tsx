@@ -161,7 +161,7 @@ export function TeacherDashboardNavbar({
                   setProjection(null);
                 }
               }}
-              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+              className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
                 showChat ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -176,7 +176,7 @@ export function TeacherDashboardNavbar({
                   setProjection(null);
                 }
               }}
-              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+              className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
                 showTimer ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -191,7 +191,7 @@ export function TeacherDashboardNavbar({
                   setProjection(null);
                 }
               }}
-              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+              className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
                 showVote ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >

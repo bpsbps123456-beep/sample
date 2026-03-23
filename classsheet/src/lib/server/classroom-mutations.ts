@@ -4,6 +4,7 @@ import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
 } from "@/lib/supabase/server";
+import { encodeFutureTimerTimestamp, encodePausedTimerTimestamp } from "@/lib/timer-state";
 import type { ClassroomSyncAction } from "@/lib/types/classroom-actions";
 
 type MutationClient = NonNullable<
@@ -67,14 +68,6 @@ async function findOrCreateSubmissionId(
 
   if (created.error) return null;
   return created.data?.id ?? null;
-}
-
-function futureTimestamp(seconds: number) {
-  return new Date(Date.now() + Math.max(0, seconds) * 1000).toISOString();
-}
-
-function pausedTimestamp(seconds: number) {
-  return new Date(Math.max(0, seconds) * 1000).toISOString();
 }
 
 async function findLatestVoteId(supabase: MutationClient, worksheetId: string) {
@@ -258,25 +251,25 @@ export async function applyClassroomMutation(
         const seconds = Math.max(0, action.seconds ?? 0);
         const updates =
           action.command === "start"
-            ? {
-                timer_active: true,
-                timer_end_at: futureTimestamp(seconds),
-                is_locked: false,
-              }
-            : action.command === "pause"
               ? {
-                  timer_active: false,
-                  timer_end_at: pausedTimestamp(seconds),
+                  timer_active: true,
+                  timer_end_at: encodeFutureTimerTimestamp(seconds),
+                  is_locked: false,
                 }
-              : action.command === "reset"
+              : action.command === "pause"
                 ? {
+                    timer_active: false,
+                    timer_end_at: encodePausedTimerTimestamp(seconds),
+                  }
+                : action.command === "reset"
+                  ? {
                     timer_active: false,
                     timer_end_at: null,
                     is_locked: false,
                   }
                 : {
                     timer_active: false,
-                    timer_end_at: pausedTimestamp(seconds),
+                    timer_end_at: encodePausedTimerTimestamp(seconds),
                   };
 
         await supabase.from("worksheets").update(updates).eq("id", worksheetId);
@@ -298,7 +291,7 @@ export async function applyClassroomMutation(
             .update({
               is_locked: false,
               timer_active: true,
-              timer_end_at: futureTimestamp(action.seconds ?? 0),
+              timer_end_at: encodeFutureTimerTimestamp(action.seconds ?? 0),
             })
             .eq("id", worksheetId);
         }

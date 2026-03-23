@@ -7,6 +7,15 @@ import { requireTeacherSession } from "@/lib/auth";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeWorksheetComponents } from "@/lib/worksheet-editor";
 
+function parseWorksheetComponents(rawComponents: string) {
+  try {
+    return JSON.parse(rawComponents) as unknown;
+  } catch (error) {
+    console.error("[worksheet-actions] invalid components payload", error);
+    throw new Error("활동지 구성 데이터를 읽지 못했습니다. 다시 시도해 주세요.");
+  }
+}
+
 async function syncWorksheetGroups(
   worksheetId: string,
   mode: "individual" | "group",
@@ -117,12 +126,7 @@ export async function createWorksheetAction(formData: FormData) {
   const mode = formData.get("mode") === "group" ? "group" : "individual";
   const rawComponents = String(formData.get("components") ?? "[]");
 
-  let parsedComponents: unknown = [];
-  try {
-    parsedComponents = JSON.parse(rawComponents);
-  } catch {
-    parsedComponents = [];
-  }
+  const parsedComponents = parseWorksheetComponents(rawComponents);
 
   const components = normalizeWorksheetComponents(parsedComponents);
   const totalPages = Math.max(...components.map((component) => component.page), 1);
@@ -182,12 +186,7 @@ export async function updateWorksheetAction(formData: FormData) {
     redirect("/teacher/worksheets");
   }
 
-  let parsedComponents: unknown = [];
-  try {
-    parsedComponents = JSON.parse(rawComponents);
-  } catch {
-    parsedComponents = [];
-  }
+  const parsedComponents = parseWorksheetComponents(rawComponents);
 
   const components = normalizeWorksheetComponents(parsedComponents);
 
