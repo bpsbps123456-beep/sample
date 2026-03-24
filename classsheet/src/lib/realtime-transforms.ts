@@ -57,6 +57,8 @@ export interface ChatMessageRow {
   is_teacher: boolean;
   is_deleted: boolean;
   is_anonymous: boolean;
+  is_highlighted: boolean | null;
+  highlighted_at: string | null;
 }
 
 export interface HelpRequestRow {
@@ -219,6 +221,8 @@ export function chatMessageRowToMessage(row: ChatMessageRow): ChatMessage {
     isPinned: row.is_pinned,
     isTeacher: row.is_teacher,
     isAnonymous: row.is_anonymous,
+    isHighlighted: row.is_highlighted ?? false,
+    highlightedAt: row.highlighted_at,
   };
 }
 

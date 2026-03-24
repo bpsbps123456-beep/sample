@@ -78,6 +78,8 @@ interface ChatMessageRow {
   is_teacher: boolean;
   is_deleted: boolean;
   is_anonymous: boolean;
+  is_highlighted: boolean | null;
+  highlighted_at: string | null;
 }
 
 interface VoteRow {
@@ -602,6 +604,8 @@ function buildWorksheetFromRows(input: {
         isPinned: message.is_pinned,
         isTeacher: message.is_teacher,
         isAnonymous: message.is_anonymous,
+        isHighlighted: message.is_highlighted ?? false,
+        highlightedAt: message.highlighted_at,
       })),
     voteSummary,
     galleryCards,
@@ -668,7 +672,7 @@ async function fetchWorksheetByField(
       .returns<HelpRequestRow[]>(),
     supabase
       .from("chat_messages")
-      .select("id, sender_name, content, is_pinned, is_teacher, is_deleted, is_anonymous")
+      .select("id, sender_name, content, is_pinned, is_teacher, is_deleted, is_anonymous, is_highlighted, highlighted_at")
       .eq("worksheet_id", worksheet.id)
       .order("created_at", { ascending: false })
       .limit(200)

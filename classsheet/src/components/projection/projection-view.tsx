@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Play,
   Shield,
+  Sparkles,
   Timer,
   Unlock,
   X,
@@ -153,6 +154,7 @@ export default function ProjectionView({
   const chatEnabled = useClassroomStore((state) => state.chatEnabled);
   const chatPaused = useClassroomStore((state) => state.chatPaused);
   const chatAnonymousMode = useClassroomStore((state) => state.chatAnonymousMode);
+  const chatHighlightModeEnabled = useClassroomStore((state) => state.chatHighlightModeEnabled);
   const timerSecondsRemaining = useClassroomStore((state) => state.timerSecondsRemaining);
   const timerRunning = useClassroomStore((state) => state.timerRunning);
   const focusMode = useClassroomStore((state) => state.focusMode);
@@ -169,6 +171,9 @@ export default function ProjectionView({
   const toggleWritingLock = useClassroomStore((state) => state.toggleWritingLock);
   const toggleChatAnonymousMode = useClassroomStore((state) => state.toggleChatAnonymousMode);
   const toggleChatPaused = useClassroomStore((state) => state.toggleChatPaused);
+  const toggleChatHighlightMode = useClassroomStore((state) => state.toggleChatHighlightMode);
+  const toggleChatHighlighted = useClassroomStore((state) => state.toggleChatHighlighted);
+  const clearChatHighlights = useClassroomStore((state) => state.clearChatHighlights);
   const clearChat = useClassroomStore((state) => state.clearChat);
   const toggleShowChat = useClassroomStore((state) => state.toggleShowChat);
   const toggleShowTimer = useClassroomStore((state) => state.toggleShowTimer);
@@ -250,6 +255,18 @@ export default function ProjectionView({
     return "worksheet";
   }, [activeStudent, galleryGrid.length, singleGalleryCard]);
 
+  const highlightedMessages = useMemo(
+    () =>
+      chatMessages
+        .filter((message) => !message.isDeleted && !message.isTeacher && message.isHighlighted)
+        .sort((left, right) => {
+          const leftTime = left.highlightedAt ? new Date(left.highlightedAt).getTime() : 0;
+          const rightTime = right.highlightedAt ? new Date(right.highlightedAt).getTime() : 0;
+          return leftTime - rightTime;
+        }),
+    [chatMessages],
+  );
+
   const studentAnswers = useMemo(() => {
     if (!activeStudent?.answers) return {};
     return Object.fromEntries(activeStudent.answers.map((answer) => [answer.componentId, answer])) as Record<
@@ -257,6 +274,13 @@ export default function ProjectionView({
       StudentAnswerDetail
     >;
   }, [activeStudent]);
+
+  const handleToggleChatVisibility = () => {
+    if (showChat && chatHighlightModeEnabled) {
+      toggleChatHighlightMode();
+    }
+    toggleShowChat();
+  };
 
   useEffect(() => {
     setActiveSectionId(answerableSections[0]?.id ?? null);
@@ -328,7 +352,7 @@ export default function ProjectionView({
               label="채팅창"
               active={showChat}
               activeClassName="border-[#4f53dd] bg-[#3d3aa2] text-white"
-              onClick={toggleShowChat}
+              onClick={handleToggleChatVisibility}
             />
           </div>
         </div>
@@ -337,20 +361,30 @@ export default function ProjectionView({
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
           <div ref={scrollRef} className="h-full overflow-auto pl-0 pr-1 py-0">
-            <ProjectionCanvas
-              worksheetTitle={worksheetTitle}
-              pageNumber={currentPageData.pageNumber}
-              mode={projectionMode}
-              components={currentPageData.components}
-              answers={studentAnswers}
-              galleryCards={galleryGrid}
-              galleryCard={singleGalleryCard}
-              sectionRefs={sectionRefs}
-              zoomPercent={zoomPercent}
-            />
+            {chatHighlightModeEnabled ? (
+              <ProjectionHighlightCanvas
+                messages={highlightedMessages}
+                anonymous={chatAnonymousMode}
+                questionTitle={currentPageData.components.find(isAnswerable)?.title ?? null}
+              />
+            ) : (
+              <ProjectionCanvas
+                worksheetTitle={worksheetTitle}
+                pageNumber={currentPageData.pageNumber}
+                mode={projectionMode}
+                components={currentPageData.components}
+                answers={studentAnswers}
+                galleryCards={galleryGrid}
+                galleryCard={singleGalleryCard}
+                sectionRefs={sectionRefs}
+                zoomPercent={zoomPercent}
+              />
+            )}
           </div>
 
-          {(projectionMode === "worksheet" || projectionMode === "student") && answerableSections.length > 0 ? (
+          {!chatHighlightModeEnabled &&
+          (projectionMode === "worksheet" || projectionMode === "student") &&
+          answerableSections.length > 0 ? (
             <section className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col items-center gap-7">
               <VerticalActionButton label="TOP" compact onClick={jumpToTop} />
 
@@ -378,17 +412,21 @@ export default function ProjectionView({
         </main>
 
         {hasSidebar ? (
-          <aside className="flex w-[430px] shrink-0 flex-col border-l border-white/8 bg-[#141c31]">
+          <aside className="flex w-[560px] shrink-0 flex-col border-l border-white/8 bg-[#1e2b45]">
             {showChat ? (
-              <ChatSidebar
+              <ProjectionChatSidebar
                 enabled={chatEnabled}
                 messages={chatMessages}
-                paused={chatPaused}
                 anonymous={chatAnonymousMode}
+                highlightModeEnabled={chatHighlightModeEnabled}
+                paused={chatPaused}
                 onClear={clearChat}
+                onClearHighlights={clearChatHighlights}
+                onToggleHighlightMode={toggleChatHighlightMode}
+                onToggleHighlighted={toggleChatHighlighted}
                 onToggleAnonymous={toggleChatAnonymousMode}
                 onTogglePaused={toggleChatPaused}
-                onClose={toggleShowChat}
+                onClose={handleToggleChatVisibility}
               />
             ) : null}
             {showTimer ? (
@@ -524,15 +562,41 @@ function ProjectionCanvas({
     const cardCount = galleryCards.length;
     const variant = galleryCardVariant(cardCount);
 
+    // All cards in a gallery-grid share the same question — show it once at the top
+    const sharedQuestionId = galleryCards[0]?.questionId;
+    const sharedComponent = sharedQuestionId
+      ? components.find((c) => c.id === sharedQuestionId)
+      : undefined;
+
     return (
-      <div className="flex h-full items-start justify-center px-0 py-1">
-        <div className={cn("grid w-full gap-3", galleryGridClassName(cardCount))}>
+      <div className="flex h-full flex-col px-0 py-1">
+        {sharedComponent && (
+          <div className="shrink-0 px-8 py-5">
+            <div className="flex items-start gap-5 rounded-[28px] border border-white/8 bg-gradient-to-br from-[#1e293b] to-[#111827] p-8 shadow-2xl">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#77f2e5] to-[#10d5c2] text-[28px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(16,213,194,0.3)]">
+                Q
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[38px] font-black leading-[1.2] tracking-tight text-white">
+                  {sharedComponent.title}
+                </h2>
+                {sharedComponent.description ? (
+                  <p className="mt-3 text-[20px] font-bold leading-relaxed text-[#94a3b8]">
+                    {sharedComponent.description}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
+        <div className={cn("grid min-h-0 flex-1 w-full gap-3", galleryGridClassName(cardCount))}>
           {galleryCards.map((card) => (
             <ProjectionGalleryCard
               key={card.id}
               card={card}
               component={components.find((component) => component.id === card.questionId)}
               variant={variant}
+              hideQuestion
             />
           ))}
         </div>
@@ -581,6 +645,124 @@ function ProjectionCanvas({
         />
       </div>
     </div>
+  );
+}
+
+function ProjectionHighlightCanvas({
+  messages,
+  anonymous,
+  questionTitle,
+}: {
+  messages: ChatMessage[];
+  anonymous: boolean;
+  questionTitle: string | null;
+}) {
+  if (messages.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center px-8 py-8">
+        <div className="flex min-h-[320px] w-full max-w-[1200px] flex-col items-center justify-center rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top,#1f3058_0%,#10182c_58%,#0b1121_100%)] px-12 py-14 text-center shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-[#6ae8db]/30 bg-[#10243a] text-[#6ae8db]">
+            <Sparkles className="h-9 w-9" />
+          </div>
+          <div className="mt-8 text-[34px] font-black tracking-tight text-white">좋은 답변 하이라이트</div>
+          <p className="mt-4 max-w-[620px] whitespace-pre-line text-[20px] font-semibold leading-9 text-[#92a3c3]">
+            채팅에서 좋은 학생 답변을 클릭해
+            {"\n"}
+            이 공간에 모아보세요.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-full px-6 py-6">
+      <div className="rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top,#1e2f58_0%,#121a2f_55%,#0b1121_100%)] p-8 shadow-[0_28px_80px_rgba(0,0,0,0.34)]">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-[15px] font-black uppercase tracking-[0.2em] text-[#6ee7db]">
+              <Sparkles className="h-4 w-4" />
+              <span>Highlight</span>
+            </div>
+            <div className="mt-3 text-[34px] font-black tracking-tight text-white">좋은 답변 하이라이트</div>
+            {questionTitle ? (
+              <div className="mt-2 text-[18px] font-semibold text-[#95a6c6]">{questionTitle}</div>
+            ) : null}
+          </div>
+          <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[15px] font-bold text-[#d8e4fa]">
+            {messages.length}개 답변 선택됨
+          </div>
+        </div>
+
+        <div className="flex flex-wrap content-start justify-center gap-6 overflow-auto pb-10 pt-2">
+          {messages.map((message, index) => (
+            <HighlightAnswerCard
+              key={message.id}
+              message={message}
+              anonymous={anonymous}
+              index={index}
+              total={messages.length}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HighlightAnswerCard({
+  message,
+  anonymous,
+  index,
+  total,
+}: {
+  message: ChatMessage;
+  anonymous: boolean;
+  index: number;
+  total: number;
+}) {
+  const displayName = anonymous && message.isAnonymous ? "익명" : message.senderName;
+  const rotation = [-2.2, 1.6, -1.3, 2.4, -1.7, 1.2][index % 6];
+  const verticalShift = [0, 14, -10, 18, -6, 10][index % 6];
+  const width =
+    total <= 1
+      ? "min(920px, 84%)"
+      : total === 2
+        ? "min(620px, 44%)"
+        : total <= 4
+          ? "min(540px, 40%)"
+          : "min(460px, 30%)";
+  const contentSizeClass =
+    total <= 2 ? "text-[32px] leading-[1.5]" : total <= 4 ? "text-[28px] leading-[1.55]" : "text-[24px] leading-[1.55]";
+  const nameSizeClass = total <= 2 ? "text-[18px]" : "text-[16px]";
+  const accentClasses = [
+    "border-[#79efe2]/30 bg-[linear-gradient(180deg,#fffef7_0%,#f4fbff_100%)]",
+    "border-[#ffd5a8]/30 bg-[linear-gradient(180deg,#fffaf3_0%,#fffdf8_100%)]",
+    "border-[#c7d7ff]/30 bg-[linear-gradient(180deg,#f8fbff_0%,#fefcff_100%)]",
+  ];
+
+  return (
+    <article
+      className={cn(
+        "relative overflow-hidden rounded-[28px] border px-7 pb-8 pt-7 text-[#14284a] shadow-[0_24px_60px_rgba(3,7,18,0.22)]",
+        accentClasses[index % accentClasses.length],
+        index === total - 1 ? "ring-2 ring-[#6ae8db]/35" : "",
+      )}
+      style={{
+        width,
+        transform: `translateY(${verticalShift}px) rotate(${rotation}deg)`,
+      }}
+    >
+      <div className="pointer-events-none absolute left-6 top-6 text-[72px] font-black leading-none text-[#d8e6f7]/70">“</div>
+      <div className="relative z-10">
+        <div className={cn("font-black uppercase tracking-[0.18em] text-[#506a93]", nameSizeClass)}>
+          {displayName}
+        </div>
+        <div className={cn("mt-4 whitespace-pre-line break-words font-black tracking-tight", contentSizeClass)}>
+          {message.content}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -695,20 +877,30 @@ function ProjectionWorksheetPage({
 function ProjectionQuestionSurface({
   component,
   answer,
+  fillHeight = false,
+  isGallery = false,
 }: {
   component: WorksheetComponent;
   answer?: StudentAnswerDetail;
+  fillHeight?: boolean;
+  isGallery?: boolean;
 }) {
   if (component.type === "drawing") {
     return (
-      <div className="overflow-hidden rounded-[14px] border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-        <div className="flex min-h-[320px] items-center justify-center bg-[#fbfcff] px-8 py-8">
+      <div className={cn(
+        "overflow-hidden rounded-[14px]",
+        isGallery ? "" : "border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+      )}>
+        <div className={cn(
+          "flex min-h-[320px] items-center justify-center p-4",
+          isGallery ? "" : "bg-[#fbfcff]"
+        )}>
           {answer?.imageUrl ? (
             <div className="relative h-[320px] w-full overflow-hidden rounded-[12px]">
               <Image src={answer.imageUrl} alt={component.title} fill className="object-contain" unoptimized />
             </div>
           ) : (
-            <div className="text-[18px] font-semibold text-[#b2c0d6]">그림 답안 영역</div>
+            <div className={cn("text-[18px] font-semibold", isGallery ? "text-[#94a3b8]" : "text-[#b2c0d6]")}>그림 답안 영역</div>
           )}
         </div>
       </div>
@@ -720,20 +912,24 @@ function ProjectionQuestionSurface({
     const selected = new Set(answer?.choiceValues ?? []);
 
     return (
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {options.map((option, index) => {
           const isSelected = selected.has(option);
           return (
             <div
               key={option}
               className={cn(
-                "flex items-center gap-5 rounded-[14px] border px-6 py-5 text-[24px] font-bold",
-                isSelected ? "border-[#0f6170] bg-[#ebfffb] text-[#12355d]" : "border-[#dfe6f2] bg-white text-[#415980]",
+                "flex items-center gap-4 rounded-[12px] border px-5 py-3.5 text-[24px] font-bold transition-all",
+                isSelected
+                  ? "border-[#10274b] bg-[#1a2b4d] text-white"
+                  : isGallery
+                    ? "border-[#dce4f0] bg-white/40 text-[#415980]"
+                    : "border-[#dfe6f2] bg-white text-[#415980]",
               )}
             >
               <span
                 className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-full text-[18px]",
+                  "flex h-8 w-8 items-center justify-center rounded-full text-[16px]",
                   isSelected ? "bg-[#10d5c2] text-[#0a1428]" : "bg-[#f2f6fb] text-[#8093b2]",
                 )}
               >
@@ -747,60 +943,181 @@ function ProjectionQuestionSurface({
     );
   }
 
-  const lineCount = component.type === "long_text" ? 6 : 4;
   const textValue = answer?.textValue?.trim() ?? "";
+  const placeholder =
+    ("placeholder" in component && component.placeholder) || "여기에 답을 적어주세요...";
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+    <div className={cn(
+      "overflow-hidden",
+      isGallery ? "" : "rounded-[14px] border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]",
+      fillHeight ? "h-full" : ""
+    )}>
       <div
-        className="px-8 py-4"
+        className={cn("px-2 py-2", fillHeight ? "h-full" : "")}
         style={{
-          minHeight: `${lineCount * 78}px`,
-          backgroundImage:
-            "repeating-linear-gradient(to bottom, transparent 0, transparent 56px, #dde6f3 56px, #dde6f3 59px)",
+          minHeight: fillHeight ? undefined : component.type === "short_text" ? "120px" : "240px",
+          backgroundImage: "linear-gradient(transparent 43px, #cbd5e1 43px, #cbd5e1 45px)",
+          backgroundSize: "100% 45px",
+          lineHeight: "45px",
         }}
       >
         {textValue ? (
-          <div className="whitespace-pre-line pt-1 text-[26px] font-bold leading-[59px] text-[#10274b]">{textValue}</div>
+          <div className="whitespace-pre-line text-[28px] font-bold text-[#10274b]">
+            {textValue}
+          </div>
         ) : (
-          <div className="pt-1 text-[24px] font-semibold leading-[59px] text-transparent">.</div>
+          <div className="text-[22px] font-medium text-[#cbd5e1]">{placeholder}</div>
         )}
       </div>
     </div>
   );
 }
 
+
 function ChatSidebar({
   enabled,
   messages,
-  paused,
   anonymous,
+  highlightModeEnabled,
+  paused,
   onClear,
+  onClearHighlights,
+  onToggleHighlightMode,
+  onToggleHighlighted,
   onToggleAnonymous,
   onTogglePaused,
   onClose,
 }: {
   enabled: boolean;
   messages: ChatMessage[];
-  paused: boolean;
   anonymous: boolean;
+  highlightModeEnabled: boolean;
+  paused: boolean;
   onClear: () => void;
+  onClearHighlights: () => void;
+  onToggleHighlightMode: () => void;
+  onToggleHighlighted: (id: string) => void;
   onToggleAnonymous: () => void;
   onTogglePaused: () => void;
   onClose: () => void;
 }) {
   const visibleMessages = messages.filter((message) => !message.isDeleted);
+  const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
+
+  return (
+    <section className="flex min-h-0 flex-1 flex-col">
+      <header className="flex items-center justify-end gap-3 px-5 py-4">
+
+        <div className="flex items-center gap-2">
+          <SidebarAction
+            label="하이라이트"
+            tone={highlightModeEnabled ? "default-active" : "default"}
+            onClick={onToggleHighlightMode}
+          />
+          {highlightModeEnabled ? (
+            <SidebarAction
+              label={highlightedCount > 0 ? `비우기 ${highlightedCount}` : "비우기"}
+              tone="default"
+              onClick={onClearHighlights}
+            />
+          ) : null}
+          <SidebarAction label="초기화" tone="danger" onClick={onClear} />
+          <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
+          <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
+          <SidebarAction label="초기화" tone="danger" onClick={onClear} />
+          <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
+          <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-white/5 hover:text-white"
+            aria-label="채팅창 닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
+
+      {visibleMessages.length === 0 ? (
+        <div className="flex flex-1 items-end justify-center pb-10 text-[18px] text-[#6e7e9d]">
+          아직 메시지가 없습니다
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto px-5 pb-5 pt-2">
+          <div className="space-y-0.5">
+            {visibleMessages.map((message) => {
+              const isTeacher = message.isTeacher || message.senderName === "교사";
+              const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
+
+              return (
+                <div key={message.id} className="flex items-start gap-3 text-[22px] leading-9">
+                  <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
+                    <span>{displayName}</span>
+                    {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
+                  </div>
+                  <span className="text-[#4d5d7b]">|</span>
+                  <div className="min-w-0 flex-1 break-all text-white">{message.content}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProjectionChatSidebar({
+  enabled,
+  messages,
+  anonymous,
+  highlightModeEnabled,
+  paused,
+  onClear,
+  onClearHighlights,
+  onToggleHighlightMode,
+  onToggleHighlighted,
+  onToggleAnonymous,
+  onTogglePaused,
+  onClose,
+}: {
+  enabled: boolean;
+  messages: ChatMessage[];
+  anonymous: boolean;
+  highlightModeEnabled: boolean;
+  paused: boolean;
+  onClear: () => void;
+  onClearHighlights: () => void;
+  onToggleHighlightMode: () => void;
+  onToggleHighlighted: (id: string) => void;
+  onToggleAnonymous: () => void;
+  onTogglePaused: () => void;
+  onClose: () => void;
+}) {
+  const visibleMessages = messages.filter((message) => !message.isDeleted);
+  const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center justify-between gap-3 px-5 py-4">
-        <div className="flex items-center gap-2 text-[17px] font-black uppercase tracking-[0.16em] text-[#9aa7c3]">
+        <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-white/35" />
-          <span>Chat</span>
-          <span className="text-[#6f7f9f]">{countVisibleMessages(messages)}</span>
         </div>
 
         <div className="flex items-center gap-2">
+          <SidebarAction
+            label="하이라이트"
+            tone={highlightModeEnabled ? "default-active" : "default"}
+            onClick={onToggleHighlightMode}
+          />
+          {highlightModeEnabled ? (
+            <SidebarAction
+              label={highlightedCount > 0 ? `비우기 ${highlightedCount}` : "비우기"}
+              tone="default"
+              onClick={onClearHighlights}
+            />
+          ) : null}
           <SidebarAction label="초기화" tone="danger" onClick={onClear} />
           <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
           <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
@@ -825,20 +1142,39 @@ function ChatSidebar({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto px-5 pb-5 pt-2">
-          <div className="space-y-2">
+          <div className="space-y-0.5">
             {visibleMessages.map((message) => {
               const isTeacher = message.isTeacher || message.senderName === "교사";
               const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
+              const isHighlightable = highlightModeEnabled && !isTeacher;
+              const isSelected = Boolean(message.isHighlighted);
 
               return (
-                <div key={message.id} className="flex items-start gap-3 text-[22px] leading-9">
-                  <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
-                    <span>{displayName}</span>
-                    {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
+                <button
+                  key={message.id}
+                  type="button"
+                  disabled={!isHighlightable}
+                  onClick={() => onToggleHighlighted(message.id)}
+                  className={cn(
+                    "w-full rounded-[18px] border border-transparent px-3 py-2 text-left transition-all",
+                    isHighlightable ? "cursor-pointer hover:border-white/10 hover:bg-white/[0.04]" : "cursor-default",
+                    isSelected ? "border-[#6be8dc]/40 bg-[#12263b] shadow-[0_0_0_1px_rgba(107,232,220,0.15)]" : "",
+                  )}
+                >
+                  <div className="flex items-start gap-3 text-[22px] leading-9">
+                    <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
+                      <span>{displayName}</span>
+                      {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
+                    </div>
+                    <span className="text-[#4d5d7b]">|</span>
+                    <div className="min-w-0 flex-1 break-all text-white">{message.content}</div>
+                    {isSelected ? (
+                      <span className="shrink-0 rounded-full bg-[#0d3a3c] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#7af1e2]">
+                        Pick
+                      </span>
+                    ) : null}
                   </div>
-                  <span className="text-[#4d5d7b]">|</span>
-                  <div className="min-w-0 flex-1 break-all text-white">{message.content}</div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -992,7 +1328,7 @@ function SidebarAction({
         tone === "default-active" && "border border-[#425375] bg-[#24304b] text-white",
       )}
     >
-      {tone === "warning" ? (
+      {tone === "warning" && label === "재개" ? (
         <span className="inline-flex items-center gap-1">
           <Play className="h-3 w-3 fill-current" />
           {label}
@@ -1009,117 +1345,119 @@ function ProjectionGalleryCard({
   component,
   expanded = false,
   variant = "grid",
+  hideQuestion = false,
 }: {
   card: GalleryCard;
   component?: WorksheetComponent;
   expanded?: boolean;
   variant?: "single" | "duo" | "trio" | "quad" | "grid";
+  hideQuestion?: boolean;
 }) {
   const derivedAnswer = buildGalleryAnswerDetail(card, component);
+
   const shellClassName =
     variant === "single"
-      ? "min-h-[calc(100vh-84px)] p-10"
+      ? "p-12"
       : variant === "duo"
-        ? "min-h-[calc(100vh-92px)] p-8"
+        ? "p-10"
         : variant === "trio"
-          ? "min-h-[calc(100vh-96px)] p-7"
+          ? "p-8"
           : variant === "quad"
-            ? "min-h-[calc(50vh-52px)] p-6"
-            : "min-h-[calc(33vh-44px)] p-5";
-  const titleClassName =
+            ? "p-6"
+            : "p-6";
+
+  const studentNameClassName =
     variant === "single"
-      ? "text-[32px] tracking-[0.08em]"
+      ? "text-[32px]"
       : variant === "duo"
-        ? "text-[26px] tracking-[0.08em]"
+        ? "text-[26px]"
         : variant === "trio"
-          ? "text-[22px] tracking-[0.07em]"
-          : "text-[18px] tracking-[0.06em]";
-  const fallbackTextClassName =
-    variant === "single"
-      ? "min-h-[calc(100vh-220px)] rounded-[22px] px-8 py-8 text-[42px] leading-[1.65]"
-      : variant === "duo"
-        ? "min-h-[calc(100vh-210px)] rounded-[20px] px-7 py-7 text-[34px] leading-[1.6]"
-        : variant === "trio"
-          ? "min-h-[calc(100vh-240px)] rounded-[18px] px-6 py-6 text-[26px] leading-[1.55]"
-          : variant === "quad"
-            ? "min-h-[calc(50vh-120px)] rounded-[18px] px-5 py-5 text-[21px] leading-[1.5]"
-            : "min-h-[220px] rounded-[16px] px-4 py-4 text-[18px] leading-[1.45]";
-  const imageHeightClassName =
-    variant === "single"
-      ? "h-[calc(100vh-240px)]"
-      : variant === "duo"
-        ? "h-[calc(100vh-240px)]"
-        : variant === "trio"
-          ? "h-[calc(100vh-280px)]"
-          : variant === "quad"
-            ? "h-[calc(50vh-130px)]"
-            : "h-[220px]";
-  const answerFrameClassName =
-    variant === "single"
-      ? "rounded-[24px] px-7 py-7"
-      : variant === "duo"
-        ? "rounded-[20px] px-6 py-6"
-        : variant === "trio"
-          ? "rounded-[18px] px-5 py-5"
-          : "rounded-[16px] px-4 py-4";
+          ? "text-[22px]"
+          : "text-[20px]";
+
   const questionTitleClassName =
     variant === "single"
-      ? "text-[34px]"
+      ? "text-[38px]"
       : variant === "duo"
-        ? "text-[28px]"
+        ? "text-[32px]"
         : variant === "trio"
-          ? "text-[24px]"
-          : "text-[20px]";
+          ? "text-[26px]"
+          : "text-[22px]";
+
+  const fallbackTextClassName =
+    variant === "single"
+      ? "text-[42px] leading-[1.65]"
+      : variant === "duo"
+        ? "text-[34px] leading-[1.6]"
+        : variant === "trio"
+          ? "text-[28px] leading-[1.55]"
+          : "text-[22px] leading-[1.45]";
+
   return (
     <article
       className={cn(
-        "rounded-[24px] border border-white/10 bg-[#11192d] shadow-[0_16px_40px_rgba(0,0,0,0.24)]",
+        "relative flex h-full flex-col overflow-hidden rounded-[16px] border border-[#dce4f0] bg-[#fdfcf8] shadow-[0_12px_30px_rgba(0,0,0,0.1)]",
         shellClassName,
-        expanded ? "p-10" : undefined,
+        expanded ? "p-12" : undefined,
       )}
     >
-      <div className={cn("mb-3 font-black uppercase text-[#8ca0c4]", titleClassName)}>
-        {card.displayName}
-      </div>
-      {component ? (
-        <div className="mb-4">
-          <div className={cn("font-black leading-tight text-[#f4f8ff]", questionTitleClassName)}>
-            {component.title}
+      {/* Notebook red margin lines */}
+      <div className="pointer-events-none absolute bottom-0 left-[28px] top-0 w-[1.5px] bg-[#f6c7d2] opacity-60" />
+      <div className="pointer-events-none absolute bottom-0 left-[34px] top-0 w-[1.5px] bg-[#f9d7de] opacity-60" />
+
+      <div className="relative z-10 flex flex-col h-full pl-6">
+        <header className="mb-4">
+          <div className={cn("font-black tracking-tight text-[#10274b]", studentNameClassName)}>
+            {card.displayName}
           </div>
-          {component.description ? (
-            <div className="mt-3 rounded-[14px] border border-white/8 bg-white/[0.04] px-4 py-3 text-[16px] font-bold leading-[1.5] text-[#d0dbef]">
-              {component.description}
+        </header>
+
+        {!hideQuestion && component ? (
+          <div className="mb-5">
+            <div className={cn("font-black leading-tight text-[#10274b]", questionTitleClassName)}>
+              {component.title}
             </div>
-          ) : null}
-        </div>
-      ) : null}
-      {component ? (
-        <div
-          className={cn(
-            "overflow-hidden border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]",
-            answerFrameClassName,
-          )}
-        >
-          <ProjectionQuestionSurface component={component} answer={derivedAnswer} />
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "overflow-hidden border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]",
-            answerFrameClassName,
-          )}
-        >
-          {card.imageUrl ? (
-            <div className={cn("relative overflow-hidden rounded-[18px] border border-white/10 bg-[#0b1120]", imageHeightClassName)}>
-              <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
-            </div>
-          ) : (
-            <div className={cn("whitespace-pre-line bg-white font-bold text-[#10274b]", fallbackTextClassName)}>
-              {card.excerpt}
-            </div>
-          )}
-        </div>
-      )}
+            {component.description ? (
+              <div className="mt-3 text-[17px] font-bold leading-[1.6] text-[#64748b]">
+                {component.description}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {component ? (
+          <div className="min-w-0 flex-1">
+            <ProjectionQuestionSurface
+              component={component}
+              answer={derivedAnswer}
+              fillHeight
+              isGallery={true}
+            />
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            {card.imageUrl ? (
+              <div className="relative h-full w-full overflow-hidden rounded-[12px] bg-white/50 border border-[#e2e8f0]">
+                <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "whitespace-pre-line font-bold text-[#10274b]",
+                  fallbackTextClassName,
+                )}
+                style={{
+                  backgroundImage: "linear-gradient(transparent 43px, #cbd5e1 43px, #cbd5e1 45px)",
+                  backgroundSize: "100% 45px",
+                  lineHeight: "45px",
+                }}
+              >
+                {card.excerpt}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </article>
   );
 }

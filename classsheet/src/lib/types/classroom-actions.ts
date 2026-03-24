@@ -37,6 +37,8 @@ export type ClassroomSyncAction =
       isAnonymous?: boolean;
     }
   | { type: "chat_pin"; id: string; pinned: boolean }
+  | { type: "chat_highlight"; id: string; highlighted: boolean; highlightedAt?: string | null }
+  | { type: "chat_highlight_clear" }
   | { type: "chat_delete"; id: string }
   | { type: "chat_clear" }
   | { type: "help_request"; studentName: string; studentToken?: string; questionLabel: string }
@@ -74,4 +76,3 @@ export type ClassroomSyncAction =
   | { type: "session_code_change"; newCode: string }
   | { type: "set_projection"; projectedType: string | null; targetId?: string | null }
   | { type: "remove_student"; submissionId: string };
-

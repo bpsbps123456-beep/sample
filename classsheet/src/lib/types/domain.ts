@@ -119,6 +119,8 @@ export interface ChatMessage {
   isTeacher?: boolean;
   isDeleted?: boolean;
   isAnonymous?: boolean;
+  isHighlighted?: boolean;
+  highlightedAt?: string | null;
 }
 
 export interface ActiveVote {

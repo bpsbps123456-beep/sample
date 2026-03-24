@@ -426,7 +426,7 @@ export function StudentWorkspace() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2.5">
             {/* 도움 요청 */}
             {!submitted && (
               <button
@@ -436,14 +436,14 @@ export function StudentWorkspace() {
                   window.setTimeout(() => setHelpSent(false), 3000);
                 }}
                 disabled={helpSent}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${helpSent ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${helpSent ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
               >
                 {helpSent ? "✓ 요청됨" : "도움 요청"}
               </button>
             )}
 
             {/* Timer */}
-            <div className={`rounded-lg px-3 py-1.5 text-sm font-mono font-bold tabular-nums leading-none ${
+            <div className={`rounded-xl px-4 py-2 text-[15px] font-mono font-bold tabular-nums leading-none ${
               timerLow
                 ? "bg-rose-50 text-rose-600 ring-1 ring-rose-200"
                 : timerSecondsRemaining > 0
@@ -455,21 +455,21 @@ export function StudentWorkspace() {
 
             {/* Page navigation */}
             {totalPages > 1 ? (
-              <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+              <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                 <button
                   onClick={() => setActivePage((p) => Math.max(1, p - 1))}
                   disabled={activePage === 1}
-                  className="h-7 w-7 flex items-center justify-center rounded-md text-slate-500 hover:bg-white hover:text-slate-900 transition-all disabled:opacity-30"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 disabled:opacity-30"
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                  <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <span className="min-w-[36px] text-center text-xs font-bold text-slate-700">{activePage} / {totalPages}</span>
+                <span className="min-w-[48px] text-center text-sm font-bold text-slate-700">{activePage} / {totalPages}</span>
                 <button
                   onClick={() => setActivePage((p) => Math.min(currentPage, p + 1))}
                   disabled={activePage >= currentPage}
-                  className="h-7 w-7 flex items-center justify-center rounded-md text-slate-500 hover:bg-white hover:text-slate-900 transition-all disabled:opacity-30"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 disabled:opacity-30"
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                 </button>
               </div>
             ) : null}
@@ -492,7 +492,7 @@ export function StudentWorkspace() {
                     setIsSubmitting(false);
                   }}
                   disabled={isSubmitting}
-                  className="action-primary rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm shadow-teal-500/20 disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none"
+                  className="action-primary rounded-xl px-4 py-2 text-sm font-bold shadow-sm shadow-teal-500/20 disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none"
                 >
                   {isSubmitting ? "제출 중..." : "제출하기 →"}
                 </button>
@@ -503,7 +503,7 @@ export function StudentWorkspace() {
             <button
               onClick={switchStudent}
               disabled={isSwitching}
-              className="hidden rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 sm:block"
+              className="hidden rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 sm:block"
             >
               {isSwitching ? "전환 중..." : `${studentName} ↺`}
             </button>

@@ -16,6 +16,7 @@ export interface ChatSliceState {
   chatEnabled: boolean;
   chatPaused: boolean;
   chatAnonymousMode: boolean;
+  chatHighlightModeEnabled: boolean;
 }
 
 export interface ChatSliceActions {
@@ -31,6 +32,9 @@ export interface ChatSliceActions {
   deleteChatMessage: (id: string) => void;
   clearChat: () => void;
   toggleChatAnonymousMode: () => void;
+  toggleChatHighlightMode: () => void;
+  toggleChatHighlighted: (id: string) => void;
+  clearChatHighlights: () => void;
   handleChatInsert: (row: ChatMessageRow) => void;
   handleChatUpdate: (row: ChatMessageRow) => void;
   handleChatDelete: (id: string) => void;
@@ -43,6 +47,7 @@ export const chatSliceDefaults: ChatSliceState = {
   chatEnabled: false,
   chatPaused: false,
   chatAnonymousMode: false,
+  chatHighlightModeEnabled: false,
 };
 
 // ─── set / get 최소 타입 정의 ─────────────────────────────────────────────
@@ -91,6 +96,8 @@ export function createChatActions(set: ChatSetFn, get: ChatGetFn): ChatSliceActi
         isPinned: false,
         isTeacher,
         isAnonymous,
+        isHighlighted: false,
+        highlightedAt: null,
       };
 
       set((state) => ({
@@ -137,6 +144,60 @@ export function createChatActions(set: ChatSetFn, get: ChatGetFn): ChatSliceActi
       syncClassroomAction(get().worksheetId, { type: "chat_anonymous_mode", enabled });
     },
 
+    toggleChatHighlightMode: () => {
+      set((state) => ({ chatHighlightModeEnabled: !state.chatHighlightModeEnabled }));
+    },
+
+    toggleChatHighlighted: (id) => {
+      const message = get().chatMessages.find((entry) => entry.id === id);
+      if (!message || message.isTeacher || message.isDeleted) {
+        return;
+      }
+
+      const highlighted = !message.isHighlighted;
+      const highlightedAt = highlighted ? new Date().toISOString() : null;
+
+      set((state) => ({
+        chatMessages: state.chatMessages.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                isHighlighted: highlighted,
+                highlightedAt,
+              }
+            : entry,
+        ),
+      }));
+
+      syncClassroomAction(get().worksheetId, {
+        type: "chat_highlight",
+        id,
+        highlighted,
+        highlightedAt,
+      });
+    },
+
+    clearChatHighlights: () => {
+      const hasHighlights = get().chatMessages.some((message) => message.isHighlighted);
+      if (!hasHighlights) {
+        return;
+      }
+
+      set((state) => ({
+        chatMessages: state.chatMessages.map((message) =>
+          message.isHighlighted
+            ? {
+                ...message,
+                isHighlighted: false,
+                highlightedAt: null,
+              }
+            : message,
+        ),
+      }));
+
+      syncClassroomAction(get().worksheetId, { type: "chat_highlight_clear" });
+    },
+
     // ─── 실시간 핸들러 ────────────────────────────────────────────────────────
 
     handleChatInsert: (row) => {
@@ -148,6 +209,8 @@ export function createChatActions(set: ChatSetFn, get: ChatGetFn): ChatSliceActi
         isPinned: row.is_pinned,
         isTeacher: row.is_teacher,
         isAnonymous: row.is_anonymous,
+        isHighlighted: row.is_highlighted ?? false,
+        highlightedAt: row.highlighted_at,
       };
       set((state) => {
         // 중복 메시지 방지 (낙관적 업데이트로 이미 추가된 경우)
@@ -163,7 +226,14 @@ export function createChatActions(set: ChatSetFn, get: ChatGetFn): ChatSliceActi
         chatMessages: row.is_deleted
           ? state.chatMessages.filter((m) => m.id !== row.id)
           : state.chatMessages.map((m) =>
-              m.id === row.id ? { ...m, isPinned: row.is_pinned } : m,
+              m.id === row.id
+                ? {
+                    ...m,
+                    isPinned: row.is_pinned,
+                    isHighlighted: row.is_highlighted ?? false,
+                    highlightedAt: row.highlighted_at,
+                  }
+                : m,
             ),
       }));
     },

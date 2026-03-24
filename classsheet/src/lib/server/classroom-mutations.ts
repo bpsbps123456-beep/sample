@@ -352,6 +352,8 @@ export async function applyClassroomMutation(
           content: action.content,
           is_teacher: Boolean(action.isTeacher),
           is_anonymous: Boolean(action.isAnonymous),
+          is_highlighted: false,
+          highlighted_at: null,
         });
         break;
       }
@@ -360,6 +362,27 @@ export async function applyClassroomMutation(
           .from("chat_messages")
           .update({ is_pinned: action.pinned })
           .eq("id", action.id);
+        break;
+      }
+      case "chat_highlight": {
+        await supabase
+          .from("chat_messages")
+          .update({
+            is_highlighted: action.highlighted,
+            highlighted_at: action.highlighted ? action.highlightedAt ?? new Date().toISOString() : null,
+          })
+          .eq("id", action.id);
+        break;
+      }
+      case "chat_highlight_clear": {
+        await supabase
+          .from("chat_messages")
+          .update({
+            is_highlighted: false,
+            highlighted_at: null,
+          })
+          .eq("worksheet_id", worksheetId)
+          .eq("is_highlighted", true);
         break;
       }
       case "chat_delete": {

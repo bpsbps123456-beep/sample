@@ -151,10 +151,10 @@ export function TeacherDashboardNavbar({
         {/* Center-Right: Mode & Feature Controls */}
         <div className="flex items-center gap-2">
           {/* Widget toggles */}
-          <div className="flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 ring-1 ring-slate-200/60">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl ring-1 ring-slate-200/50">
             <button
               onClick={toggleShowChat}
-              className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
+              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
                 showChat ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -162,7 +162,7 @@ export function TeacherDashboardNavbar({
             </button>
             <button
               onClick={toggleShowTimer}
-              className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
+              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
                 showTimer ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -170,7 +170,7 @@ export function TeacherDashboardNavbar({
             </button>
             <button
               onClick={toggleShowVote}
-              className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
+              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
                 showVote ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
