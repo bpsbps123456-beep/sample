@@ -415,7 +415,7 @@ export function StudentWorkspace() {
     <div className="flex min-h-screen flex-col">
 
       {/* ── Top navigation ── */}
-      <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/96 backdrop-blur-sm">
+      <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-3 px-3 py-3">
           <div className="min-w-0 flex-1">
             {subject ? (
@@ -634,7 +634,7 @@ export function StudentWorkspace() {
         ) : (
           /* Worksheet + sidebar */
           <div className="px-3 py-4">
-            <div className={`grid gap-5 lg:items-start ${chatEnabled || galleryOpen ? "lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_380px]" : ""}`}>
+            <div className={`grid gap-5 lg:items-start ${chatEnabled || galleryOpen ? "lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_494px]" : ""}`}>
 
               {/* ── Worksheet content ── */}
               <div className="min-w-0 flex-1">
@@ -703,24 +703,24 @@ export function StudentWorkspace() {
                 {/* Chat */}
                 {chatEnabled ? (
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
                       <span className="text-sm font-semibold text-slate-800">채팅</span>
-                      <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide ${chatPaused ? "text-amber-500" : "text-teal-600"}`}>
+                      <div className={`flex items-center gap-1.5 text-[13px] font-bold uppercase tracking-wide ${chatPaused ? "text-amber-500" : "text-teal-600"}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${chatPaused ? "bg-amber-400" : "bg-teal-500"}`} />
                         {chatPaused ? "일시중지" : "라이브"}
                       </div>
                     </div>
 
-                    <div ref={chatScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3.5">
+                    <div ref={chatScrollRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-4">
                       {/* 📌 핀된 메시지 고정 배너 */}
                       {chatMessages.filter((m) => m.isPinned && !m.isDeleted).map((msg) => (
-                        <div key={`pin-${msg.id}`} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <div key={`pin-${msg.id}`} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5">
                           <span className="mt-0.5 shrink-0 text-amber-500" aria-label="핀">📌</span>
                           <div className="min-w-0 flex-1">
-                            <div className="text-[10px] font-bold text-amber-600">
+                            <div className="text-[13px] font-bold text-amber-600">
                               {msg.isTeacher ? "🛡️ 교사" : ((chatAnonymousMode || msg.isAnonymous) && msg.senderName !== studentName ? "익명 친구" : msg.senderName)}
                             </div>
-                            <div className="text-xs text-amber-800 leading-snug">{msg.content}</div>
+                            <div className="text-[15px] text-amber-800 leading-relaxed">{msg.content}</div>
                           </div>
                         </div>
                       ))}
@@ -737,16 +737,17 @@ export function StudentWorkspace() {
                           const isSelf = msg.senderName === studentName;
                           const displayName = isTeacher ? "🛡️ 교사" : ((chatAnonymousMode || msg.isAnonymous) && !isSelf ? "익명 친구" : msg.senderName);
                           return (
-                            <div key={msg.id} className={`flex flex-col ${isSelf ? "items-end" : "items-start"}`}>
-                              {!isSelf && (
-                                <div className={`mb-0.5 ml-1 text-[12px] font-semibold ${isTeacher ? "text-teal-600 font-bold" : "text-slate-400"}`}>
-                                  {displayName}
-                                </div>
-                              )}
-                              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-[14.3px] leading-snug ${
-                                isTeacher ? "bg-slate-900 text-white"
-                                : isSelf ? "bg-teal-600 text-white"
-                                : "bg-slate-100 text-slate-700"
+                            <div key={msg.id} className="flex items-start gap-2.5 text-[18px] leading-relaxed text-slate-800">
+                              <div className={`min-w-[76px] shrink-0 font-bold ${
+                                isTeacher ? "text-teal-600"
+                                : isSelf ? "text-emerald-600"
+                                : "text-slate-500"
+                              }`}>
+                                {displayName}
+                              </div>
+                              <span className="shrink-0 text-slate-300">|</span>
+                              <div className={`min-w-0 flex-1 break-words font-semibold ${
+                                isSelf ? "text-emerald-700" : "text-slate-900"
                               }`}>
                                 {msg.content}
                               </div>
@@ -759,7 +760,7 @@ export function StudentWorkspace() {
                     {chatMuted ? (
                       <div className="border-t border-slate-100 px-4 py-2.5 text-xs text-amber-600">채팅이 제한되어 있습니다.</div>
                     ) : (
-                      <div className="flex gap-2 border-t border-slate-100 p-3">
+                      <div className="flex gap-2 border-t border-slate-100 p-3.5">
                         <input
                           value={chatDraft}
                           onChange={(e) => setChatDraft(e.target.value)}
@@ -772,12 +773,12 @@ export function StudentWorkspace() {
                           }}
                           disabled={chatPaused || sessionClosed}
                           placeholder={chatAnonymousMode ? "익명 메시지..." : "메시지 입력..."}
-                          className="field-input flex-1 rounded-lg px-3 py-2 text-[13px]"
+                          className="field-input flex-1 rounded-lg px-4 py-2.5 text-[17px]"
                         />
                         <button
                           onClick={() => { if (chatDraft.trim()) { sendChatMessage(studentName, chatDraft, false, studentToken); setChatDraft(""); } }}
                           disabled={chatPaused || sessionClosed}
-                          className="action-primary rounded-lg px-3 py-2 text-[13px] font-semibold"
+                          className="action-primary rounded-lg px-4 py-2.5 text-[17px] font-semibold"
                         >
                           전송
                         </button>

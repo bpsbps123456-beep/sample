@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import {
   BarChart3,
   Grid,
@@ -54,6 +54,24 @@ function isAnswerable(component: WorksheetComponent) {
 
 function countVisibleMessages(messages: ChatMessage[]) {
   return messages.filter((message) => !message.isDeleted).length;
+}
+
+function useChatAutoScroll(messages: ChatMessage[]) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const latestMessage = messages[messages.length - 1];
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const frame = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [latestMessage?.id, latestMessage?.content, messages.length]);
+
+  return scrollRef;
 }
 
 const EMPTY_GALLERY_ANSWER = "아직 공개할 답안이 없습니다.";
@@ -254,18 +272,21 @@ export default function ProjectionView({
     if (galleryGrid.length > 0) return "gallery-grid";
     return "worksheet";
   }, [activeStudent, galleryGrid.length, singleGalleryCard]);
+  const mainProjectionType = projectedType === "chat" || projectedType === "timer" || projectedType === "vote" ? projectedType : null;
 
-  const highlightedMessages = useMemo(
-    () =>
-      chatMessages
-        .filter((message) => !message.isDeleted && !message.isTeacher && message.isHighlighted)
-        .sort((left, right) => {
-          const leftTime = left.highlightedAt ? new Date(left.highlightedAt).getTime() : 0;
-          const rightTime = right.highlightedAt ? new Date(right.highlightedAt).getTime() : 0;
-          return leftTime - rightTime;
-        }),
-    [chatMessages],
-  );
+  const highlightedMessages = useMemo(() => {
+    if (!chatHighlightModeEnabled) {
+      return [];
+    }
+
+    return chatMessages
+      .filter((message) => !message.isDeleted && !message.isTeacher && message.isHighlighted)
+      .sort((left, right) => {
+        const leftTime = left.highlightedAt ? new Date(left.highlightedAt).getTime() : 0;
+        const rightTime = right.highlightedAt ? new Date(right.highlightedAt).getTime() : 0;
+        return leftTime - rightTime;
+      });
+  }, [chatMessages, chatHighlightModeEnabled]);
 
   const studentAnswers = useMemo(() => {
     if (!activeStudent?.answers) return {};
@@ -361,14 +382,30 @@ export default function ProjectionView({
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
           <div ref={scrollRef} className="h-full overflow-auto pl-0 pr-1 py-0">
-            {chatHighlightModeEnabled ? (
+            {mainProjectionType === "chat" ? (
+              <MemoizedProjectionChatStage messages={chatMessages} anonymous={chatAnonymousMode} />
+            ) : mainProjectionType === "timer" ? (
+              <MemoizedTimerSidebar
+                seconds={timerSecondsRemaining}
+                running={timerRunning}
+                compact={false}
+                onClose={() => setProjection(null)}
+              />
+            ) : mainProjectionType === "vote" ? (
+              <MemoizedVoteSidebar
+                activeVote={activeVote}
+                voteSummary={voteSummary}
+                compact={false}
+                onClose={() => setProjection(null)}
+              />
+            ) : chatHighlightModeEnabled ? (
               <ProjectionHighlightCanvas
                 messages={highlightedMessages}
                 anonymous={chatAnonymousMode}
                 questionTitle={currentPageData.components.find(isAnswerable)?.title ?? null}
               />
             ) : (
-              <ProjectionCanvas
+              <MemoizedProjectionCanvas
                 worksheetTitle={worksheetTitle}
                 pageNumber={currentPageData.pageNumber}
                 mode={projectionMode}
@@ -385,36 +422,31 @@ export default function ProjectionView({
           {!chatHighlightModeEnabled &&
           (projectionMode === "worksheet" || projectionMode === "student") &&
           answerableSections.length > 0 ? (
-            <section className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col items-center gap-7">
+            <section className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
               <VerticalActionButton label="TOP" compact onClick={jumpToTop} />
-
-              <div className="flex flex-col gap-2 rounded-[20px] bg-[#4c5668]/70 p-2 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-                {answerableSections.map((component, index) => (
-                  <VerticalActionButton
-                    key={component.id}
-                    label={`${index + 1}`}
-                    active={activeSectionId === component.id}
-                    onClick={() => jumpToSection(component.id)}
-                  />
-                ))}
+              {answerableSections.map((component, index) => (
+                <VerticalActionButton
+                  key={component.id}
+                  label={`${index + 1}`}
+                  active={activeSectionId === component.id}
+                  onClick={() => jumpToSection(component.id)}
+                />
+              ))}
+              <div className="my-1 h-px w-8 bg-white/20" />
+              <VerticalActionButton label="+" onClick={() => changeZoom(25)} />
+              <div className="flex h-12 w-14 items-center justify-center rounded-[14px] bg-[#1a2338] text-center text-[13px] font-black text-[#10e7d3]">
+                {zoomPercent}%
               </div>
-
-              <div className="flex flex-col gap-2 rounded-[20px] bg-[#4c5668]/70 p-2 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-                <VerticalActionButton label="+" onClick={() => changeZoom(25)} />
-                <div className="flex h-12 w-14 items-center justify-center rounded-[14px] bg-[#1a2338] text-center text-[13px] font-black text-[#10e7d3]">
-                  {zoomPercent}%
-                </div>
-                <VerticalActionButton label="-" onClick={() => changeZoom(-25)} />
-                <VerticalActionButton label="RESET" compact onClick={resetView} />
-              </div>
+              <VerticalActionButton label="-" onClick={() => changeZoom(-25)} />
+              <VerticalActionButton label="RESET" compact onClick={resetView} />
             </section>
           ) : null}
         </main>
 
         {hasSidebar ? (
-          <aside className="flex w-[560px] shrink-0 flex-col border-l border-white/8 bg-[#1e2b45]">
+          <aside className="flex w-[560px] shrink-0 flex-col border-l border-white/8">
             {showChat ? (
-              <ProjectionChatSidebar
+              <MemoizedProjectionChatSidebar
                 enabled={chatEnabled}
                 messages={chatMessages}
                 anonymous={chatAnonymousMode}
@@ -430,7 +462,7 @@ export default function ProjectionView({
               />
             ) : null}
             {showTimer ? (
-              <TimerSidebar
+              <MemoizedTimerSidebar
                 seconds={timerSecondsRemaining}
                 running={timerRunning}
                 compact={showChat || showVote}
@@ -438,7 +470,7 @@ export default function ProjectionView({
               />
             ) : null}
             {showVote ? (
-              <VoteSidebar
+              <MemoizedVoteSidebar
                 activeVote={activeVote}
                 voteSummary={voteSummary}
                 compact={showChat || showTimer}
@@ -648,6 +680,8 @@ function ProjectionCanvas({
   );
 }
 
+const MemoizedProjectionCanvas = memo(ProjectionCanvas);
+
 function ProjectionHighlightCanvas({
   messages,
   anonymous,
@@ -709,6 +743,57 @@ function ProjectionHighlightCanvas({
     </div>
   );
 }
+
+function ProjectionChatStage({
+  messages,
+  anonymous,
+}: {
+  messages: ChatMessage[];
+  anonymous: boolean;
+}) {
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => !message.isDeleted),
+    [messages],
+  );
+  const messagesScrollRef = useChatAutoScroll(visibleMessages);
+
+  return (
+    <div className="h-full px-4 py-4">
+      <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#10182c] shadow-[0_24px_60px_rgba(0,0,0,0.26)]">
+        <div
+          ref={messagesScrollRef}
+          className="min-h-0 flex-1 overflow-auto px-8 py-8"
+        >
+          {visibleMessages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-[22px] font-semibold text-[#8da0c4]">
+              아직 메시지가 없습니다
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {visibleMessages.map((message) => {
+                const isTeacher = message.isTeacher || message.senderName === "교사";
+                const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
+
+                return (
+                  <div key={message.id} className="flex items-start gap-4 text-[28px] leading-[1.55]">
+                    <div className={cn("flex shrink-0 items-center gap-1.5 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
+                      <span>{displayName}</span>
+                      {isTeacher ? <Shield className="h-5 w-5 fill-[#60a5fa] text-[#60a5fa]" /> : null}
+                    </div>
+                    <span className="text-[#6b7fa3]">|</span>
+                    <div className="min-w-0 flex-1 break-all font-semibold text-[#f8fbff]">{message.content}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MemoizedProjectionChatStage = memo(ProjectionChatStage);
 
 function HighlightAnswerCard({
   message,
@@ -1002,8 +1087,12 @@ function ChatSidebar({
   onTogglePaused: () => void;
   onClose: () => void;
 }) {
-  const visibleMessages = messages.filter((message) => !message.isDeleted);
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => !message.isDeleted),
+    [messages],
+  );
   const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
+  const messagesScrollRef = useChatAutoScroll(visibleMessages);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -1031,7 +1120,7 @@ function ChatSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-white/5 hover:text-white"
+            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-gray-100 hover:text-[#1a2338]"
             aria-label="채팅창 닫기"
           >
             <X className="h-4 w-4" />
@@ -1052,11 +1141,11 @@ function ChatSidebar({
 
               return (
                 <div key={message.id} className="flex items-start gap-3 text-[22px] leading-9">
-                  <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
+                  <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#4f5bff]" : "text-[#e07b00]")}>
                     <span>{displayName}</span>
-                    {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
+                    {isTeacher ? <Shield className="h-4 w-4 fill-[#4f5bff] text-[#4f5bff]" /> : null}
                   </div>
-                  <span className="text-[#4d5d7b]">|</span>
+                  <span className="text-[#b0bcd0]">|</span>
                   <div className="min-w-0 flex-1 break-all text-white">{message.content}</div>
                 </div>
               );
@@ -1095,16 +1184,16 @@ function ProjectionChatSidebar({
   onTogglePaused: () => void;
   onClose: () => void;
 }) {
-  const visibleMessages = messages.filter((message) => !message.isDeleted);
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => !message.isDeleted),
+    [messages],
+  );
   const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
+  const messagesScrollRef = useChatAutoScroll(visibleMessages);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between gap-3 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-white/35" />
-        </div>
-
+      <header className="flex items-center justify-end gap-3 px-3 py-4">
         <div className="flex items-center gap-2">
           <SidebarAction
             label="하이라이트"
@@ -1124,7 +1213,7 @@ function ProjectionChatSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-white/5 hover:text-white"
+            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-gray-100 hover:text-[#1a2338]"
             aria-label="채팅창 닫기"
           >
             <X className="h-4 w-4" />
@@ -1132,17 +1221,13 @@ function ProjectionChatSidebar({
         </div>
       </header>
 
-      {!enabled ? (
-        <div className="flex flex-1 items-center justify-center px-6 text-center text-[18px] font-semibold text-[#7f90af]">
-          채팅이 현재 비활성화되어 있습니다.
-        </div>
-      ) : visibleMessages.length === 0 ? (
+      {visibleMessages.length === 0 ? (
         <div className="flex flex-1 items-end justify-center pb-10 text-[18px] text-[#6e7e9d]">
           아직 메시지가 없습니다
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto px-5 pb-5 pt-2">
-          <div className="space-y-0.5">
+        <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-auto pr-3 pl-1 pb-4 pt-1">
+          <div className="space-y-0">
             {visibleMessages.map((message) => {
               const isTeacher = message.isTeacher || message.senderName === "교사";
               const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
@@ -1153,21 +1238,23 @@ function ProjectionChatSidebar({
                 <button
                   key={message.id}
                   type="button"
-                  disabled={!isHighlightable}
-                  onClick={() => onToggleHighlighted(message.id)}
+                  onClick={() => {
+                    if (!isHighlightable) return;
+                    onToggleHighlighted(message.id);
+                  }}
                   className={cn(
-                    "w-full rounded-[18px] border border-transparent px-3 py-2 text-left transition-all",
+                    "w-full rounded-[18px] border border-transparent px-3 py-1.5 text-left transition-all",
                     isHighlightable ? "cursor-pointer hover:border-white/10 hover:bg-white/[0.04]" : "cursor-default",
                     isSelected ? "border-[#6be8dc]/40 bg-[#12263b] shadow-[0_0_0_1px_rgba(107,232,220,0.15)]" : "",
                   )}
                 >
-                  <div className="flex items-start gap-3 text-[22px] leading-9">
+                  <div className="flex items-start gap-3 text-[21px] leading-8">
                     <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
                       <span>{displayName}</span>
                       {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
                     </div>
-                    <span className="text-[#4d5d7b]">|</span>
-                    <div className="min-w-0 flex-1 break-all text-white">{message.content}</div>
+                    <span className="text-[#6b7fa3]">|</span>
+                    <div className="min-w-0 flex-1 break-all font-semibold text-[#f8fbff]">{message.content}</div>
                     {isSelected ? (
                       <span className="shrink-0 rounded-full bg-[#0d3a3c] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#7af1e2]">
                         Pick
@@ -1183,6 +1270,8 @@ function ProjectionChatSidebar({
     </section>
   );
 }
+
+const MemoizedProjectionChatSidebar = memo(ProjectionChatSidebar);
 
 function TimerSidebar({
   seconds,
@@ -1208,7 +1297,7 @@ function TimerSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-white/5 hover:text-white"
+            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-gray-100 hover:text-[#1a2338]"
             aria-label="타이머 닫기"
           >
             <X className="h-4 w-4" />
@@ -1224,6 +1313,8 @@ function TimerSidebar({
     </section>
   );
 }
+
+const MemoizedTimerSidebar = memo(TimerSidebar);
 
 function VoteSidebar({
   activeVote,
@@ -1249,7 +1340,7 @@ function VoteSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-white/5 hover:text-white"
+            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-gray-100 hover:text-[#1a2338]"
             aria-label="투표 닫기"
           >
             <X className="h-4 w-4" />
@@ -1306,6 +1397,8 @@ function VoteSidebar({
     </section>
   );
 }
+
+const MemoizedVoteSidebar = memo(VoteSidebar);
 
 function SidebarAction({
   label,

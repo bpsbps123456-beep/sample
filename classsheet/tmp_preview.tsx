@@ -338,13 +338,8 @@ export function TeacherDashboardPreview() {
                         </span>
                       )}
                       {projectedCardsCount > 0 && (
-                        <span className={cn(
-                          "rounded-lg px-2.5 py-1 text-xs font-black tracking-tight transition-all duration-300",
-                          isPartialMode 
-                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" 
-                            : "bg-slate-100 text-slate-500 font-medium"
-                        )}>
-                          {projectedCardsCount} {isPartialMode ? "개 송출 중" : "개 선택됨"}
+                        <span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600">
+                          {projectedCardsCount}개 송출
                         </span>
                       )}
                     </div>
@@ -380,7 +375,6 @@ export function TeacherDashboardPreview() {
                   const isOffline = student.status === "offline";
                   const isOnline = student.status === "online";
                   const isPartialSelected = isPartialMode && !!galleryCards.find((c) => c.id === student.id)?.isProjected;
-                  const isSimplySelected = !isPartialMode && !!galleryCards.find((c) => c.id === student.id)?.isProjected;
                   const isNormalSelected = !isPartialMode && selectedStudent?.id === student.id;
                   return (
                     <div
@@ -404,16 +398,13 @@ export function TeacherDashboardPreview() {
                           }
                         }
                       }}
-                      className={cn(
-                        "flex w-full cursor-pointer flex-col overflow-hidden rounded-xl border transition-all",
+                      className={`flex w-full cursor-pointer flex-col overflow-hidden rounded-xl border transition-all ${
                         isPartialSelected
                           ? "border-indigo-400/60 bg-indigo-50 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-300/40"
                           : isNormalSelected
                           ? "border-teal-400/40 bg-teal-50 shadow-md shadow-teal-500/5"
-                          : isSimplySelected
-                          ? "border-slate-200 bg-slate-50/80 shadow-sm"
                           : "border-slate-100 bg-white hover:border-slate-200"
-                      )}
+                      }`}
                     >
                       <div className="flex items-center gap-3 p-3">
                         <div className="min-w-0 flex-1">
@@ -521,16 +512,9 @@ export function TeacherDashboardPreview() {
                                     <button 
                                       onClick={(e) => { e.stopPropagation(); toggleGalleryProject(card.id); }}
                                       title={card.isProjected ? "부분 송출 해제" : "부분 송출"}
-                                      className={cn(
-                                        "px-2 py-1 rounded-md text-[10px] font-bold transition-all",
-                                        card.isProjected 
-                                          ? (isPartialMode ? "bg-indigo-500 text-white shadow-sm" : "bg-slate-500 text-white shadow-sm")
-                                          : "bg-white text-slate-400 ring-1 ring-slate-200 hover:bg-slate-50"
-                                      )}
+                                      className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${card.isProjected ? "bg-indigo-500 text-white shadow-sm" : "bg-white text-slate-400 ring-1 ring-slate-200 hover:bg-slate-50"}`}
                                     >
-                                      {card.isProjected 
-                                        ? (isPartialMode ? "송출 중" : "선택됨") 
-                                        : "송출"}
+                                      {card.isProjected ? "송출 중" : "송출"}
                                     </button>
                                   </div>
                                   <button 
@@ -675,7 +659,8 @@ export function TeacherDashboardPreview() {
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center justify-end gap-2 overflow-x-auto">
                     <button
                       onClick={() => { if (confirm("채팅 내용을 모두 초기화할까요?")) clearChat(); }}
                       title="채팅 초기화"
@@ -726,6 +711,7 @@ export function TeacherDashboardPreview() {
                     <button onClick={toggleShowChat} className="rounded-xl p-2.5 text-slate-300 hover:bg-slate-50 hover:text-slate-500">
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
+                    </div>
                   </div>
                 </div>
 
@@ -735,14 +721,12 @@ export function TeacherDashboardPreview() {
                       <p className="py-5 text-center text-sm text-slate-300">아직 메시지가 없습니다.</p>
                     ) : chatMessages.map((msg) => {
                       const isTeacher = msg.isTeacher;
-                      const isAnonymousSender = !isTeacher && (chatAnonymousMode || msg.isAnonymous);
-                      const displayName = isTeacher ? msg.senderName : isAnonymousSender ? "익명" : msg.senderName;
                       return (
                         <div key={msg.id} className={`flex flex-col ${isTeacher ? "items-end" : "items-start"}`}>
                           {!isTeacher && (
                             <div className="mb-0.5 ml-1 flex items-center gap-1.5 text-[12px] font-semibold text-slate-400">
-                              {displayName}
-                              {isAnonymousSender && (
+                              {msg.senderName}
+                              {(chatAnonymousMode || msg.isAnonymous) && (
                                 <span className="rounded-md border border-slate-200 bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-400">익명</span>
                               )}
                             </div>
