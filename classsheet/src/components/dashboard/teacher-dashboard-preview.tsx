@@ -281,16 +281,24 @@ export function TeacherDashboardPreview() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         onClick={toggleGalleryOpen}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${galleryOpen ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                          galleryOpen
+                            ? "bg-slate-900 text-white"
+                            : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                        }`}
                       >
-                        {galleryOpen ? "공유 중 ✓" : "답변 공유"}
+                        답변 공유
                       </button>
                       <button
                         onClick={toggleAnonymousGallery}
                         title={anonymousGallery ? "익명 표시 끄기" : "익명 표시 켜기"}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${anonymousGallery ? "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50" : "bg-slate-900 text-white"}`}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                          anonymousGallery
+                            ? "bg-slate-900 text-white"
+                            : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                        }`}
                       >
-                        {anonymousGallery ? "익명 ON" : "익명 OFF"}
+                        익명
                       </button>
                       <button
                         onClick={() => {
@@ -306,7 +314,7 @@ export function TeacherDashboardPreview() {
                             : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                         }`}
                       >
-                        {projectedType === "gallery_partial" && projectedGalleryQuestionId === galleryFilterQuestion ? "부분 송출 중" : "부분 송출"}
+                        부분 송출
                       </button>
                       <button
                         onClick={() => {
@@ -322,7 +330,7 @@ export function TeacherDashboardPreview() {
                             : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                         }`}
                       >
-                        {projectedType === "gallery_all" && projectedGalleryQuestionId === galleryFilterQuestion ? "전체 송출 중" : "전체 송출"}
+                        전체 송출
                       </button>
                       {visibleGalleryCount > 0 && (
                         <span className="rounded-lg bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-600">
@@ -362,22 +370,11 @@ export function TeacherDashboardPreview() {
               </div>
             ) : (
               <>
-                {isPartialMode && (
-                  <div className="mt-3 flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
-                    <span className="text-base">안내</span>
-                    <span>학생 카드를 눌러 공개할 답변만 고를 수 있습니다. 다시 누르면 선택이 해제됩니다.</span>
-                    {visibleGalleryCount > 0 && (
-                      <span className="ml-auto shrink-0 rounded-full bg-indigo-600 px-2 py-0.5 text-white">
-                        {visibleGalleryCount}개 공개
-                      </span>
-                    )}
-                  </div>
-                )}
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {visibleStudents.map((student) => {
                   const isOffline = student.status === "offline";
                   const isOnline = student.status === "online";
-                  const isPartialSelected = isPartialMode && !!galleryCards.find((c) => c.id === student.id)?.visible;
+                  const isPartialSelected = isPartialMode && !!galleryCards.find((c) => c.id === student.id)?.isProjected;
                   const isNormalSelected = !isPartialMode && selectedStudent?.id === student.id;
                   return (
                     <div
@@ -395,7 +392,7 @@ export function TeacherDashboardPreview() {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           if (isPartialMode) {
-                            toggleGalleryCard(student.id);
+                            toggleGalleryProject(student.id);
                           } else {
                             setSelectedStudentId(selectedStudentId === student.id ? null : student.id);
                           }

@@ -55,6 +55,8 @@ function countVisibleMessages(messages: ChatMessage[]) {
   return messages.filter((message) => !message.isDeleted).length;
 }
 
+const EMPTY_GALLERY_ANSWER = "아직 공개할 답안이 없습니다.";
+
 function galleryGridClassName(cardCount: number) {
   if (cardCount <= 1) {
     return "grid-cols-1";
@@ -81,6 +83,51 @@ function galleryCardVariant(cardCount: number): "single" | "duo" | "trio" | "qua
   if (cardCount === 3) return "trio";
   if (cardCount === 4) return "quad";
   return "grid";
+}
+
+function buildGalleryAnswerDetail(
+  card: GalleryCard,
+  component?: WorksheetComponent,
+): StudentAnswerDetail | undefined {
+  if (!component) {
+    return undefined;
+  }
+
+  if (card.imageUrl) {
+    return {
+      componentId: component.id,
+      questionTitle: component.title,
+      componentType: component.type,
+      imageUrl: card.imageUrl,
+    };
+  }
+
+  if (!card.excerpt || card.excerpt === EMPTY_GALLERY_ANSWER) {
+    return undefined;
+  }
+
+  if (
+    component.type === "single_choice" ||
+    component.type === "multi_choice" ||
+    component.type === "ox"
+  ) {
+    return {
+      componentId: component.id,
+      questionTitle: component.title,
+      componentType: component.type,
+      choiceValues: card.excerpt
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    };
+  }
+
+  return {
+    componentId: component.id,
+    questionTitle: component.title,
+    componentType: component.type,
+    textValue: card.excerpt,
+  };
 }
 
 export default function ProjectionView({
@@ -129,11 +176,17 @@ export default function ProjectionView({
 
   const [zoomPercent, setZoomPercent] = useState(100);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const appliedInitialProjectionRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
+    if (appliedInitialProjectionRef.current) {
+      return;
+    }
+
+    appliedInitialProjectionRef.current = true;
     if (!projectedType && initialType) {
       setProjection(initialType, initialTargetId ?? null);
     }
@@ -298,7 +351,7 @@ export default function ProjectionView({
           </div>
 
           {(projectionMode === "worksheet" || projectionMode === "student") && answerableSections.length > 0 ? (
-            <section className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-7">
+            <section className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col items-center gap-7">
               <VerticalActionButton label="TOP" compact onClick={jumpToTop} />
 
               <div className="flex flex-col gap-2 rounded-[20px] bg-[#4c5668]/70 p-2 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl">
@@ -475,7 +528,12 @@ function ProjectionCanvas({
       <div className="flex h-full items-start justify-center px-0 py-1">
         <div className={cn("grid w-full gap-3", galleryGridClassName(cardCount))}>
           {galleryCards.map((card) => (
-            <ProjectionGalleryCard key={card.id} card={card} variant={variant} />
+            <ProjectionGalleryCard
+              key={card.id}
+              card={card}
+              component={components.find((component) => component.id === card.questionId)}
+              variant={variant}
+            />
           ))}
         </div>
       </div>
@@ -486,7 +544,12 @@ function ProjectionCanvas({
     return (
       <div className="flex h-full items-center justify-center px-0 py-1">
         <div className="w-full">
-          <ProjectionGalleryCard card={galleryCard} expanded variant="single" />
+          <ProjectionGalleryCard
+            card={galleryCard}
+            component={components.find((component) => component.id === galleryCard.questionId)}
+            expanded
+            variant="single"
+          />
         </div>
       </div>
     );
@@ -943,13 +1006,16 @@ function SidebarAction({
 
 function ProjectionGalleryCard({
   card,
+  component,
   expanded = false,
   variant = "grid",
 }: {
   card: GalleryCard;
+  component?: WorksheetComponent;
   expanded?: boolean;
   variant?: "single" | "duo" | "trio" | "quad" | "grid";
 }) {
+  const derivedAnswer = buildGalleryAnswerDetail(card, component);
   const shellClassName =
     variant === "single"
       ? "min-h-[calc(100vh-84px)] p-10"
@@ -968,7 +1034,7 @@ function ProjectionGalleryCard({
         : variant === "trio"
           ? "text-[22px] tracking-[0.07em]"
           : "text-[18px] tracking-[0.06em]";
-  const textShellClassName =
+  const fallbackTextClassName =
     variant === "single"
       ? "min-h-[calc(100vh-220px)] rounded-[22px] px-8 py-8 text-[42px] leading-[1.65]"
       : variant === "duo"
@@ -1004,25 +1070,6 @@ function ProjectionGalleryCard({
         : variant === "trio"
           ? "text-[24px]"
           : "text-[20px]";
-  const answerTextClassName =
-    variant === "single"
-      ? "pt-1 text-[34px] leading-[62px]"
-      : variant === "duo"
-        ? "pt-1 text-[28px] leading-[54px]"
-        : variant === "trio"
-          ? "pt-1 text-[23px] leading-[46px]"
-          : "pt-1 text-[19px] leading-[38px]";
-  const lineHeightPx =
-    variant === "single" ? 62 : variant === "duo" ? 54 : variant === "trio" ? 46 : 38;
-  const textMinHeight =
-    variant === "single"
-      ? "min-h-[360px]"
-      : variant === "duo"
-        ? "min-h-[300px]"
-        : variant === "trio"
-          ? "min-h-[250px]"
-          : "min-h-[210px]";
-
   return (
     <article
       className={cn(
@@ -1034,28 +1081,26 @@ function ProjectionGalleryCard({
       <div className={cn("mb-3 font-black uppercase text-[#8ca0c4]", titleClassName)}>
         {card.displayName}
       </div>
-      {card.questionTitle ? (
+      {component ? (
         <div className="mb-4">
           <div className={cn("font-black leading-tight text-[#f4f8ff]", questionTitleClassName)}>
-            {card.questionTitle}
+            {component.title}
           </div>
+          {component.description ? (
+            <div className="mt-3 rounded-[14px] border border-white/8 bg-white/[0.04] px-4 py-3 text-[16px] font-bold leading-[1.5] text-[#d0dbef]">
+              {component.description}
+            </div>
+          ) : null}
         </div>
       ) : null}
-      {card.imageUrl ? (
+      {component ? (
         <div
           className={cn(
             "overflow-hidden border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]",
             answerFrameClassName,
           )}
         >
-          <div
-            className={cn(
-              "relative overflow-hidden rounded-[14px] border border-[#dce6f3] bg-[#fbfcff]",
-              imageHeightClassName,
-            )}
-          >
-            <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
-          </div>
+          <ProjectionQuestionSurface component={component} answer={derivedAnswer} />
         </div>
       ) : (
         <div
@@ -1064,16 +1109,15 @@ function ProjectionGalleryCard({
             answerFrameClassName,
           )}
         >
-          <div
-            className={cn("bg-white text-[#10274b]", textMinHeight)}
-            style={{
-              backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${lineHeightPx - 3}px, #dde6f3 ${lineHeightPx - 3}px, #dde6f3 ${lineHeightPx}px)`,
-            }}
-          >
-            <div className={cn("whitespace-pre-line font-bold", answerTextClassName)}>
+          {card.imageUrl ? (
+            <div className={cn("relative overflow-hidden rounded-[18px] border border-white/10 bg-[#0b1120]", imageHeightClassName)}>
+              <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
+            </div>
+          ) : (
+            <div className={cn("whitespace-pre-line bg-white font-bold text-[#10274b]", fallbackTextClassName)}>
               {card.excerpt}
             </div>
-          </div>
+          )}
         </div>
       )}
     </article>

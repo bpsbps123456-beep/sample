@@ -153,14 +153,7 @@ export function TeacherDashboardNavbar({
           {/* Widget toggles */}
           <div className="flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 ring-1 ring-slate-200/60">
             <button
-              onClick={() => {
-                toggleShowChat();
-                if (!showChat) {
-                  setProjection("chat");
-                } else if (projectedType === "chat") {
-                  setProjection(null);
-                }
-              }}
+              onClick={toggleShowChat}
               className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
                 showChat ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
@@ -168,14 +161,7 @@ export function TeacherDashboardNavbar({
               채팅
             </button>
             <button
-              onClick={() => {
-                toggleShowTimer();
-                if (!showTimer) {
-                  setProjection("timer");
-                } else if (projectedType === "timer") {
-                  setProjection(null);
-                }
-              }}
+              onClick={toggleShowTimer}
               className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
                 showTimer ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
@@ -183,14 +169,7 @@ export function TeacherDashboardNavbar({
               타이머
             </button>
             <button
-              onClick={() => {
-                toggleShowVote();
-                if (!showVote) {
-                  setProjection("vote");
-                } else if (projectedType === "vote") {
-                  setProjection(null);
-                }
-              }}
+              onClick={toggleShowVote}
               className={`h-11 rounded-xl px-4 text-sm font-bold transition-all ${
                 showVote ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}

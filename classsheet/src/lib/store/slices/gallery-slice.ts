@@ -278,6 +278,7 @@ export function createGalleryActions(set: GallerySetFn, get: GalleryGetFn): Gall
 
     setProjection: (type, targetId) => {
       const state = get();
+      const activePartialTarget = parseGalleryProjectionTarget(state.projectedTargetId);
       const targetQuestionId =
         type === "gallery_partial"
           ? parseGalleryProjectionTarget(targetId ?? state.galleryFilterQuestion).questionId
@@ -293,8 +294,26 @@ export function createGalleryActions(set: GallerySetFn, get: GalleryGetFn): Gall
               ),
             )
           : targetId ?? null;
+      if (!type && state.projectedType === "gallery_partial" && activePartialTarget.questionId) {
+        const nextProjectedSelections = { ...state.galleryProjectedSelections };
+        delete nextProjectedSelections[activePartialTarget.questionId];
 
-      set({ projectedType: type, projectedTargetId: normalizedTargetId });
+        set({
+          projectedType: null,
+          projectedTargetId: null,
+          galleryProjectedSelections: nextProjectedSelections,
+          galleryCards: buildGalleryCardsFromStudents(
+            state.students,
+            state.components,
+            state.galleryFilterQuestion,
+            state.galleryCards,
+            nextProjectedSelections,
+          ),
+        });
+      } else {
+        set({ projectedType: type, projectedTargetId: normalizedTargetId });
+      }
+
       syncClassroomAction(state.worksheetId, {
         type: "set_projection",
         projectedType: type,
