@@ -742,8 +742,8 @@ function ProjectionCanvas({
     return (
       <div className="flex h-full flex-col px-0 py-1">
         {sharedComponent && (
-          <div className="shrink-0 px-8 py-0 pb-1">
-            <div className="flex items-start gap-5 rounded-[28px] border border-white/8 bg-gradient-to-br from-[#1e293b] to-[#111827] px-8 py-4 shadow-2xl">
+          <div className="shrink-0 px-0 py-0 pb-2">
+            <div className="flex items-start gap-5 border-b border-white/8 bg-gradient-to-br from-[#1e293b] to-[#111827] px-8 py-4 shadow-2xl">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#77f2e5] to-[#10d5c2] text-[28px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(16,213,194,0.3)]">
                 Q
               </div>
