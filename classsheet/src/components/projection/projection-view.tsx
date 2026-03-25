@@ -51,13 +51,6 @@ interface ComponentPage {
   components: WorksheetComponent[];
 }
 
-interface StudentQuickViewEntry {
-  student: StudentSubmissionSummary;
-  order: number;
-  answeredCount: number;
-  totalCount: number;
-}
-
 const FONT_SCALE = {
   promptTitle: { sm: "text-[34px]", md: "text-[42px]", lg: "text-[54px]" },
   promptBody: { sm: "text-[20px]", md: "text-[28px]", lg: "text-[36px]" },
@@ -273,6 +266,7 @@ export default function ProjectionView({
   const [zoomPercent, setZoomPercent] = useState(100);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [timerInput, setTimerInput] = useState("05:00");
+  const [selectedStudentMessageId, setSelectedStudentMessageId] = useState<string | null>(null);
   const appliedInitialProjectionRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -318,10 +312,6 @@ export default function ProjectionView({
   const answerableSections = useMemo(
     () => currentPageData.components.filter(isAnswerable),
     [currentPageData.components],
-  );
-  const currentPageQuestionIds = useMemo(
-    () => answerableSections.map((component) => component.id),
-    [answerableSections],
   );
 
   const activeStudent = useMemo(() => {
@@ -386,25 +376,6 @@ export default function ProjectionView({
       StudentAnswerDetail
     >;
   }, [activeStudent]);
-  const studentQuickViewEntries = useMemo<StudentQuickViewEntry[]>(
-    () =>
-      students.map((student, index) => {
-        const answeredComponentIds = new Set((student.answers ?? []).map((answer) => answer.componentId));
-        const answeredCount = currentPageQuestionIds.filter((componentId) => answeredComponentIds.has(componentId)).length;
-
-        return {
-          student,
-          order: index + 1,
-          answeredCount,
-          totalCount: currentPageQuestionIds.length,
-        };
-      }),
-    [currentPageQuestionIds, students],
-  );
-  const selectedProjectedStudentId =
-    projectedType === "student" ? activeStudent?.id ?? projectedTargetId ?? null : null;
-  const studentQuickViewEnabled =
-    !mainProjectionType && !chatHighlightModeEnabled && (projectionMode === "worksheet" || projectionMode === "student");
 
   const handleToggleChatVisibility = () => {
     if (showChat && chatHighlightModeEnabled) {
@@ -412,7 +383,9 @@ export default function ProjectionView({
     }
     toggleShowChat();
   };
-  const handleSelectStudentProjection = (studentId: string) => {
+  const handleSelectStudentProjection = (studentId: string, messageId?: string) => {
+    setSelectedStudentMessageId(messageId ?? null);
+
     if (projectedType === "student" && projectedTargetId === studentId) {
       setProjection(null);
       return;
@@ -421,10 +394,17 @@ export default function ProjectionView({
     setProjection("student", studentId);
   };
   const handleClearStudentProjection = () => {
+    setSelectedStudentMessageId(null);
     if (projectedType === "student") {
       setProjection(null);
     }
   };
+
+  useEffect(() => {
+    if (projectedType !== "student") {
+      setSelectedStudentMessageId(null);
+    }
+  }, [projectedType]);
 
   useEffect(() => {
     setActiveSectionId(answerableSections[0]?.id ?? null);
@@ -504,7 +484,7 @@ export default function ProjectionView({
 
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
-          <div ref={scrollRef} className="h-full overflow-auto pl-0 pr-1 py-0">
+          <div ref={scrollRef} className="h-full overflow-auto pl-0 pr-[100px] py-0">
             {mainProjectionType === "chat" ? (
               <MemoizedProjectionChatStage messages={chatMessages} anonymous={chatAnonymousMode} />
             ) : mainProjectionType === "timer" ? (
@@ -550,7 +530,7 @@ export default function ProjectionView({
           {!chatHighlightModeEnabled &&
           (projectionMode === "worksheet" || projectionMode === "student") &&
           answerableSections.length > 0 ? (
-            <section className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+            <section className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
               <VerticalActionButton label="TOP" compact onClick={jumpToTop} />
               {answerableSections.map((component, index) => (
                 <VerticalActionButton
@@ -580,10 +560,11 @@ export default function ProjectionView({
                 anonymous={chatAnonymousMode}
                 highlightModeEnabled={chatHighlightModeEnabled}
                 paused={chatPaused}
-                students={studentQuickViewEntries}
-                selectedStudentId={selectedProjectedStudentId}
-                studentQuickViewEnabled={studentQuickViewEnabled}
-                currentPageNumber={currentPageData.pageNumber}
+                students={students}
+                selectedMessageId={selectedStudentMessageId}
+                studentProjectionEnabled={
+                  !mainProjectionType && !chatHighlightModeEnabled && (projectionMode === "worksheet" || projectionMode === "student")
+                }
                 onClear={clearChat}
                 onClearHighlights={clearChatHighlights}
                 onToggleHighlightMode={toggleChatHighlightMode}
@@ -1285,11 +1266,8 @@ function ProjectionWorksheetPage({
     <article className="relative flex min-h-[calc(100vh-104px)] flex-col overflow-hidden rounded-[10px] border border-[#d7deea] bg-[#fdfcf8] shadow-[0_24px_60px_rgba(2,6,23,0.22)]">
       <div className="pointer-events-none absolute inset-y-0 left-[52px] w-[3px] bg-[#f6c7d2]" />
       <div className="pointer-events-none absolute inset-y-0 left-[64px] w-[3px] bg-[#f9d7de]" />
-      <div className="absolute right-10 top-7 text-[20px] font-black uppercase tracking-[0.18em] text-[#d2ddec]">
-        PAGE {pageNumber}
-      </div>
 
-      <div className="flex flex-1 flex-col pb-20 pl-[78px] pr-[88px] pt-16">
+      <div className="flex flex-1 flex-col pb-20 pl-[78px] pr-[42px] pt-16">
         <div className="sr-only">{worksheetTitle}</div>
 
         {components.map((component) => {
@@ -1449,11 +1427,11 @@ function ProjectionQuestionSurface({
   return (
     <div className={cn(
       "overflow-hidden",
-      isGallery ? "" : "rounded-[14px] border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]",
+      isGallery ? "" : "bg-transparent",
       fillHeight ? "h-full" : ""
     )}>
       <div
-        className={cn("px-2 py-2", fillHeight ? "h-full" : "")}
+        className={cn(fillHeight ? "h-full" : "")}
         style={{
           minHeight: fillHeight
             ? isGallery
@@ -1464,13 +1442,13 @@ function ProjectionQuestionSurface({
             : component.type === "short_text"
               ? "120px"
               : "240px",
-          backgroundImage: "linear-gradient(transparent 43px, #cbd5e1 43px, #cbd5e1 45px)",
-          backgroundSize: "100% 45px",
-          lineHeight: "45px",
+          backgroundImage: "linear-gradient(transparent 38px, #94a3b8 38px, #94a3b8 40px)",
+          backgroundSize: "100% 40px",
+          lineHeight: "40px",
         }}
         >
         {textValue ? (
-          <div className="whitespace-pre-line text-[28px] font-bold text-[#10274b]">
+          <div className="whitespace-pre-line text-[28px] font-bold text-[#1e293b]">
             {textValue}
           </div>
         ) : null}
@@ -1604,9 +1582,8 @@ function ProjectionChatSidebar({
   highlightModeEnabled,
   paused,
   students,
-  selectedStudentId,
-  studentQuickViewEnabled,
-  currentPageNumber,
+  selectedMessageId,
+  studentProjectionEnabled,
   onClear,
   onClearHighlights,
   onToggleHighlightMode,
@@ -1623,15 +1600,14 @@ function ProjectionChatSidebar({
   anonymous: boolean;
   highlightModeEnabled: boolean;
   paused: boolean;
-  students: StudentQuickViewEntry[];
-  selectedStudentId: string | null;
-  studentQuickViewEnabled: boolean;
-  currentPageNumber: number;
+  students: StudentSubmissionSummary[];
+  selectedMessageId: string | null;
+  studentProjectionEnabled: boolean;
   onClear: () => void;
   onClearHighlights: () => void;
   onToggleHighlightMode: () => void;
   onToggleHighlighted: (id: string) => void;
-  onSelectStudent: (studentId: string) => void;
+  onSelectStudent: (studentId: string, messageId?: string) => void;
   onClearStudentView: () => void;
   onToggleAnonymous: () => void;
   onToggleEnabled: () => void;
@@ -1644,8 +1620,8 @@ function ProjectionChatSidebar({
   );
   const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
   const messagesScrollRef = useChatAutoScroll(visibleMessages);
-  const studentEntryByName = useMemo(
-    () => new Map(students.map((entry) => [entry.student.studentName, entry])),
+  const studentByName = useMemo(
+    () => new Map(students.map((student) => [student.studentName, student])),
     [students],
   );
 
@@ -1701,64 +1677,6 @@ function ProjectionChatSidebar({
         </div>
       </header>
 
-      {studentQuickViewEnabled && students.length > 0 ? (
-        <div className="border-y border-white/8 bg-[#10182c]/90 px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#6f81a4]">Student Focus</div>
-              <div className="mt-1 text-[14px] font-semibold text-[#dbe7fb]">
-                현재 {currentPageNumber}페이지 답안을 학생별로 바로 보기
-              </div>
-            </div>
-            {selectedStudentId ? (
-              <button
-                type="button"
-                onClick={onClearStudentView}
-                className="rounded-[10px] border border-white/10 bg-[#192238] px-3 py-2 text-[12px] font-bold text-[#dce6f8] transition hover:bg-[#24304b]"
-              >
-                전체 보기
-              </button>
-            ) : null}
-          </div>
-
-          <div className="mt-3 grid max-h-[188px] grid-cols-2 gap-2 overflow-auto pr-1">
-            {students.map((entry) => {
-              const isSelected = selectedStudentId === entry.student.id;
-              const hasAnswer = entry.answeredCount > 0;
-
-              return (
-                <button
-                  key={entry.student.id}
-                  type="button"
-                  onClick={() => onSelectStudent(entry.student.id)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-[14px] border px-3 py-2.5 text-left transition-all",
-                    isSelected
-                      ? "border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.2)]"
-                      : "border-white/8 bg-white/[0.03] text-[#dce6f8] hover:bg-white/[0.06]",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] font-black",
-                      isSelected ? "bg-[#10d5c2] text-[#091628]" : "bg-[#1f2b45] text-[#8fd7ff]",
-                    )}
-                  >
-                    {entry.order}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-black">{entry.student.studentName}</div>
-                    <div className={cn("text-[12px] font-semibold", hasAnswer ? "text-[#7de7be]" : "text-[#7f91b1]")}>
-                      {entry.totalCount > 0 ? `${entry.answeredCount}/${entry.totalCount} 문항 응답` : "이 페이지 문항 없음"}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-
       {visibleMessages.length === 0 ? (
         <div className="flex flex-1 items-end justify-center pb-10 text-[18px] text-[#6e7e9d]">
           아직 메시지가 없습니다
@@ -1770,12 +1688,12 @@ function ProjectionChatSidebar({
               const isTeacher = message.isTeacher || message.senderName === "교사";
               const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
               const isHighlightable = highlightModeEnabled && !isTeacher;
-              const matchedStudentEntry = isTeacher ? null : studentEntryByName.get(message.senderName) ?? null;
-              const isStudentQuickViewTarget =
-                studentQuickViewEnabled && !highlightModeEnabled && Boolean(matchedStudentEntry);
-              const isStudentSelected = matchedStudentEntry?.student.id === selectedStudentId;
+              const matchedStudent = isTeacher ? null : studentByName.get(message.senderName) ?? null;
+              const isStudentProjectionTarget =
+                studentProjectionEnabled && !highlightModeEnabled && Boolean(matchedStudent);
               const isSelected = Boolean(message.isHighlighted);
               const senderColor = isTeacher ? "#8f97ff" : getStudentChatNameColor(displayName);
+              const isProjectionSelected = selectedMessageId === message.id;
 
               return (
                 <button
@@ -1787,31 +1705,21 @@ function ProjectionChatSidebar({
                       return;
                     }
 
-                    if (isStudentQuickViewTarget && matchedStudentEntry) {
-                      onSelectStudent(matchedStudentEntry.student.id);
+                    if (isStudentProjectionTarget && matchedStudent) {
+                      onSelectStudent(matchedStudent.id, message.id);
                     }
                   }}
                   className={cn(
                     "w-full rounded-[16px] border text-left transition-all duration-150",
-                    isHighlightable || isStudentQuickViewTarget ? "cursor-pointer" : "cursor-default",
+                    isHighlightable || isStudentProjectionTarget ? "cursor-pointer" : "cursor-default",
                     isSelected
                       ? "border-[#2ecec4]/30 bg-gradient-to-r from-[#0b1e31] to-[#091628] px-3 py-2 shadow-[0_1px_0_rgba(255,255,255,0.03),inset_0_0_0_1px_rgba(46,206,196,0.07)]"
-                      : isStudentSelected
+                      : isProjectionSelected
                         ? "border-[#2af1d3]/30 bg-[#0d1b2d] px-3 py-2 shadow-[inset_0_0_0_1px_rgba(42,241,211,0.08)]"
                       : "border-transparent px-3 py-1.5 hover:border-white/8 hover:bg-white/[0.03]",
                   )}
                 >
                   <div className="flex items-center gap-2.5 text-[21px] leading-8">
-                    {matchedStudentEntry ? (
-                      <div
-                        className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-black",
-                          isStudentSelected ? "bg-[#10d5c2] text-[#091628]" : "bg-[#1f2b45] text-[#8fd7ff]",
-                        )}
-                      >
-                        {matchedStudentEntry.order}
-                      </div>
-                    ) : null}
                     <div className="flex shrink-0 items-center gap-1 font-black" style={{ color: senderColor }}>
                       <span>{displayName}</span>
                       {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
