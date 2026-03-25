@@ -248,3 +248,134 @@ a[aria-disabled="true"] {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* ─── Highlight Card Animations ─────────────── */
+
+@keyframes bounceIn {
+  0%   { transform: translateY(60px) scale(0.85); opacity: 0; }
+  60%  { transform: translateY(-14px) scale(1.05); opacity: 1; }
+  80%  { transform: translateY(6px) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 18px 4px rgba(106,232,219,0.4), 0 24px 60px rgba(3,7,18,0.22); }
+  50%       { box-shadow: 0 0 40px 12px rgba(106,232,219,0.7), 0 24px 60px rgba(3,7,18,0.22); }
+}
+
+@keyframes goldPulse {
+  0%, 100% { box-shadow: 0 0 16px 4px rgba(245,158,11,0.35), 0 24px 60px rgba(3,7,18,0.22); }
+  50%       { box-shadow: 0 0 36px 10px rgba(245,158,11,0.6), 0 24px 60px rgba(3,7,18,0.22); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes starFloat {
+  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.7; }
+  33%       { transform: translateY(-10px) rotate(15deg); opacity: 1; }
+  66%       { transform: translateY(-5px) rotate(-10deg); opacity: 0.9; }
+}
+
+@keyframes starFloat2 {
+  0%, 100% { transform: translateY(0px) rotate(20deg); opacity: 0.6; }
+  50%       { transform: translateY(-14px) rotate(-20deg); opacity: 1; }
+}
+
+@keyframes rainbowBorder {
+  0%   { border-color: #f472b6; }
+  16%  { border-color: #fb923c; }
+  33%  { border-color: #facc15; }
+  50%  { border-color: #4ade80; }
+  66%  { border-color: #60a5fa; }
+  83%  { border-color: #a78bfa; }
+  100% { border-color: #f472b6; }
+}
+
+@keyframes spotlightPulse {
+  0%, 100% { opacity: 0.18; }
+  50%       { opacity: 0.30; }
+}
+
+@keyframes slideUp {
+  0%   { transform: translateY(40px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2.2s ease-in-out infinite;
+}
+
+.animate-gold-pulse {
+  animation: goldPulse 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+.animate-star-float {
+  animation: starFloat 3s ease-in-out infinite;
+}
+
+.animate-star-float-2 {
+  animation: starFloat2 2.6s ease-in-out infinite;
+}
+
+.animate-rainbow-border {
+  animation: rainbowBorder 3s linear infinite;
+}
+
+.animate-spotlight-pulse {
+  animation: spotlightPulse 2.5s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes spotlightEntry {
+  0%   { transform: translateY(90px) scale(0.82); opacity: 0; }
+  55%  { transform: translateY(-18px) scale(1.05); opacity: 1; }
+  75%  { transform: translateY(6px) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes cardGlow {
+  0%, 100% { box-shadow: 0 0 55px 14px rgba(190,230,255,0.18), 0 0 20px 4px rgba(255,255,255,0.10), 0 32px 80px rgba(0,0,0,0.55); }
+  50%       { box-shadow: 0 0 110px 36px rgba(190,230,255,0.38), 0 0 40px 10px rgba(255,255,255,0.22), 0 32px 80px rgba(0,0,0,0.55); }
+}
+
+@keyframes nameReveal {
+  0%   { opacity: 0; letter-spacing: 0.35em; transform: translateY(10px); }
+  100% { opacity: 1; letter-spacing: 0.06em; transform: translateY(0); }
+}
+
+@keyframes beamPulse {
+  0%, 100% { opacity: 0.12; transform: scaleX(1); }
+  50%       { opacity: 0.22; transform: scaleX(1.08); }
+}
+
+.animate-spotlight-entry {
+  animation: spotlightEntry 0.65s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+
+.animate-card-glow {
+  animation: cardGlow 3s ease-in-out infinite;
+}
+
+.animate-name-reveal {
+  animation: nameReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-beam-pulse {
+  animation: beamPulse 3.5s ease-in-out infinite;
+}

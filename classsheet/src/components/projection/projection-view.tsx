@@ -36,6 +36,15 @@ function inputToSeconds(value: string) {
     : 0;
 }
 
+const timerPresetOptions = [
+  { label: "1분", value: 60 },
+  { label: "3분", value: 180 },
+  { label: "5분", value: 300 },
+  { label: "7분", value: 420 },
+  { label: "10분", value: 600 },
+  { label: "15분", value: 900 },
+] as const;
+
 interface ComponentPage {
   pageNumber: number;
   components: WorksheetComponent[];
@@ -239,6 +248,7 @@ export default function ProjectionView({
   const toggleFocusMode = useClassroomStore((state) => state.toggleFocusMode);
   const toggleWritingLock = useClassroomStore((state) => state.toggleWritingLock);
   const toggleChatAnonymousMode = useClassroomStore((state) => state.toggleChatAnonymousMode);
+  const toggleChat = useClassroomStore((state) => state.toggleChat);
   const toggleChatPaused = useClassroomStore((state) => state.toggleChatPaused);
   const startTimer = useClassroomStore((state) => state.startTimer);
   const pauseTimer = useClassroomStore((state) => state.pauseTimer);
@@ -411,16 +421,16 @@ export default function ProjectionView({
             <PagesControl pages={pages} currentPage={currentPageData.pageNumber} onSelectPage={setCurrentPage} />
             <TopBarButton
               icon={<Sparkles className="h-4 w-4" />}
-              label={focusMode ? "집중 해제" : "집중 모드"}
+              label="집중 모드"
               active={focusMode}
-              activeClassName="border-[#335075] bg-[#1d2a42] text-white"
+              activeClassName="border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
               onClick={toggleFocusMode}
             />
             <TopBarButton
               icon={isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-              label={isLocked ? "잠금 해제" : "쓰기 잠금"}
+              label="쓰기 잠금"
               active={isLocked}
-              activeClassName="border-[#7b5a26] bg-[#5d4317] text-[#ffe3aa]"
+              activeClassName="border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
               onClick={toggleWritingLock}
             />
             <TopBarButton
@@ -476,6 +486,7 @@ export default function ProjectionView({
                 messages={highlightedMessages}
                 anonymous={chatAnonymousMode}
                 questionTitle={currentPageData.components.find(isAnswerable)?.title ?? null}
+                variant="B"
               />
             ) : (
               <MemoizedProjectionCanvas
@@ -530,6 +541,7 @@ export default function ProjectionView({
                 onToggleHighlightMode={toggleChatHighlightMode}
                 onToggleHighlighted={toggleChatHighlighted}
                 onToggleAnonymous={toggleChatAnonymousMode}
+                onToggleEnabled={toggleChat}
                 onTogglePaused={toggleChatPaused}
                 onClose={handleToggleChatVisibility}
               />
@@ -759,14 +771,18 @@ function ProjectionCanvas({
 
 const MemoizedProjectionCanvas = memo(ProjectionCanvas);
 
-function ProjectionHighlightCanvas({
+export type HighlightVariant = "original" | "A" | "B" | "C" | "D";
+
+export function ProjectionHighlightCanvas({
   messages,
   anonymous,
   questionTitle,
+  variant = "original",
 }: {
   messages: ChatMessage[];
   anonymous: boolean;
   questionTitle: string | null;
+  variant?: HighlightVariant;
 }) {
   if (messages.length === 0) {
     return (
@@ -777,14 +793,112 @@ function ProjectionHighlightCanvas({
           </div>
           <div className="mt-8 text-[34px] font-black tracking-tight text-white">좋은 답변 하이라이트</div>
           <p className="mt-4 max-w-[620px] whitespace-pre-line text-[20px] font-semibold leading-9 text-[#92a3c3]">
-            채팅창에서 좋은 학생 답변을 클릭해
-            {"\n"}
-            한곳에 모아보세요.
+            채팅창에서 좋은 학생 답변을 클릭해{"\n"}
+            여기에 모아보세요
           </p>
         </div>
       </div>
     );
   }
+
+  if (variant === "B") {
+    return (
+      <div className="relative min-h-full overflow-hidden bg-[#03050b] px-6 py-6">
+        {/* 배경 스포트라이트 빔들 */}
+        <div className="pointer-events-none absolute inset-0">
+          <div
+            className="animate-beam-pulse absolute left-1/2 top-0 h-[80%] w-[65%] -translate-x-1/2"
+            style={{
+              background: "radial-gradient(ellipse 55% 100% at 50% 0%, rgba(210,235,255,0.28) 0%, rgba(180,215,255,0.08) 50%, transparent 75%)",
+            }}
+          />
+          <div
+            className="animate-beam-pulse absolute left-1/4 top-0 h-[60%] w-[40%] -translate-x-1/2 opacity-60"
+            style={{
+              background: "radial-gradient(ellipse 40% 100% at 50% 0%, rgba(160,200,255,0.22) 0%, transparent 65%)",
+              animationDelay: "1.2s",
+            }}
+          />
+          <div
+            className="animate-beam-pulse absolute right-1/4 top-0 h-[60%] w-[40%] translate-x-1/2 opacity-60"
+            style={{
+              background: "radial-gradient(ellipse 40% 100% at 50% 0%, rgba(160,200,255,0.22) 0%, transparent 65%)",
+              animationDelay: "0.6s",
+            }}
+          />
+          {/* 바닥 반사광 */}
+          <div
+            className="absolute bottom-0 left-1/2 h-[25%] w-full -translate-x-1/2 opacity-40"
+            style={{
+              background: "radial-gradient(ellipse 80% 100% at 50% 100%, rgba(180,220,255,0.12) 0%, transparent 70%)",
+            }}
+          />
+        </div>
+
+        {/* 헤더 */}
+        <div className="relative z-10 mb-8 flex flex-wrap items-end justify-between gap-4 px-2">
+          <div>
+            <div className="flex items-center gap-2 text-[13px] font-black uppercase tracking-[0.28em] text-[#8da8d4]">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Best Answer</span>
+            </div>
+            {questionTitle ? (
+              <div className="mt-1.5 text-[20px] font-semibold text-white/70">{questionTitle}</div>
+            ) : null}
+          </div>
+          <div className="rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-[14px] font-bold text-[#c8d8f4]">
+            {messages.length}개 선택
+          </div>
+        </div>
+
+        <div className="relative z-10 flex flex-wrap content-start justify-center gap-8 pb-10 pt-2">
+          {messages.map((message, index) => (
+            <HighlightAnswerCard
+              key={message.id}
+              message={message}
+              anonymous={anonymous}
+              index={index}
+              total={messages.length}
+              variant="B"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "D") {
+    return (
+      <div className="min-h-full bg-[#0d0f1a] px-6 py-6">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4 px-2">
+          <div className="text-[22px] font-black tracking-tight text-white">
+            HIGHLIGHT
+            {questionTitle ? <span className="ml-3 text-[16px] font-semibold text-[#94a3b8]">{questionTitle}</span> : null}
+          </div>
+          <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[15px] font-bold text-[#d8e4fa]">
+            {messages.length}개 선택
+          </div>
+        </div>
+        <div className="flex flex-wrap content-start justify-center gap-6 pb-10 pt-2">
+          {messages.map((message, index) => (
+            <HighlightAnswerCard
+              key={message.id}
+              message={message}
+              anonymous={anonymous}
+              index={index}
+              total={messages.length}
+              variant="D"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const headerLabel =
+    variant === "C" ? "Best Answers" :
+    variant === "A" ? "Highlight" :
+    "Highlight";
 
   return (
     <div className="min-h-full px-6 py-6">
@@ -792,8 +906,8 @@ function ProjectionHighlightCanvas({
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-[15px] font-black uppercase tracking-[0.2em] text-[#6ee7db]">
-              <Sparkles className="h-4 w-4" />
-              <span>Highlight</span>
+              {variant === "original" && <Sparkles className="h-4 w-4" />}
+              <span>{headerLabel}</span>
             </div>
             <div className="mt-3 text-[34px] font-black tracking-tight text-white">좋은 답변 하이라이트</div>
             {questionTitle ? (
@@ -813,6 +927,7 @@ function ProjectionHighlightCanvas({
               anonymous={anonymous}
               index={index}
               total={messages.length}
+              variant={variant}
             />
           ))}
         </div>
@@ -873,31 +988,197 @@ function ProjectionChatStage({
 
 const MemoizedProjectionChatStage = memo(ProjectionChatStage);
 
+const PICK_LABELS = ["1st", "2nd", "3rd", "4th", "5th", "6th"];
+const PICK_TROPHIES = ["🥇", "🥈", "🥉", "✦", "✦", "✦"];
+
 function HighlightAnswerCard({
   message,
   anonymous,
   index,
   total,
+  variant = "original"
 }: {
   message: ChatMessage;
   anonymous: boolean;
   index: number;
   total: number;
+  variant?: HighlightVariant;
 }) {
   const displayName = anonymous && message.isAnonymous ? "익명" : message.senderName;
   const rotation = [-2.2, 1.6, -1.3, 2.4, -1.7, 1.2][index % 6];
   const verticalShift = [0, 14, -10, 18, -6, 10][index % 6];
   const width =
     total <= 1
-      ? "min(920px, 84%)"
-      : total === 2
-        ? "min(620px, 44%)"
-        : total <= 4
-          ? "min(540px, 40%)"
-          : "min(460px, 30%)";
+      ? "min(920px, 84%)" : total === 2
+        ? "min(620px, 44%)" : total <= 4
+          ? "min(540px, 40%)" : "min(460px, 30%)";
   const contentSizeClass =
     total <= 2 ? "text-[32px] leading-[1.5]" : total <= 4 ? "text-[28px] leading-[1.55]" : "text-[24px] leading-[1.55]";
   const nameSizeClass = total <= 2 ? "text-[18px]" : "text-[16px]";
+
+  if (variant === "A") {
+    const accentClasses = [
+      "border-[#6ae8db]/50 bg-[linear-gradient(180deg,#fffef7_0%,#f0fdfc_100%)]",
+      "border-[#ffd5a8]/50 bg-[linear-gradient(180deg,#fffaf3_0%,#fff8f0_100%)]",
+      "border-[#c7d7ff]/50 bg-[linear-gradient(180deg,#f8fbff_0%,#f3f0ff_100%)]",
+    ];
+    return (
+      <article
+        className={cn(
+          "animate-bounce-in animate-glow-pulse relative overflow-hidden rounded-[28px] border-2 px-7 pb-8 pt-7 text-[#14284a]",
+          accentClasses[index % accentClasses.length],
+        )}
+        style={{
+          width,
+          transform: `translateY(${verticalShift}px) rotate(${rotation}deg)`,
+          animationDelay: `${index * 0.12}s, ${index * 0.12}s`,
+        }}
+      >
+        <div className="absolute right-4 top-4 rounded-full bg-[#0d3a3c] px-3 py-1 text-[12px] font-black uppercase tracking-[0.18em] text-[#7af1e2]">
+          {PICK_LABELS[index] ?? `${index + 1}th`} Pick
+        </div>
+        <div className="pointer-events-none absolute left-6 top-6 text-[72px] font-black leading-none text-[#6ae8db]/25">✦</div>
+        <div className="relative z-10">
+          <div className={cn("font-black uppercase tracking-[0.18em] text-[#0d9488]", nameSizeClass)}>
+            {displayName}
+          </div>
+          <div className={cn("mt-4 whitespace-pre-line break-words font-black tracking-tight", contentSizeClass)}>
+            {message.content}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (variant === "B") {
+    const nameSizeB = total <= 1 ? "text-[34px]" : total === 2 ? "text-[28px]" : "text-[22px]";
+    const entryDelay = `${index * 0.18}s`;
+    return (
+      <article
+        className="animate-spotlight-entry animate-card-glow relative overflow-hidden rounded-[32px] border border-white/25 bg-white px-8 pb-9 pt-7 text-[#14284a]"
+        style={{
+          width,
+          animationDelay: `${entryDelay}, ${entryDelay}`,
+        }}
+      >
+        {/* 상단 스포트라이트 */}
+        <div
+          className="animate-spotlight-pulse pointer-events-none absolute inset-0 rounded-[32px]"
+          style={{
+            background: "radial-gradient(ellipse 95% 60% at 50% -8%, rgba(255,255,255,0.80) 0%, rgba(220,240,255,0.25) 45%, transparent 68%)",
+          }}
+        />
+        {/* 카드 외곽 블루-화이트 헤일로 */}
+        <div
+          className="pointer-events-none absolute -inset-px rounded-[32px]"
+          style={{
+            background: "linear-gradient(180deg, rgba(200,230,255,0.22) 0%, transparent 40%)",
+          }}
+        />
+        {/* 하단 미묘한 그림자 그라디언트 */}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-[32px]"
+          style={{
+            background: "linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.05) 100%)",
+          }}
+        />
+
+        <div className="relative z-10">
+          {/* 이름 — 크고 선명하게 */}
+          <div
+            className={cn("animate-name-reveal font-black tracking-[0.06em] text-[#0a2540]", nameSizeB)}
+            style={{ animationDelay: `calc(${entryDelay} + 0.2s)` }}
+          >
+            {displayName}
+          </div>
+          {/* 구분선 */}
+          <div className="my-4 h-px w-12 rounded-full bg-[#0a2540]/20" />
+          {/* 답변 내용 */}
+          <div className={cn("whitespace-pre-line break-words font-bold leading-relaxed tracking-tight text-[#1e3a5f]", contentSizeClass)}>
+            {message.content}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (variant === "C") {
+    const isTop3 = index < 3;
+    return (
+      <article
+        className={cn(
+          "animate-slide-up relative overflow-hidden rounded-[28px] border-2 bg-[linear-gradient(160deg,#fffdf4_0%,#fffbea_50%,#fff8dc_100%)] px-7 pb-8 pt-7 text-[#14284a]",
+          isTop3 ? "animate-gold-pulse border-[#f59e0b]/60" : "border-[#e2c97e]/40 shadow-[0_24px_60px_rgba(3,7,18,0.18)]",
+        )}
+        style={{
+          width,
+          transform: `translateY(${verticalShift}px) rotate(${rotation}deg)`,
+          animationDelay: `${index * 0.13}s, ${index * 0.13}s`,
+        }}
+      >
+        <div className="mb-3 text-[28px] leading-none">{PICK_TROPHIES[index] ?? "✦"}</div>
+        <div className="animate-shimmer pointer-events-none absolute inset-0 rounded-[28px] opacity-50" />
+
+        <div className="relative z-10">
+          <div className={cn("flex items-center gap-2 font-black tracking-[0.12em]", nameSizeClass)}>
+            <span style={{ color: isTop3 ? "#b45309" : "#92400e" }}>{displayName}</span>
+            {isTop3 && <span className="text-[#f59e0b]">우수</span>}
+          </div>
+          <div className={cn("mt-4 whitespace-pre-line break-words font-black tracking-tight text-[#1c1917]", contentSizeClass)}>
+            {message.content}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (variant === "D") {
+    const neonBgs = [
+      "bg-[linear-gradient(145deg,#1e3a8a,#1d4ed8)] border-blue-400",
+      "bg-[linear-gradient(145deg,#831843,#be185d)] border-pink-400",
+      "bg-[linear-gradient(145deg,#14532d,#15803d)] border-green-400",
+      "bg-[linear-gradient(145deg,#4c1d95,#7c3aed)] border-violet-400",
+    ];
+    const starPositions = [
+      { top: "12%", left: "10%", delay: "0s" },
+      { top: "22%", right: "12%", delay: "0.4s" },
+      { top: "45%", left: "16%", delay: "0.8s" },
+      { bottom: "15%", right: "18%", delay: "0.2s" },
+    ];
+    return (
+      <article
+        className={cn(
+          "animate-bounce-in animate-rainbow-border relative overflow-hidden rounded-[28px] border-2 px-7 pb-8 pt-7 text-white shadow-[0_24px_60px_rgba(0,0,0,0.5)]",
+          neonBgs[index % neonBgs.length],
+        )}
+        style={{
+          width,
+          transform: `translateY(${verticalShift}px) rotate(${rotation}deg)`,
+          animationDelay: `${index * 0.12}s, 0s`,
+        }}
+      >
+        {starPositions.map((pos, i) => (
+          <div
+            key={i}
+            className={cn("pointer-events-none absolute text-[18px] leading-none", i % 2 === 0 ? "animate-star-float" : "animate-star-float-2")}
+            style={{ ...pos, animationDelay: pos.delay }}
+          >
+            ✦
+          </div>
+        ))}
+
+        <div className="relative z-10">
+          <div className={cn("font-black tracking-[0.1em] text-white/90 drop-shadow-sm", nameSizeClass)}>
+            {displayName}
+          </div>
+          <div className={cn("mt-4 whitespace-pre-line break-words font-black tracking-tight text-white", contentSizeClass)}>
+            {message.content}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   const accentClasses = [
     "border-[#79efe2]/30 bg-[linear-gradient(180deg,#fffef7_0%,#f4fbff_100%)]",
     "border-[#ffd5a8]/30 bg-[linear-gradient(180deg,#fffaf3_0%,#fffdf8_100%)]",
@@ -916,7 +1197,7 @@ function HighlightAnswerCard({
         transform: `translateY(${verticalShift}px) rotate(${rotation}deg)`,
       }}
     >
-      <div className="pointer-events-none absolute left-6 top-6 text-[72px] font-black leading-none text-[#d8e6f7]/70">“</div>
+      <div className="pointer-events-none absolute left-6 top-6 text-[72px] font-black leading-none text-[#d8e6f7]/70">✦</div>
       <div className="relative z-10">
         <div className={cn("font-black uppercase tracking-[0.18em] text-[#506a93]", nameSizeClass)}>
           {displayName}
@@ -1172,6 +1453,7 @@ function ChatSidebar({
   onToggleHighlightMode,
   onToggleHighlighted,
   onToggleAnonymous,
+  onToggleEnabled,
   onTogglePaused,
   onClose,
 }: {
@@ -1185,6 +1467,7 @@ function ChatSidebar({
   onToggleHighlightMode: () => void;
   onToggleHighlighted: (id: string) => void;
   onToggleAnonymous: () => void;
+  onToggleEnabled: () => void;
   onTogglePaused: () => void;
   onClose: () => void;
 }) {
@@ -1211,9 +1494,30 @@ function ChatSidebar({
               onClick={onClearHighlights}
             />
           ) : null}
-          <SidebarAction label="초기화" tone="danger" onClick={onClear} />
+          <SidebarAction
+            label="초기화"
+            tone="default"
+            onClick={() => {
+              if (window.confirm("채팅을 초기화할까요?")) onClear();
+            }}
+          />
           <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
-          <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
+          <SidebarAction label="활성화" tone={enabled ? "default-active" : "default"} onClick={onToggleEnabled} />
+          <button
+            type="button"
+            onClick={onTogglePaused}
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-[10px] transition-all",
+              paused
+                ? "border border-[#425375] bg-[#24304b] text-white"
+                : "border border-white/10 bg-[#192238] text-[#dce6f8]",
+            )}
+            aria-label="채팅 일시정지"
+          >
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M6.5 4.5h2.5v11H6.5zM11 4.5h2.5v11H11z" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -1266,6 +1570,7 @@ function ProjectionChatSidebar({
   onToggleHighlightMode,
   onToggleHighlighted,
   onToggleAnonymous,
+  onToggleEnabled,
   onTogglePaused,
   onClose,
 }: {
@@ -1279,6 +1584,7 @@ function ProjectionChatSidebar({
   onToggleHighlightMode: () => void;
   onToggleHighlighted: (id: string) => void;
   onToggleAnonymous: () => void;
+  onToggleEnabled: () => void;
   onTogglePaused: () => void;
   onClose: () => void;
 }) {
@@ -1288,6 +1594,19 @@ function ProjectionChatSidebar({
   );
   const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
   const messagesScrollRef = useChatAutoScroll(visibleMessages);
+
+  const pickOrderMap = useMemo(() => {
+    const picked = visibleMessages
+      .filter((m) => m.isHighlighted)
+      .sort((a, b) => {
+        const at = a.highlightedAt ? new Date(a.highlightedAt).getTime() : 0;
+        const bt = b.highlightedAt ? new Date(b.highlightedAt).getTime() : 0;
+        return at - bt;
+      });
+    const map: Record<string, number> = {};
+    picked.forEach((m, i) => { map[m.id] = i + 1; });
+    return map;
+  }, [visibleMessages]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -1305,9 +1624,30 @@ function ProjectionChatSidebar({
               onClick={onClearHighlights}
             />
           ) : null}
-          <SidebarAction label="초기화" tone="danger" onClick={onClear} />
+          <SidebarAction
+            label="초기화"
+            tone="default"
+            onClick={() => {
+              if (window.confirm("채팅을 초기화할까요?")) onClear();
+            }}
+          />
           <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
-          <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
+          <SidebarAction label="활성화" tone={enabled ? "default-active" : "default"} onClick={onToggleEnabled} />
+          <button
+            type="button"
+            onClick={onTogglePaused}
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-[10px] transition-all",
+              paused
+                ? "border border-[#425375] bg-[#24304b] text-white"
+                : "border border-white/10 bg-[#192238] text-[#dce6f8]",
+            )}
+            aria-label="채팅 일시정지"
+          >
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M6.5 4.5h2.5v11H6.5zM11 4.5h2.5v11H11z" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -1325,13 +1665,14 @@ function ProjectionChatSidebar({
         </div>
       ) : (
         <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-auto pr-3 pl-1 pb-4 pt-1">
-          <div className="space-y-0">
+          <div className="space-y-0.5">
             {visibleMessages.map((message) => {
               const isTeacher = message.isTeacher || message.senderName === "교사";
               const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
               const isHighlightable = highlightModeEnabled && !isTeacher;
               const isSelected = Boolean(message.isHighlighted);
               const senderColor = isTeacher ? "#8f97ff" : getStudentChatNameColor(displayName);
+              const pickNum = isSelected ? pickOrderMap[message.id] : undefined;
 
               return (
                 <button
@@ -1342,23 +1683,27 @@ function ProjectionChatSidebar({
                     onToggleHighlighted(message.id);
                   }}
                   className={cn(
-                    "w-full rounded-[18px] border border-transparent px-3 py-1.5 text-left transition-all",
-                    isHighlightable ? "cursor-pointer hover:border-white/10 hover:bg-white/[0.04]" : "cursor-default",
-                    isSelected ? "border-[#6be8dc]/40 bg-[#12263b] shadow-[0_0_0_1px_rgba(107,232,220,0.15)]" : "",
+                    "w-full rounded-[16px] border text-left transition-all duration-150",
+                    isHighlightable ? "cursor-pointer" : "cursor-default",
+                    isSelected
+                      ? "border-[#2ecec4]/30 bg-gradient-to-r from-[#0b1e31] to-[#091628] px-3 py-2 shadow-[0_1px_0_rgba(255,255,255,0.03),inset_0_0_0_1px_rgba(46,206,196,0.07)]"
+                      : "border-transparent px-3 py-1.5 hover:border-white/8 hover:bg-white/[0.03]",
                   )}
                 >
-                  <div className="flex items-start gap-3 text-[21px] leading-8">
+                  <div className="flex items-center gap-2.5 text-[21px] leading-8">
+                    {pickNum !== undefined ? (
+                      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#0f3040] text-[11px] font-black tabular-nums text-[#4de8dc]">
+                        {pickNum}
+                      </span>
+                    ) : null}
                     <div className="flex shrink-0 items-center gap-1 font-black" style={{ color: senderColor }}>
                       <span>{displayName}</span>
                       {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
                     </div>
-                    <span className="text-[#6b7fa3]">|</span>
-                    <div className="min-w-0 flex-1 break-all font-semibold text-[#f8fbff]">{message.content}</div>
-                    {isSelected ? (
-                      <span className="shrink-0 rounded-full bg-[#0d3a3c] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#7af1e2]">
-                        Pick
-                      </span>
-                    ) : null}
+                    <span className="text-[#4a5e7a]">|</span>
+                    <div className={cn("min-w-0 flex-1 break-all font-semibold", isSelected ? "text-[#e8f4ff]" : "text-[#c8d8f0]")}>
+                      {message.content}
+                    </div>
                   </div>
                 </button>
               );
@@ -1431,22 +1776,43 @@ function TimerSidebar({
               </button>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2.5">
+          <div className="mt-3 grid grid-cols-[188px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              {timerPresetOptions.map((preset) => {
+                const presetActive = !running && inputToSeconds(timerInput) === preset.value;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => onTimerInputChange(formatCountdown(preset.value))}
+                    disabled={running}
+                    className={cn(
+                      "h-11 rounded-xl border text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40",
+                      presetActive
+                        ? "border-white bg-white text-slate-950 shadow-md"
+                        : "border-white/10 bg-white/5 text-white hover:bg-white/10",
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
             <input
-              value={timerInput}
-              onChange={(event) => onTimerInputChange(event.target.value)}
+              value={running ? timerText : timerInput}
+              onChange={(event) => {
+                if (!running) onTimerInputChange(event.target.value);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !running && inputToSeconds(timerInput) > 0) {
                   event.preventDefault();
                   onToggleTimer();
                 }
               }}
+              readOnly={running}
               placeholder="05:00"
-              className="h-12 w-[108px] shrink-0 rounded-2xl border border-white/10 bg-white px-0 text-center text-[30px] font-mono font-black text-slate-950 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
+              className="h-full min-h-[96px] w-full rounded-2xl border border-teal-400/20 bg-white px-0 text-center text-[2.35rem] font-mono font-black tracking-tight text-slate-950 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
             />
-            <div className="flex min-w-0 flex-1 items-center justify-center rounded-2xl border border-teal-400/20 bg-white/95 px-4 py-3 text-[2.2rem] font-mono font-bold text-slate-950 shadow-sm">
-              {timerText}
-            </div>
           </div>
         </div>
       </div>
@@ -1558,7 +1924,7 @@ function SidebarAction({
         tone === "danger" && "border border-[#533247] bg-[#20172a] text-[#ff5e84]",
         tone === "warning" && "border border-[#5a4420] bg-[#2b2312] text-[#ffd278]",
         tone === "default" && "border border-white/10 bg-[#192238] text-[#dce6f8]",
-        tone === "default-active" && "border border-[#425375] bg-[#24304b] text-white",
+        tone === "default-active" && "border border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]",
       )}
     >
       {tone === "warning" && label === "재개" ? (
