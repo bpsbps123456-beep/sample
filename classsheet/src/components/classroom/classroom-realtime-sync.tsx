@@ -51,6 +51,13 @@ export function ClassroomRealtimeSync({ worksheetId }: ClassroomRealtimeSyncProp
 
     console.log("[RealtimeSync] 🔌 채널 구독 시작...", worksheetId);
 
+    const resubscribeWithJitter = (baseDelayMs: number) => {
+      const jitterMs = Math.floor(Math.random() * 2000);
+      window.setTimeout(() => {
+        channel.subscribe();
+      }, baseDelayMs + jitterMs);
+    };
+
     const channel = supabase
       .channel(`classroom-sync-${worksheetId}`)
       .on(
@@ -228,6 +235,10 @@ export function ClassroomRealtimeSync({ worksheetId }: ClassroomRealtimeSyncProp
           console.log("[RealtimeSync] ✅ 실시간 동기화 연결 성공!");
         }
         if (status === "CHANNEL_ERROR") {
+          resubscribeWithJitter(5000);
+          return;
+        }
+        if (status === "__UNUSED_CHANNEL_ERROR_FALLBACK__") {
           console.error("[RealtimeSync] ❌ 채널 에러:", err?.message ?? "unknown");
           // 5초 후 자동 재연결 시도
           setTimeout(() => {
@@ -236,6 +247,10 @@ export function ClassroomRealtimeSync({ worksheetId }: ClassroomRealtimeSyncProp
           }, 5000);
         }
         if (status === "TIMED_OUT") {
+          resubscribeWithJitter(3000);
+          return;
+        }
+        if (status === "__UNUSED_TIMED_OUT_FALLBACK__") {
           console.error("[RealtimeSync] ⏰ 채널 타임아웃 — 재연결 시도...");
           setTimeout(() => {
             channel.subscribe();
@@ -266,4 +281,3 @@ export function ClassroomRealtimeSync({ worksheetId }: ClassroomRealtimeSyncProp
 
   return null;
 }
-

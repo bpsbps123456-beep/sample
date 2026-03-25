@@ -106,6 +106,7 @@ export function StudentWorkspace() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const presenceJitterMsRef = useRef(Math.floor(Math.random() * 2500));
 
   const currentStudent = useMemo(
     () => students.find((s) => s.id === storedEntry?.submissionId || s.studentName === studentName) ?? null,
@@ -203,17 +204,25 @@ export function StudentWorkspace() {
     if (!isActive || !canEdit) return;
     const t = window.setTimeout(() => {
       updateStudentProgress(studentName, progressPct, currentQuestion, studentToken);
-    }, 4000); // Progress update every 4s while typing/active
+    }, 4000 + presenceJitterMsRef.current); // Stagger simultaneous refresh bursts without touching answer/chat sync
     return () => window.clearTimeout(t);
   }, [isActive, canEdit, progressPct, currentQuestion, studentName, studentToken, updateStudentProgress]);
 
   // Regular heartbeat to keep presence alive (even if not typing)
   useEffect(() => {
     if (!isActive) return;
-    const h = window.setInterval(() => {
+    let intervalId: number | null = null;
+    const timeoutId = window.setTimeout(() => {
       updateStudentProgress(studentName, progressPct, currentQuestion, studentToken);
-    }, 60_000);
-    return () => window.clearInterval(h);
+      intervalId = window.setInterval(() => {
+        updateStudentProgress(studentName, progressPct, currentQuestion, studentToken);
+      }, 60_000);
+    }, presenceJitterMsRef.current);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId !== null) window.clearInterval(intervalId);
+    };
   }, [isActive, progressPct, currentQuestion, studentName, studentToken, updateStudentProgress]);
 
   useEffect(() => {

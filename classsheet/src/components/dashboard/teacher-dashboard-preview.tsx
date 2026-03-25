@@ -4,14 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { SingleChoiceComponent, MultiChoiceComponent } from "@/lib/types/domain";
+import type { SingleChoiceComponent, MultiChoiceComponent, VoteType } from "@/lib/types/domain";
 import {
   parseGalleryProjectionTarget,
   serializeGalleryPartialTarget,
 } from "@/lib/projection-target";
 import { useClassroomStore } from "@/lib/store/classroom-store";
+import { defaultVoteConfig } from "@/lib/store/slices/vote-slice";
 import { cn, formatCountdown } from "@/lib/utils";
-import { LiveDrawingOverlay } from "@/components/shared/live-drawing-overlay";
 
 function inputToSeconds(value: string) {
   const [minutes = "0", seconds = "0"] = value.split(":");
@@ -23,6 +23,7 @@ function inputToSeconds(value: string) {
 }
 
 export function TeacherDashboardPreview() {
+  const initialVoteConfig = defaultVoteConfig("ox");
   const [teacherMessage, setTeacherMessage] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [timerInput, setTimerInput] = useState("05:00");
@@ -30,6 +31,9 @@ export function TeacherDashboardPreview() {
   const [galleryViewMode, setGalleryViewMode] = useState<"grid" | "slide">("grid");
   const [slideIndex, setSlideIndex] = useState(0);
   const [showConnectedOnly, setShowConnectedOnly] = useState(false);
+  const [voteDraftType, setVoteDraftType] = useState<VoteType>("ox");
+  const [voteQuestionDraft, setVoteQuestionDraft] = useState(initialVoteConfig.question);
+  const [voteOptionsDraft, setVoteOptionsDraft] = useState(initialVoteConfig.options.join("\n"));
   
   // Widget visibility states (from store, toggled via navbar)
   const showChat = useClassroomStore((s) => s.showChat);
@@ -91,6 +95,41 @@ export function TeacherDashboardPreview() {
   const setGalleryFilterQuestion = useClassroomStore((s) => s.setGalleryFilterQuestion);
   const toggleGalleryCard = useClassroomStore((s) => s.toggleGalleryCard);
   const toggleGalleryProject = useClassroomStore((s) => s.toggleGalleryProject);
+
+  function voteTypeLabel(type: VoteType) {
+    return type === "ox"
+      ? "O/X"
+      : type === "choice"
+        ? "객관식"
+        : type === "slider"
+          ? "슬라이더"
+          : "워드클라우드";
+  }
+
+  function handleVoteTypeSelect(type: VoteType) {
+    const config = defaultVoteConfig(type);
+    setVoteDraftType(type);
+    setVoteQuestionDraft((prev) => (prev.trim() ? prev : config.question));
+    setVoteOptionsDraft(type === "wordcloud" ? "" : config.options.join("\n"));
+  }
+
+  function handleOpenVoteFromDraft() {
+    const fallback = defaultVoteConfig(voteDraftType);
+    const options =
+      voteDraftType === "wordcloud"
+        ? []
+        : voteDraftType === "ox"
+          ? ["O", "X"]
+          : voteOptionsDraft
+              .split(/\r?\n|,/)
+              .map((option) => option.trim())
+              .filter(Boolean);
+
+    openVote(voteDraftType, {
+      question: voteQuestionDraft.trim() || fallback.question,
+      options,
+    });
+  }
 
   useEffect(() => {
     const el = chatScrollRef.current;
@@ -502,11 +541,6 @@ export function TeacherDashboardPreview() {
                                 {card.imageUrl ? (
                                   <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
                                     <Image src={card.imageUrl} alt={student.studentName} fill className="object-contain" unoptimized />
-                                    <LiveDrawingOverlay 
-                                      worksheetId={worksheetId} 
-                                      studentName={student.studentName} 
-                                      componentId={galleryFilterQuestion || ""} 
-                                    />
                                   </div>
                                 ) : null}
                                 <div className="flex items-center justify-between gap-1.5 pt-1">
@@ -586,6 +620,7 @@ export function TeacherDashboardPreview() {
                 <div>
                   <div className="muted-label">학생 상세 보기</div>
                   <div className="mt-0.5 text-lg font-bold text-slate-950">{selectedStudent.studentName}</div>
+                  <div className="mt-1 text-xs text-slate-400">위 목록에서 선택한 학생의 답안을 자세히 보여주는 영역입니다.</div>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <button 
@@ -834,7 +869,56 @@ export function TeacherDashboardPreview() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="mb-3 grid grid-cols-2 gap-2.5">
+                  {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
+                    <button
+                      key={`draft-${vType}`}
+                      onClick={() => handleVoteTypeSelect(vType)}
+                      className={`rounded-2xl py-3 text-sm font-semibold transition-all ${
+                        voteDraftType === vType
+                          ? "bg-slate-900 text-white shadow-sm"
+                          : "action-secondary hover:bg-slate-50"
+                      }`}
+                    >
+                      {voteTypeLabel(vType)}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-2.5">
+                  <div>
+                    <div className="mb-1 text-[11px] font-bold text-slate-500">질문</div>
+                    <input
+                      value={voteQuestionDraft}
+                      onChange={(e) => setVoteQuestionDraft(e.target.value)}
+                      placeholder="학생들에게 보여줄 질문을 입력하세요"
+                      className="field-input w-full rounded-2xl px-4 py-3 text-sm"
+                    />
+                  </div>
+                  {voteDraftType === "choice" || voteDraftType === "slider" ? (
+                    <div>
+                      <div className="mb-1 text-[11px] font-bold text-slate-500">
+                        {voteDraftType === "choice" ? "선택지" : "슬라이더 단계"}
+                      </div>
+                      <textarea
+                        value={voteOptionsDraft}
+                        onChange={(e) => setVoteOptionsDraft(e.target.value)}
+                        placeholder={
+                          voteDraftType === "choice"
+                            ? "한 줄에 하나씩 선택지를 입력하세요"
+                            : "한 줄에 하나씩 단계 라벨을 입력하세요"
+                        }
+                        className="field-input min-h-[96px] w-full resize-none rounded-2xl px-4 py-3 text-sm leading-relaxed"
+                      />
+                    </div>
+                  ) : null}
+                  <button
+                    onClick={handleOpenVoteFromDraft}
+                    className="action-primary w-full rounded-2xl py-3 text-sm font-bold"
+                  >
+                    {voteSummary.isActive ? "새 투표 시작" : "투표 시작"}
+                  </button>
+                </div>
+                <div className="hidden grid grid-cols-2 gap-2.5">
                   {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
                     <button key={vType} onClick={() => openVote(vType)} className="action-secondary rounded-2xl py-3 text-sm font-semibold transition-all hover:bg-slate-50">
                       {vType === "ox" ? "O/X" : vType === "choice" ? "객관식" : vType === "slider" ? "슬라이더" : "워드클라우드"}
@@ -843,6 +927,10 @@ export function TeacherDashboardPreview() {
                 </div>
                 {voteSummary.isActive && (
                   <div className="mt-4 space-y-2 border-t border-slate-50 pt-3">
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="text-[11px] font-bold text-slate-400">현재 질문</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-800">{voteSummary.question}</div>
+                    </div>
                     <div className="flex items-center justify-between text-[11px] font-bold">
                       <span className="text-slate-600">응답 수</span>
                       <span className="text-teal-600">{voteSummary.responseCount}명 참여</span>

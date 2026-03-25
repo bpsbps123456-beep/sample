@@ -17,7 +17,7 @@ export interface VoteSliceState {
 }
 
 export interface VoteSliceActions {
-  openVote: (type: VoteType) => void;
+  openVote: (type: VoteType, config?: { question?: string; options?: string[] }) => void;
   closeVote: () => void;
   toggleVoteResultPublic: () => void;
   resetVote: () => void;
@@ -80,7 +80,7 @@ export function defaultVoteConfig(type: VoteType) {
 interface VoteActionState extends VoteSliceState {
   worksheetId: string;
   students: { length: number };
-  openVote: (type: VoteType) => void;
+  openVote: (type: VoteType, config?: { question?: string; options?: string[] }) => void;
 }
 
 type VoteSetFn = (
@@ -95,8 +95,19 @@ type VoteGetFn = () => VoteActionState;
 
 export function createVoteActions(set: VoteSetFn, get: VoteGetFn): VoteSliceActions {
   return {
-    openVote: (type) => {
-      const config = defaultVoteConfig(type);
+    openVote: (type, overrides) => {
+      const baseConfig = defaultVoteConfig(type);
+      const normalizedOptions =
+        overrides?.options?.map((option) => option.trim()).filter(Boolean) ?? baseConfig.options;
+      const config = {
+        question: overrides?.question?.trim() || baseConfig.question,
+        options:
+          type === "ox"
+            ? ["O", "X"]
+            : normalizedOptions.length > 0
+              ? normalizedOptions
+              : baseConfig.options,
+      };
       const activeVote: ActiveVote = {
         id: crypto.randomUUID(),
         type,
@@ -145,7 +156,9 @@ export function createVoteActions(set: VoteSetFn, get: VoteGetFn): VoteSliceActi
 
     resetVote: () => {
       const type = get().activeVote?.type ?? get().voteSummary.type;
-      get().openVote(type);
+      const question = get().activeVote?.question ?? get().voteSummary.question;
+      const options = get().activeVote?.options ?? get().voteSummary.results.map((result) => result.label);
+      get().openVote(type, { question, options });
     },
 
     castVote: (response, studentName, studentToken) => {

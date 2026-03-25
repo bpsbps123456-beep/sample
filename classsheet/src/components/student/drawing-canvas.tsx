@@ -34,6 +34,8 @@ export function DrawingCanvas({
   const drawingRef = useRef(false);
   const initializedRef = useRef(false);
   const [tool, setTool] = useState<ToolMode>("pen");
+  const [color, setColor] = useState("#111827");
+  const [lineWidth, setLineWidth] = useState(4);
   const [isDirty, setIsDirty] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -151,11 +153,15 @@ export function DrawingCanvas({
     drawingRef.current = true;
     context.beginPath();
     context.moveTo(point.x, point.y);
-    context.strokeStyle = tool === "pen" ? "#111827" : "#ffffff";
-    context.lineWidth = tool === "pen" ? 3 : 14;
+    
+    const strokeColor = tool === "pen" ? color : "#ffffff";
+    const strokeWidth = tool === "pen" ? lineWidth : 24;
+    
+    context.strokeStyle = strokeColor;
+    context.lineWidth = strokeWidth;
     setIsDirty(true);
     setUploadError("");
-
+ 
     // 실시간 브로드캐스트: 시작점 전송 (정규화된 좌표)
     if (channelRef.current && canvas) {
       const rect = canvas.getBoundingClientRect();
@@ -169,8 +175,8 @@ export function DrawingCanvas({
           x: point.x / rect.width,
           y: point.y / rect.height,
           isStart: true,
-          color: tool === "pen" ? "#111827" : "#ffffff",
-          width: tool === "pen" ? 3 : 14
+          color: strokeColor,
+          width: strokeWidth
         }
       });
     }
@@ -337,10 +343,56 @@ export function DrawingCanvas({
           >
             지우개
           </button>
-          <button type="button" onClick={handleClear} className="rounded-full bg-slate-100 px-3 py-1.5">
+          <button type="button" onClick={handleClear} className="rounded-full bg-slate-100 px-3 py-1.5 transition-colors hover:bg-slate-200">
             모두 지우기
           </button>
         </div>
+
+        {/* 색상 및 굵기 선택 */}
+        {tool === "pen" && (
+          <div className="flex flex-wrap items-center gap-4 border-l border-slate-200 pl-4">
+            {/* 색상 팔레트 */}
+            <div className="flex items-center gap-1.5">
+              {[
+                "#111827", // Black
+                "#ef4444", // Red
+                "#3b82f6", // Blue
+                "#22c55e", // Green
+                "#eab308", // Yellow
+                "#f97316", // Orange
+                "#a855f7", // Purple
+              ].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={`relative h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === c ? "ring-2 ring-slate-400 ring-offset-2" : ""}`}
+                  style={{ backgroundColor: c }}
+                >
+                  {color === c && (
+                    <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white mix-blend-difference">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* 굵기 선택 */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full">
+              {[2, 4, 8, 16].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setLineWidth(w)}
+                  className={`flex h-6 w-8 items-center justify-center rounded-full text-[10px] font-bold transition-all ${lineWidth === w ? "bg-white text-slate-900 shadow-sm scale-105" : "text-slate-400 hover:text-slate-600"}`}
+                >
+                  {w === 2 ? "얇게" : w === 4 ? "보통" : w === 8 ? "굵게" : "아주 굵게"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           {isUploading ? (

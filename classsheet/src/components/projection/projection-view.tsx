@@ -39,6 +39,32 @@ const FONT_SCALE = {
 } as const;
 
 const PANEL_SURFACE = "rounded-[22px] border border-white/10 bg-[#171f34] shadow-[0_18px_40px_rgba(0,0,0,0.22)]";
+const STUDENT_CHAT_NAME_COLORS = [
+  "#FF8A65", // Coral
+  "#FFB74D", // Amber
+  "#FFD54F", // Yellow
+  "#DCE775", // Lime
+  "#AED581", // Light Green
+  "#81C784", // Green
+  "#4DB6AC", // Teal
+  "#4DD0E1", // Cyan
+  "#64B5F6", // Light Blue
+  "#7986CB", // Indigo
+  "#9575CD", // Deep Purple
+  "#BA68C8", // Purple
+  "#F06292", // Pink
+  "#FF7043", // Deep Orange
+  "#4fc3f7", // Sky Blue
+  "#34d399", // Emerald
+  "#a78bfa", // Violet
+  "#fb923c", // Orange
+  "#f472b6", // Pink 400
+  "#fb7185", // Rose
+  "#2dd4bf", // Teal 400
+  "#facc15", // Yellow 400
+  "#c084fc", // Purple 400
+  "#38bdf8", // Sky 400
+] as const;
 
 function fontSize<K extends keyof typeof FONT_SCALE>(kind: K, mode?: FontSizeMode) {
   return FONT_SCALE[kind][mode ?? "md"];
@@ -46,6 +72,22 @@ function fontSize<K extends keyof typeof FONT_SCALE>(kind: K, mode?: FontSizeMod
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function getStudentChatNameColor(senderName: string) {
+  const normalized = senderName.trim();
+  if (!normalized) {
+    return STUDENT_CHAT_NAME_COLORS[0];
+  }
+
+  // Improved hash function using prime multiplier to reduce collisions
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = (hash << 5) - hash + normalized.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  
+  return STUDENT_CHAT_NAME_COLORS[Math.abs(hash) % STUDENT_CHAT_NAME_COLORS.length];
 }
 
 function isAnswerable(component: WorksheetComponent) {
@@ -773,10 +815,11 @@ function ProjectionChatStage({
               {visibleMessages.map((message) => {
                 const isTeacher = message.isTeacher || message.senderName === "교사";
                 const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
+                const senderColor = isTeacher ? "#8f97ff" : getStudentChatNameColor(displayName);
 
                 return (
                   <div key={message.id} className="flex items-start gap-4 text-[28px] leading-[1.55]">
-                    <div className={cn("flex shrink-0 items-center gap-1.5 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
+                    <div className="flex shrink-0 items-center gap-1.5 font-black" style={{ color: senderColor }}>
                       <span>{displayName}</span>
                       {isTeacher ? <Shield className="h-5 w-5 fill-[#60a5fa] text-[#60a5fa]" /> : null}
                     </div>
@@ -974,14 +1017,19 @@ function ProjectionQuestionSurface({
     return (
       <div className={cn(
         "overflow-hidden rounded-[14px]",
+        fillHeight ? "h-full" : "",
         isGallery ? "" : "border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
       )}>
         <div className={cn(
           "flex min-h-[320px] items-center justify-center p-4",
+          fillHeight ? "h-full" : "",
           isGallery ? "" : "bg-[#fbfcff]"
         )}>
           {answer?.imageUrl ? (
-            <div className="relative h-[320px] w-full overflow-hidden rounded-[12px]">
+            <div className={cn(
+              "relative w-full overflow-hidden rounded-[12px]",
+              fillHeight ? "h-full min-h-[320px]" : "h-[320px]",
+            )}>
               <Image src={answer.imageUrl} alt={component.title} fill className="object-contain" unoptimized />
             </div>
           ) : (
@@ -1138,10 +1186,11 @@ function ChatSidebar({
             {visibleMessages.map((message) => {
               const isTeacher = message.isTeacher || message.senderName === "교사";
               const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
+              const senderColor = isTeacher ? "#4f5bff" : getStudentChatNameColor(displayName);
 
               return (
                 <div key={message.id} className="flex items-start gap-3 text-[22px] leading-9">
-                  <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#4f5bff]" : "text-[#e07b00]")}>
+                  <div className="flex shrink-0 items-center gap-1 font-black" style={{ color: senderColor }}>
                     <span>{displayName}</span>
                     {isTeacher ? <Shield className="h-4 w-4 fill-[#4f5bff] text-[#4f5bff]" /> : null}
                   </div>
@@ -1233,6 +1282,7 @@ function ProjectionChatSidebar({
               const displayName = !isTeacher && anonymous && message.isAnonymous ? "익명" : message.senderName;
               const isHighlightable = highlightModeEnabled && !isTeacher;
               const isSelected = Boolean(message.isHighlighted);
+              const senderColor = isTeacher ? "#8f97ff" : getStudentChatNameColor(displayName);
 
               return (
                 <button
@@ -1249,7 +1299,7 @@ function ProjectionChatSidebar({
                   )}
                 >
                   <div className="flex items-start gap-3 text-[21px] leading-8">
-                    <div className={cn("flex shrink-0 items-center gap-1 font-black", isTeacher ? "text-[#8f97ff]" : "text-[#ff9a24]")}>
+                    <div className="flex shrink-0 items-center gap-1 font-black" style={{ color: senderColor }}>
                       <span>{displayName}</span>
                       {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
                     </div>
@@ -1486,11 +1536,25 @@ function ProjectionGalleryCard({
           ? "text-[28px] leading-[1.55]"
           : "text-[22px] leading-[1.45]";
 
+  const drawingCardHeightClassName =
+    component?.type === "drawing"
+      ? variant === "single"
+        ? "min-h-[900px]"
+        : variant === "duo"
+          ? "min-h-[700px]"
+          : variant === "trio"
+            ? "min-h-[520px]"
+            : variant === "quad"
+              ? "min-h-[460px]"
+              : "min-h-[420px]"
+      : "";
+
   return (
     <article
       className={cn(
         "relative flex h-full flex-col overflow-hidden rounded-[16px] border border-[#dce4f0] bg-[#fdfcf8] shadow-[0_12px_30px_rgba(0,0,0,0.1)]",
         shellClassName,
+        drawingCardHeightClassName,
         expanded ? "p-12" : undefined,
       )}
     >
