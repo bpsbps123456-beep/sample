@@ -19,7 +19,7 @@ export async function loginTeacherAction(formData: FormData) {
     redirect("/teacher/login?error=invalid-pin");
   }
 
-  await createTeacherSession();
+  await createTeacherSession(normalizedPin === "1234" ? "demo" : "active");
   redirect("/teacher/worksheets");
 }
 

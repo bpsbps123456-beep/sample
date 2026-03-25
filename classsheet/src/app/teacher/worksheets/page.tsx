@@ -6,15 +6,19 @@ import Link from "next/link";
 import { duplicateWorksheetAction } from "@/app/actions/worksheets";
 import { InlineSessionCodeEdit } from "@/components/dashboard/inline-session-code-edit";
 import { WorksheetActionsMenu } from "@/components/dashboard/worksheet-actions-menu";
-import { requireTeacherSession } from "@/lib/auth";
+import { getTeacherSessionRole, requireTeacherSession } from "@/lib/auth";
 import { listTemplates, listWorksheets } from "@/lib/server/classroom";
 
 export default async function TeacherWorksheetsPage() {
   await requireTeacherSession();
-  const [worksheets, templates] = await Promise.all([
-    listWorksheets({ trusted: true }),
-    listTemplates({ trusted: true }),
-  ]);
+  const role = await getTeacherSessionRole();
+  const isDemo = role === "demo";
+  const [worksheets, templates] = isDemo
+    ? [[], []]
+    : await Promise.all([
+        listWorksheets({ trusted: true }),
+        listTemplates({ trusted: true }),
+      ]);
 
   return (
     <main className="min-h-screen bg-[#f8f9fb]">

@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 
 export const TEACHER_SESSION_COOKIE = "classsheet_teacher_session";
 
-export async function createTeacherSession() {
+export async function createTeacherSession(role: "active" | "demo" = "active") {
   const cookieStore = await cookies();
 
-  cookieStore.set(TEACHER_SESSION_COOKIE, "active", {
+  cookieStore.set(TEACHER_SESSION_COOKIE, role, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -26,7 +26,14 @@ export async function requireTeacherSession() {
   const cookieStore = await cookies();
   const session = cookieStore.get(TEACHER_SESSION_COOKIE)?.value;
 
-  if (session !== "active") {
+  if (session !== "active" && session !== "demo") {
     redirect("/teacher/login");
   }
+}
+
+export async function getTeacherSessionRole(): Promise<"active" | "demo" | null> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get(TEACHER_SESSION_COOKIE)?.value;
+  if (session === "active" || session === "demo") return session;
+  return null;
 }
