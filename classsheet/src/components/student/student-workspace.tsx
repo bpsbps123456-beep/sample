@@ -334,7 +334,6 @@ export function StudentWorkspace() {
 
             {component.type === "drawing" ? (
               <div className="mt-6 ml-0 overflow-hidden border-[3px] border-slate-300/60 rounded-sm bg-white shadow-sm ring-4 ring-white/50 relative">
-                <div className="absolute top-2 left-2 text-xs font-black text-slate-300 tracking-widest uppercase pointer-events-none z-10 bg-white/80 px-2 py-1 rounded-sm">DRAWING AREA</div>
                 <DrawingCanvas
                   worksheetId={worksheetId}
                   sessionCode={sessionCode}

@@ -22,6 +22,8 @@ function inputToSeconds(value: string) {
     : 0;
 }
 
+const voteDurationPresets = [10, 20, 30, 60, 90, 120] as const;
+
 export function TeacherDashboardPreview() {
   const initialVoteConfig = defaultVoteConfig("ox");
   const [teacherMessage, setTeacherMessage] = useState("");
@@ -34,6 +36,7 @@ export function TeacherDashboardPreview() {
   const [voteDraftType, setVoteDraftType] = useState<VoteType>("ox");
   const [voteQuestionDraft, setVoteQuestionDraft] = useState(initialVoteConfig.question);
   const [voteOptionsDraft, setVoteOptionsDraft] = useState(initialVoteConfig.options.join("\n"));
+  const [voteDurationDraft, setVoteDurationDraft] = useState<number | null>(30);
   
   // Widget visibility states (from store, toggled via navbar)
   const showChat = useClassroomStore((s) => s.showChat);
@@ -109,8 +112,43 @@ export function TeacherDashboardPreview() {
   function handleVoteTypeSelect(type: VoteType) {
     const config = defaultVoteConfig(type);
     setVoteDraftType(type);
-    setVoteQuestionDraft((prev) => (prev.trim() ? prev : config.question));
-    setVoteOptionsDraft(type === "wordcloud" ? "" : config.options.join("\n"));
+    setVoteQuestionDraft(config.question);
+
+    if (type === "slider") {
+      setVoteOptionsDraft("1\n2\n3\n4\n5");
+    } else {
+      setVoteOptionsDraft(type === "wordcloud" ? "" : config.options.join("\n"));
+    }
+  }
+
+  const voteOptionRows = useMemo(() => {
+    if (voteDraftType === "choice") {
+      const rows = voteOptionsDraft
+        .split(/\r?\n/)
+        .map((option) => option.trim());
+      while (rows.length < 5) rows.push("");
+      return rows.slice(0, 5);
+    }
+
+    if (voteDraftType === "slider") {
+      const rows = voteOptionsDraft
+        .split(/\r?\n/)
+        .map((option) => option.trim())
+        .filter(Boolean);
+      return rows.length > 0 ? rows : ["1", "2", "3", "4", "5"];
+    }
+
+    return [];
+  }, [voteDraftType, voteOptionsDraft]);
+
+  function updateVoteOptionRow(index: number, value: string) {
+    const nextRows = [...voteOptionRows];
+    nextRows[index] = value;
+    setVoteOptionsDraft(nextRows.join("\n"));
+  }
+
+  function applySliderStepPreset(count: number) {
+    setVoteOptionsDraft(Array.from({ length: count }, (_, i) => `${i + 1}`).join("\n"));
   }
 
   function handleOpenVoteFromDraft() {
@@ -129,6 +167,13 @@ export function TeacherDashboardPreview() {
       question: voteQuestionDraft.trim() || fallback.question,
       options,
     });
+  }
+
+  function handleStartTimerFromInput() {
+    const seconds = inputToSeconds(timerInput);
+    if (seconds <= 0) return;
+    setTimer(seconds);
+    startTimer();
   }
 
   useEffect(() => {
@@ -383,7 +428,7 @@ export function TeacherDashboardPreview() {
                             ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" 
                             : "bg-slate-100 text-slate-500 font-medium"
                         )}>
-                          {projectedCardsCount} {isPartialMode ? "개 송출 중" : "개 선택됨"}
+                          {projectedCardsCount} {isPartialMode ? "개 송출" : "개 선택"}
                         </span>
                       )}
                     </div>
@@ -753,7 +798,7 @@ export function TeacherDashboardPreview() {
                     </button>
                     <button
                       onClick={() => setProjection(projectedType === "chat" ? null : "chat")}
-                      title="화면에 송출"
+                      title="화면 송출"
                       className={`rounded-xl p-3 transition-all ${projectedType === "chat" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -813,13 +858,31 @@ export function TeacherDashboardPreview() {
             )}
 
             {showTimer && (
-              <div className="surface rounded-2xl p-5">
-                <div className="mb-4 flex items-center justify-between">
+              <div className="surface mt-3 rounded-2xl p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <span className="text-base font-bold text-slate-800">타이머</span>
-                  <div className="flex items-center gap-2">
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={timerRunning ? pauseTimer : handleStartTimerFromInput}
+                      disabled={!timerRunning && inputToSeconds(timerInput) <= 0}
+                      className={cn(
+                        "h-11 shrink-0 rounded-xl px-5 text-sm font-bold transition-all active:scale-95 disabled:opacity-30",
+                        timerRunning
+                          ? "bg-teal-500 text-white shadow-lg shadow-teal-500/20 hover:bg-teal-600"
+                          : "bg-slate-950 text-white shadow-lg shadow-slate-950/20 hover:bg-slate-800",
+                      )}
+                    >
+                      {timerRunning ? "일시정지" : "시작"}
+                    </button>
+                    <button
+                      onClick={resetTimer}
+                      className="h-11 shrink-0 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-600 transition-all hover:bg-slate-200"
+                    >
+                      초기화
+                    </button>
                     <button 
                       onClick={() => setProjection(projectedType === "timer" ? null : "timer")}
-                      title="화면에 송출"
+                      title="화면 송출"
                       className={`rounded-xl p-3 transition-all ${projectedType === "timer" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -829,22 +892,22 @@ export function TeacherDashboardPreview() {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className={`text-[2.8rem] font-mono font-bold tracking-tight tabular-nums ${
-                    timerLow ? "text-rose-600" : timerSecondsRemaining === 0 ? "text-slate-200" : "text-slate-950"
-                  }`}>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    value={timerInput}
+                    onChange={(e) => setTimerInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !timerRunning) {
+                        e.preventDefault();
+                        handleStartTimerFromInput();
+                      }
+                    }}
+                    placeholder="05:00"
+                    className="field-input h-12 w-[108px] shrink-0 rounded-2xl px-0 text-center text-[30px] font-mono font-black text-slate-950 focus:ring-teal-500/20"
+                  />
+                  <div className="field-input flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-slate-50 px-4 py-3 text-[2.2rem] font-mono font-bold text-slate-950 border-teal-500/20 shadow-sm ring-1 ring-teal-500/10">
                     {formatCountdown(timerSecondsRemaining)}
                   </div>
-                  <div className="flex flex-1 gap-2">
-                    <button onClick={startTimer} disabled={timerRunning} className="action-primary flex-1 rounded-2xl py-3 text-sm font-bold disabled:opacity-40">시작</button>
-                    <button onClick={pauseTimer} disabled={!timerRunning} className="action-secondary flex-1 rounded-2xl py-3 text-sm font-semibold disabled:opacity-40">일시정지</button>
-                    <button onClick={resetTimer} className="action-secondary flex-1 rounded-2xl py-3 text-sm font-semibold">초기화</button>
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2.5">
-                  <input value={timerInput} onChange={(e) => setTimerInput(e.target.value)}
-                    placeholder="05:00" className="field-input flex-1 rounded-2xl px-4 py-3 text-base font-mono" />
-                  <button onClick={() => setTimer(inputToSeconds(timerInput))} className="action-secondary rounded-2xl px-5 py-3 text-base font-semibold">적용</button>
                 </div>
               </div>
             )}
@@ -859,7 +922,7 @@ export function TeacherDashboardPreview() {
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => setProjection(projectedType === "vote" ? null : "vote")}
-                      title="화면에 송출"
+                      title="화면 송출"
                       className={`rounded-xl p-3 transition-all ${projectedType === "vote" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -884,38 +947,124 @@ export function TeacherDashboardPreview() {
                     </button>
                   ))}
                 </div>
-                <div className="space-y-2.5">
-                  <div>
-                    <div className="mb-1 text-[11px] font-bold text-slate-500">질문</div>
-                    <input
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="space-y-1.5">
+                    <div className="text-xs font-bold text-slate-700">질문 입력하기</div>
+                    <textarea
                       value={voteQuestionDraft}
                       onChange={(e) => setVoteQuestionDraft(e.target.value)}
-                      placeholder="학생들에게 보여줄 질문을 입력하세요"
-                      className="field-input w-full rounded-2xl px-4 py-3 text-sm"
+                      placeholder="질문을 입력하세요"
+                      className={cn(
+                        "field-input w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed",
+                        voteDraftType === "ox" ? "min-h-[96px]" : "min-h-[72px]",
+                      )}
                     />
                   </div>
-                  {voteDraftType === "choice" || voteDraftType === "slider" ? (
-                    <div>
-                      <div className="mb-1 text-[11px] font-bold text-slate-500">
-                        {voteDraftType === "choice" ? "선택지" : "슬라이더 단계"}
+
+                  {voteDraftType === "choice" ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-slate-700">보기 입력하기</div>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setVoteOptionsDraft("A\nB\nC\nD")}
+                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
+                          >
+                            A-D
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setVoteOptionsDraft("1\n2\n3\n4\n5")}
+                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
+                          >
+                            1-5
+                          </button>
+                        </div>
                       </div>
-                      <textarea
-                        value={voteOptionsDraft}
-                        onChange={(e) => setVoteOptionsDraft(e.target.value)}
-                        placeholder={
-                          voteDraftType === "choice"
-                            ? "한 줄에 하나씩 선택지를 입력하세요"
-                            : "한 줄에 하나씩 단계 라벨을 입력하세요"
-                        }
-                        className="field-input min-h-[96px] w-full resize-none rounded-2xl px-4 py-3 text-sm leading-relaxed"
-                      />
+                      <div className="space-y-1.5">
+                        {voteOptionRows.map((option, index) => (
+                          <input
+                            key={`choice-option-${index}`}
+                            value={option}
+                            onChange={(e) => updateVoteOptionRow(index, e.target.value)}
+                            placeholder={`보기 ${index + 1}. 내용을 입력하세요`}
+                            className="field-input h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm"
+                          />
+                        ))}
+                      </div>
                     </div>
                   ) : null}
+
+                  {voteDraftType === "slider" ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-slate-700">단계 설정</div>
+                        <div className="flex gap-1">
+                          {[3, 5, 10].map((n) => (
+                            <button
+                              key={`slider-preset-${n}`}
+                              type="button"
+                              onClick={() => applySliderStepPreset(n)}
+                              className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
+                            >
+                              {n}단계
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {voteOptionRows.map((option, index) => (
+                          <input
+                            key={`slider-option-${index}`}
+                            value={option}
+                            onChange={(e) => updateVoteOptionRow(index, e.target.value)}
+                            placeholder={`${index + 1}단계 라벨`}
+                            className="field-input h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-1.5">
+                    <div className="text-xs font-bold text-slate-700">제한시간</div>
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                      {voteDurationPresets.map((seconds) => (
+                        <button
+                          key={`vote-duration-${seconds}`}
+                          type="button"
+                          onClick={() => setVoteDurationDraft(seconds)}
+                          className={cn(
+                            "rounded-xl border px-2 py-2 text-xs font-bold transition-all",
+                            voteDurationDraft === seconds
+                              ? "border-blue-500 bg-blue-500 text-white shadow-sm"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                          )}
+                        >
+                          {seconds}초
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setVoteDurationDraft(null)}
+                        className={cn(
+                          "rounded-xl border px-2 py-2 text-xs font-bold transition-all",
+                          voteDurationDraft === null
+                            ? "border-blue-500 bg-blue-500 text-white shadow-sm"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                        )}
+                      >
+                        제한시간 없음
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     onClick={handleOpenVoteFromDraft}
                     className="action-primary w-full rounded-2xl py-3 text-sm font-bold"
                   >
-                    {voteSummary.isActive ? "새 투표 시작" : "투표 시작"}
+                    {voteSummary.isActive ? "투표 다시 시작" : "투표 시작"}
                   </button>
                 </div>
                 <div className="hidden grid grid-cols-2 gap-2.5">

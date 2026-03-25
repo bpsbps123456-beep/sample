@@ -25,7 +25,16 @@ import type {
   Worksheet,
   WorksheetComponent,
 } from "@/lib/types/domain";
-import { cn } from "@/lib/utils";
+import { cn, formatCountdown } from "@/lib/utils";
+
+function inputToSeconds(value: string) {
+  const [minutes = "0", seconds = "0"] = value.split(":");
+  const parsedMinutes = Number(minutes);
+  const parsedSeconds = Number(seconds);
+  return Number.isFinite(parsedMinutes) && Number.isFinite(parsedSeconds)
+    ? Math.max(0, parsedMinutes * 60 + parsedSeconds)
+    : 0;
+}
 
 interface ComponentPage {
   pageNumber: number;
@@ -231,6 +240,10 @@ export default function ProjectionView({
   const toggleWritingLock = useClassroomStore((state) => state.toggleWritingLock);
   const toggleChatAnonymousMode = useClassroomStore((state) => state.toggleChatAnonymousMode);
   const toggleChatPaused = useClassroomStore((state) => state.toggleChatPaused);
+  const startTimer = useClassroomStore((state) => state.startTimer);
+  const pauseTimer = useClassroomStore((state) => state.pauseTimer);
+  const resetTimer = useClassroomStore((state) => state.resetTimer);
+  const setTimer = useClassroomStore((state) => state.setTimer);
   const toggleChatHighlightMode = useClassroomStore((state) => state.toggleChatHighlightMode);
   const toggleChatHighlighted = useClassroomStore((state) => state.toggleChatHighlighted);
   const clearChatHighlights = useClassroomStore((state) => state.clearChatHighlights);
@@ -241,6 +254,7 @@ export default function ProjectionView({
 
   const [zoomPercent, setZoomPercent] = useState(100);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [timerInput, setTimerInput] = useState("05:00");
   const appliedInitialProjectionRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -256,6 +270,19 @@ export default function ProjectionView({
       setProjection(initialType, initialTargetId ?? null);
     }
   }, [initialTargetId, initialType, projectedType, setProjection]);
+
+  useEffect(() => {
+    if (!timerRunning) {
+      setTimerInput(formatCountdown(timerSecondsRemaining));
+    }
+  }, [timerRunning, timerSecondsRemaining]);
+
+  const handleStartTimerFromInput = () => {
+    const seconds = inputToSeconds(timerInput);
+    if (seconds <= 0) return;
+    setTimer(seconds);
+    startTimer();
+  };
 
   const pages = useMemo<ComponentPage[]>(() => {
     const maxPage = Math.max(totalPages, ...components.map((component) => component.page ?? 1), 1);
@@ -383,7 +410,7 @@ export default function ProjectionView({
           <div className="flex flex-wrap items-center justify-end gap-3 pr-1">
             <PagesControl pages={pages} currentPage={currentPageData.pageNumber} onSelectPage={setCurrentPage} />
             <TopBarButton
-              icon={<span className="text-[15px] leading-none">◐</span>}
+              icon={<Sparkles className="h-4 w-4" />}
               label={focusMode ? "집중 해제" : "집중 모드"}
               active={focusMode}
               activeClassName="border-[#335075] bg-[#1d2a42] text-white"
@@ -430,6 +457,10 @@ export default function ProjectionView({
               <MemoizedTimerSidebar
                 seconds={timerSecondsRemaining}
                 running={timerRunning}
+                timerInput={timerInput}
+                onTimerInputChange={setTimerInput}
+                onToggleTimer={timerRunning ? pauseTimer : handleStartTimerFromInput}
+                onResetTimer={resetTimer}
                 compact={false}
                 onClose={() => setProjection(null)}
               />
@@ -507,6 +538,10 @@ export default function ProjectionView({
               <MemoizedTimerSidebar
                 seconds={timerSecondsRemaining}
                 running={timerRunning}
+                timerInput={timerInput}
+                onTimerInputChange={setTimerInput}
+                onToggleTimer={timerRunning ? pauseTimer : handleStartTimerFromInput}
+                onResetTimer={resetTimer}
                 compact={showChat || showVote}
                 onClose={toggleShowTimer}
               />
@@ -636,7 +671,7 @@ function ProjectionCanvas({
     const cardCount = galleryCards.length;
     const variant = galleryCardVariant(cardCount);
 
-    // All cards in a gallery-grid share the same question — show it once at the top
+    // All cards in a gallery-grid share the same question ??show it once at the top
     const sharedQuestionId = galleryCards[0]?.questionId;
     const sharedComponent = sharedQuestionId
       ? components.find((c) => c.id === sharedQuestionId)
@@ -742,9 +777,9 @@ function ProjectionHighlightCanvas({
           </div>
           <div className="mt-8 text-[34px] font-black tracking-tight text-white">좋은 답변 하이라이트</div>
           <p className="mt-4 max-w-[620px] whitespace-pre-line text-[20px] font-semibold leading-9 text-[#92a3c3]">
-            채팅에서 좋은 학생 답변을 클릭해
+            채팅창에서 좋은 학생 답변을 클릭해
             {"\n"}
-            이 공간에 모아보세요.
+            한곳에 모아보세요.
           </p>
         </div>
       </div>
@@ -766,7 +801,7 @@ function ProjectionHighlightCanvas({
             ) : null}
           </div>
           <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[15px] font-bold text-[#d8e4fa]">
-            {messages.length}개 답변 선택됨
+            {messages.length}개 답변 선택
           </div>
         </div>
 
@@ -1007,11 +1042,13 @@ function ProjectionQuestionSurface({
   answer,
   fillHeight = false,
   isGallery = false,
+  galleryVariant = "grid",
 }: {
   component: WorksheetComponent;
   answer?: StudentAnswerDetail;
   fillHeight?: boolean;
   isGallery?: boolean;
+  galleryVariant?: "single" | "duo" | "trio" | "quad" | "grid";
 }) {
   if (component.type === "drawing") {
     return (
@@ -1079,6 +1116,16 @@ function ProjectionQuestionSurface({
   const textValue = answer?.textValue?.trim() ?? "";
   const placeholder =
     ("placeholder" in component && component.placeholder) || "여기에 답을 적어주세요...";
+  const galleryTextMinHeight =
+    galleryVariant === "single"
+      ? "820px"
+      : galleryVariant === "duo"
+        ? "620px"
+        : galleryVariant === "trio"
+          ? "460px"
+          : galleryVariant === "quad"
+            ? "380px"
+            : "340px";
 
   return (
     <div className={cn(
@@ -1089,7 +1136,13 @@ function ProjectionQuestionSurface({
       <div
         className={cn("px-2 py-2", fillHeight ? "h-full" : "")}
         style={{
-          minHeight: fillHeight ? undefined : component.type === "short_text" ? "120px" : "240px",
+          minHeight: fillHeight
+            ? isGallery
+              ? galleryTextMinHeight
+              : undefined
+            : component.type === "short_text"
+              ? "120px"
+              : "240px",
           backgroundImage: "linear-gradient(transparent 43px, #cbd5e1 43px, #cbd5e1 45px)",
           backgroundSize: "100% 45px",
           lineHeight: "45px",
@@ -1145,7 +1198,6 @@ function ChatSidebar({
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center justify-end gap-3 px-5 py-4">
-
         <div className="flex items-center gap-2">
           <SidebarAction
             label="하이라이트"
@@ -1159,9 +1211,6 @@ function ChatSidebar({
               onClick={onClearHighlights}
             />
           ) : null}
-          <SidebarAction label="초기화" tone="danger" onClick={onClear} />
-          <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
-          <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
           <SidebarAction label="초기화" tone="danger" onClick={onClear} />
           <SidebarAction label="익명" tone={anonymous ? "default-active" : "default"} onClick={onToggleAnonymous} />
           <SidebarAction label={paused ? "재개" : "정지"} tone="warning" onClick={onTogglePaused} />
@@ -1326,38 +1375,79 @@ const MemoizedProjectionChatSidebar = memo(ProjectionChatSidebar);
 function TimerSidebar({
   seconds,
   running,
+  timerInput,
+  onTimerInputChange,
+  onToggleTimer,
+  onResetTimer,
   compact,
   onClose,
 }: {
   seconds: number;
   running: boolean;
+  timerInput: string;
+  onTimerInputChange: (value: string) => void;
+  onToggleTimer: () => void;
+  onResetTimer: () => void;
   compact: boolean;
   onClose: () => void;
 }) {
-  const timerText = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const timerText = formatCountdown(seconds);
+  const canStart = running || inputToSeconds(timerInput) > 0;
 
   return (
     <section className={cn("px-4 pb-4", compact ? "" : "flex-1 py-4")}>
       <div className={cn(PANEL_SURFACE, "overflow-hidden")}>
-        <header className="flex items-center justify-between border-b border-white/8 px-5 py-4">
-          <div className="flex items-center gap-2 text-[14px] font-black uppercase tracking-[0.16em] text-white">
-            <Timer className="h-4 w-4" />
-            <span>Timer</span>
+        <div className="border-b border-white/8 px-5 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-base font-bold text-white">타이머</span>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onToggleTimer}
+                disabled={!canStart}
+                className={cn(
+                  "h-11 shrink-0 rounded-xl px-5 text-sm font-bold transition-all active:scale-95 disabled:opacity-30",
+                  running
+                    ? "bg-teal-500 text-white shadow-lg shadow-teal-500/20 hover:bg-teal-600"
+                    : "bg-slate-950 text-white shadow-lg shadow-slate-950/20 hover:bg-slate-800",
+                )}
+              >
+                {running ? "일시정지" : "시작"}
+              </button>
+              <button
+                type="button"
+                onClick={onResetTimer}
+                className="h-11 shrink-0 rounded-xl bg-white/10 px-4 text-sm font-bold text-white transition-all hover:bg-white/15"
+              >
+                초기화
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl p-2.5 text-[#8b9bb8] transition hover:bg-white/10 hover:text-white"
+                aria-label="타이머 닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-gray-100 hover:text-[#1a2338]"
-            aria-label="타이머 닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-        <div className="flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
-          <div className="text-[64px] font-black leading-none tabular-nums text-white">{timerText}</div>
-          {!running || seconds === 0 ? (
-            <div className="rounded-full bg-[#6b3f14] px-5 py-2 text-[15px] font-black text-[#ff9d1a]">시간 종료</div>
-          ) : null}
+          <div className="mt-3 flex items-center gap-2.5">
+            <input
+              value={timerInput}
+              onChange={(event) => onTimerInputChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !running && inputToSeconds(timerInput) > 0) {
+                  event.preventDefault();
+                  onToggleTimer();
+                }
+              }}
+              placeholder="05:00"
+              className="h-12 w-[108px] shrink-0 rounded-2xl border border-white/10 bg-white px-0 text-center text-[30px] font-mono font-black text-slate-950 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
+            />
+            <div className="flex min-w-0 flex-1 items-center justify-center rounded-2xl border border-teal-400/20 bg-white/95 px-4 py-3 text-[2.2rem] font-mono font-bold text-slate-950 shadow-sm">
+              {timerText}
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1548,6 +1638,18 @@ function ProjectionGalleryCard({
               ? "min-h-[460px]"
               : "min-h-[420px]"
       : "";
+  const textCardHeightClassName =
+    component && component.type !== "drawing" && component.type !== "single_choice" && component.type !== "multi_choice" && component.type !== "ox"
+      ? variant === "single"
+        ? "min-h-[980px]"
+        : variant === "duo"
+          ? "min-h-[760px]"
+          : variant === "trio"
+            ? "min-h-[560px]"
+            : variant === "quad"
+              ? "min-h-[480px]"
+              : "min-h-[420px]"
+      : "";
 
   return (
     <article
@@ -1555,6 +1657,7 @@ function ProjectionGalleryCard({
         "relative flex h-full flex-col overflow-hidden rounded-[16px] border border-[#dce4f0] bg-[#fdfcf8] shadow-[0_12px_30px_rgba(0,0,0,0.1)]",
         shellClassName,
         drawingCardHeightClassName,
+        textCardHeightClassName,
         expanded ? "p-12" : undefined,
       )}
     >
@@ -1589,6 +1692,7 @@ function ProjectionGalleryCard({
               answer={derivedAnswer}
               fillHeight
               isGallery={true}
+              galleryVariant={variant}
             />
           </div>
         ) : (

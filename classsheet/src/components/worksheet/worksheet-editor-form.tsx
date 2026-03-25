@@ -756,7 +756,6 @@ export function WorksheetEditorForm({
 
                                     {component.type === "drawing" && (
                                       <div className="mt-6 ml-0 overflow-hidden border-[3px] border-slate-300/60 rounded-sm bg-white shadow-sm ring-4 ring-white/50 relative flex h-44 flex-col items-center justify-center text-slate-300 w-full">
-                                        <div className="absolute top-2 left-2 text-xs font-black text-slate-300 tracking-widest uppercase pointer-events-none z-10 bg-white/80 px-2 py-1 rounded-sm">DRAWING AREA</div>
                                         <span className="text-3xl mb-2">🖊️</span>
                                         <span className="text-xs font-bold">학생 그림 입력칸</span>
                                       </div>

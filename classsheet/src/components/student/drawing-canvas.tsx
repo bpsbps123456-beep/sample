@@ -380,14 +380,18 @@ export function DrawingCanvas({
 
             {/* 굵기 선택 */}
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full">
-              {[2, 4, 8, 16].map((w) => (
+              {[
+                { label: "얇게", value: 2 },
+                { label: "보통", value: 5 },
+                { label: "굵게", value: 8 },
+              ].map((w) => (
                 <button
-                  key={w}
+                  key={w.value}
                   type="button"
-                  onClick={() => setLineWidth(w)}
-                  className={`flex h-6 w-8 items-center justify-center rounded-full text-[10px] font-bold transition-all ${lineWidth === w ? "bg-white text-slate-900 shadow-sm scale-105" : "text-slate-400 hover:text-slate-600"}`}
+                  onClick={() => setLineWidth(w.value)}
+                  className={`flex h-6 w-8 items-center justify-center rounded-full text-[10px] font-bold transition-all ${lineWidth === w.value ? "bg-white text-slate-900 shadow-sm scale-105" : "text-slate-400 hover:text-slate-600"}`}
                 >
-                  {w === 2 ? "얇게" : w === 4 ? "보통" : w === 8 ? "굵게" : "아주 굵게"}
+                  {w.label}
                 </button>
               ))}
             </div>

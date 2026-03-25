@@ -103,7 +103,6 @@ export function WorksheetOriginalPage({ worksheetId, items, pageNumber }: Worksh
 
                   {c.type === "drawing" ? (
                     <div className="mt-8 overflow-hidden border-[3px] border-slate-300/60 rounded-sm bg-white shadow-md aspect-[3/2] max-h-[60vh] flex items-center justify-center relative">
-                      <div className="absolute top-3 left-3 text-xs font-black text-slate-200 tracking-widest uppercase bg-white/80 px-2 py-1 rounded-sm">DRAWING AREA</div>
                       <div className="text-slate-200 font-black text-4xl opacity-20">🎨</div>
                     </div>
                   ) : null}
