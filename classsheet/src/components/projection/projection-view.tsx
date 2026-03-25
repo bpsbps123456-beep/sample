@@ -1053,47 +1053,36 @@ function HighlightAnswerCard({
   if (variant === "B") {
     const nameSizeB = total <= 1 ? "text-[34px]" : total === 2 ? "text-[28px]" : "text-[22px]";
     const entryDelay = `${index * 0.18}s`;
+    const nameColor = getStudentChatNameColor(displayName);
+    const bRotations = [-2.5, 1.8, -1.2, 2.8, -0.8, 1.5, -2.0, 1.2, -1.8];
+    const bVShifts = [0, 14, -8, 18, -5, 10, -14, 6, -10];
+    const rot = bRotations[index % bRotations.length];
+    const vShift = bVShifts[index % bVShifts.length];
     return (
       <article
-        className="animate-spotlight-entry animate-card-glow relative overflow-hidden rounded-[32px] border border-white/25 bg-white px-8 pb-9 pt-7 text-[#14284a]"
+        className="animate-spotlight-entry relative overflow-hidden rounded-[32px] border border-white/20 bg-white px-8 pb-9 pt-7"
         style={{
           width,
-          animationDelay: `${entryDelay}, ${entryDelay}`,
+          animationDelay: entryDelay,
+          transform: `translateY(${vShift}px) rotate(${rot}deg)`,
+          boxShadow: "0 0 28px 6px rgba(150,205,255,0.10), 0 18px 50px rgba(0,0,0,0.42)",
         }}
       >
-        {/* 상단 스포트라이트 */}
-        <div
-          className="animate-spotlight-pulse pointer-events-none absolute inset-0 rounded-[32px]"
-          style={{
-            background: "radial-gradient(ellipse 95% 60% at 50% -8%, rgba(255,255,255,0.80) 0%, rgba(220,240,255,0.25) 45%, transparent 68%)",
-          }}
-        />
-        {/* 카드 외곽 블루-화이트 헤일로 */}
-        <div
-          className="pointer-events-none absolute -inset-px rounded-[32px]"
-          style={{
-            background: "linear-gradient(180deg, rgba(200,230,255,0.22) 0%, transparent 40%)",
-          }}
-        />
-        {/* 하단 미묘한 그림자 그라디언트 */}
+        {/* 상단 부드러운 하이라이트 */}
         <div
           className="pointer-events-none absolute inset-0 rounded-[32px]"
           style={{
-            background: "linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.05) 100%)",
+            background: "radial-gradient(ellipse 90% 55% at 50% -10%, rgba(255,255,255,0.70) 0%, rgba(220,240,255,0.18) 50%, transparent 70%)",
           }}
         />
-
         <div className="relative z-10">
-          {/* 이름 — 크고 선명하게 */}
           <div
-            className={cn("animate-name-reveal font-black tracking-[0.06em] text-[#0a2540]", nameSizeB)}
-            style={{ animationDelay: `calc(${entryDelay} + 0.2s)` }}
+            className={cn("font-black tracking-[0.06em]", nameSizeB)}
+            style={{ color: nameColor }}
           >
             {displayName}
           </div>
-          {/* 구분선 */}
-          <div className="my-4 h-px w-12 rounded-full bg-[#0a2540]/20" />
-          {/* 답변 내용 */}
+          <div className="my-3 h-px w-10 rounded-full" style={{ background: nameColor, opacity: 0.35 }} />
           <div className={cn("whitespace-pre-line break-words font-bold leading-relaxed tracking-tight text-[#1e3a5f]", contentSizeClass)}>
             {message.content}
           </div>
@@ -1595,18 +1584,6 @@ function ProjectionChatSidebar({
   const highlightedCount = visibleMessages.filter((message) => message.isHighlighted).length;
   const messagesScrollRef = useChatAutoScroll(visibleMessages);
 
-  const pickOrderMap = useMemo(() => {
-    const picked = visibleMessages
-      .filter((m) => m.isHighlighted)
-      .sort((a, b) => {
-        const at = a.highlightedAt ? new Date(a.highlightedAt).getTime() : 0;
-        const bt = b.highlightedAt ? new Date(b.highlightedAt).getTime() : 0;
-        return at - bt;
-      });
-    const map: Record<string, number> = {};
-    picked.forEach((m, i) => { map[m.id] = i + 1; });
-    return map;
-  }, [visibleMessages]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -1672,7 +1649,6 @@ function ProjectionChatSidebar({
               const isHighlightable = highlightModeEnabled && !isTeacher;
               const isSelected = Boolean(message.isHighlighted);
               const senderColor = isTeacher ? "#8f97ff" : getStudentChatNameColor(displayName);
-              const pickNum = isSelected ? pickOrderMap[message.id] : undefined;
 
               return (
                 <button
@@ -1691,11 +1667,6 @@ function ProjectionChatSidebar({
                   )}
                 >
                   <div className="flex items-center gap-2.5 text-[21px] leading-8">
-                    {pickNum !== undefined ? (
-                      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#0f3040] text-[11px] font-black tabular-nums text-[#4de8dc]">
-                        {pickNum}
-                      </span>
-                    ) : null}
                     <div className="flex shrink-0 items-center gap-1 font-black" style={{ color: senderColor }}>
                       <span>{displayName}</span>
                       {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
