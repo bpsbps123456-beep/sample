@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useClassroomStore } from "@/lib/store/classroom-store";
@@ -188,7 +188,7 @@ export function TeacherDashboardNavbar({
                 : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
             }`}
           >
-            {focusMode ? "집중 해제" : "집중 모드"}
+            집중 모드
           </button>
 
           <button
@@ -199,7 +199,7 @@ export function TeacherDashboardNavbar({
                 : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
             }`}
           >
-            {isLocked ? "잠금 해제" : "쓰기 잠금"}
+            쓰기 잠금
           </button>
 
           <div className="h-8 w-px bg-slate-200 mx-1" />

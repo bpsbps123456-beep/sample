@@ -22,7 +22,17 @@ function inputToSeconds(value: string) {
     : 0;
 }
 
-const voteDurationPresets = [10, 20, 30, 60, 90, 120] as const;
+const voteDurationPresets = [10, 20, 30, 60] as const;
+const timerPresetOptions = [
+  { label: "1분", value: 60 },
+  { label: "3분", value: 180 },
+  { label: "5분", value: 300 },
+  { label: "7분", value: 420 },
+  { label: "10분", value: 600 },
+  { label: "15분", value: 900 },
+] as const;
+const MIN_CHOICE_OPTIONS = 3;
+const MAX_CHOICE_OPTIONS = 8;
 
 export function TeacherDashboardPreview() {
   const initialVoteConfig = defaultVoteConfig("ox");
@@ -126,8 +136,8 @@ export function TeacherDashboardPreview() {
       const rows = voteOptionsDraft
         .split(/\r?\n/)
         .map((option) => option.trim());
-      while (rows.length < 5) rows.push("");
-      return rows.slice(0, 5);
+      while (rows.length < MIN_CHOICE_OPTIONS) rows.push("");
+      return rows.slice(0, MAX_CHOICE_OPTIONS);
     }
 
     if (voteDraftType === "slider") {
@@ -145,6 +155,16 @@ export function TeacherDashboardPreview() {
     const nextRows = [...voteOptionRows];
     nextRows[index] = value;
     setVoteOptionsDraft(nextRows.join("\n"));
+  }
+
+  function addChoiceOptionRow() {
+    if (voteDraftType !== "choice" || voteOptionRows.length >= MAX_CHOICE_OPTIONS) return;
+    setVoteOptionsDraft([...voteOptionRows, ""].join("\n"));
+  }
+
+  function removeChoiceOptionRow() {
+    if (voteDraftType !== "choice" || voteOptionRows.length <= MIN_CHOICE_OPTIONS) return;
+    setVoteOptionsDraft(voteOptionRows.slice(0, -1).join("\n"));
   }
 
   function applySliderStepPreset(count: number) {
@@ -175,6 +195,19 @@ export function TeacherDashboardPreview() {
     setTimer(seconds);
     startTimer();
   }
+
+  function handleSelectTimerPreset(seconds: number) {
+    setTimerInput(formatCountdown(seconds));
+    if (!timerRunning) {
+      setTimer(seconds);
+    }
+  }
+
+  useEffect(() => {
+    if (!timerRunning) {
+      setTimerInput(formatCountdown(timerSecondsRemaining));
+    }
+  }, [timerRunning, timerSecondsRemaining]);
 
   useEffect(() => {
     const el = chatScrollRef.current;
@@ -749,17 +782,12 @@ export function TeacherDashboardPreview() {
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                   <div className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
                     <span className="whitespace-nowrap text-base font-bold text-slate-800">채팅</span>
-                    {chatMessages.filter((m) => !m.isTeacher).length > 0 ? (
-                      <span className="rounded-full bg-teal-500 px-2.5 py-1 text-xs font-bold text-white">
-                        {chatMessages.filter((m) => !m.isTeacher).length}
-                      </span>
-                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => { if (confirm("채팅 내용을 모두 초기화할까요?")) clearChat(); }}
                       title="채팅 초기화"
-                      className="action-secondary h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                      className="h-10 shrink-0 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50"
                     >
                       초기화
                     </button>
@@ -772,9 +800,9 @@ export function TeacherDashboardPreview() {
                     </button>
                     <button
                       onClick={toggleChat}
-                      className={`h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-bold ${chatEnabled ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
+                      className={`h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-bold transition-all ${chatEnabled ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
                     >
-                      {chatEnabled ? "ON" : "OFF"}
+                      활성화
                     </button>
                     <button
                       onClick={toggleChatPaused}
@@ -782,19 +810,13 @@ export function TeacherDashboardPreview() {
                       aria-label={chatPaused ? "채팅 재개" : "채팅 일시중지"}
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${
                         chatPaused
-                          ? "border border-amber-200 bg-amber-50 text-amber-700"
+                          ? "bg-slate-900 text-white shadow-md shadow-slate-900/20"
                           : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                       }`}
                     >
-                      {chatPaused ? (
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                          <path d="M6 4.5v11l9-5.5-9-5.5Z" />
-                        </svg>
-                      ) : (
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                          <path d="M6.5 4.5h2.5v11H6.5zM11 4.5h2.5v11H11z" />
-                        </svg>
-                      )}
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M6.5 4.5h2.5v11H6.5zM11 4.5h2.5v11H11z" />
+                      </svg>
                     </button>
                     <button
                       onClick={() => setProjection(projectedType === "chat" ? null : "chat")}
@@ -858,7 +880,7 @@ export function TeacherDashboardPreview() {
             )}
 
             {showTimer && (
-              <div className="surface mt-3 rounded-2xl p-5">
+              <div className="surface rounded-2xl p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <span className="text-base font-bold text-slate-800">타이머</span>
                   <div className="ml-auto flex items-center gap-2">
@@ -892,28 +914,48 @@ export function TeacherDashboardPreview() {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="grid grid-cols-[188px_minmax(0,1fr)] gap-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    {timerPresetOptions.map((preset) => {
+                      const presetActive = !timerRunning && inputToSeconds(timerInput) === preset.value;
+                      return (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => handleSelectTimerPreset(preset.value)}
+                          className={cn(
+                            "h-11 rounded-xl border text-sm font-bold transition-all",
+                            presetActive
+                              ? "border-slate-900 bg-slate-900 text-white shadow-md"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                          )}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <input
-                    value={timerInput}
-                    onChange={(e) => setTimerInput(e.target.value)}
+                    value={timerRunning ? formatCountdown(timerSecondsRemaining) : timerInput}
+                    onChange={(e) => {
+                      if (!timerRunning) setTimerInput(e.target.value);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !timerRunning) {
                         e.preventDefault();
                         handleStartTimerFromInput();
                       }
                     }}
+                    readOnly={timerRunning}
                     placeholder="05:00"
-                    className="field-input h-12 w-[108px] shrink-0 rounded-2xl px-0 text-center text-[30px] font-mono font-black text-slate-950 focus:ring-teal-500/20"
+                    className="field-input h-full min-h-[96px] w-full rounded-2xl px-0 text-center text-[2.35rem] font-mono font-black tracking-tight text-slate-950 focus:ring-teal-500/20"
                   />
-                  <div className="field-input flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-slate-50 px-4 py-3 text-[2.2rem] font-mono font-bold text-slate-950 border-teal-500/20 shadow-sm ring-1 ring-teal-500/10">
-                    {formatCountdown(timerSecondsRemaining)}
-                  </div>
                 </div>
               </div>
             )}
 
             {showVote && (
-              <div className="surface rounded-2xl p-5">
+              <div className="surface flex min-h-0 flex-col overflow-hidden rounded-2xl p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <span className="text-base font-bold text-slate-800">투표</span>
@@ -947,7 +989,8 @@ export function TeacherDashboardPreview() {
                     </button>
                   ))}
                 </div>
-                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
                   <div className="space-y-1.5">
                     <div className="text-xs font-bold text-slate-700">질문 입력하기</div>
                     <textarea
@@ -979,6 +1022,22 @@ export function TeacherDashboardPreview() {
                             className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
                           >
                             1-5
+                          </button>
+                          <button
+                            type="button"
+                            onClick={addChoiceOptionRow}
+                            disabled={voteOptionRows.length >= MAX_CHOICE_OPTIONS}
+                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300 disabled:opacity-40"
+                          >
+                            + 추가
+                          </button>
+                          <button
+                            type="button"
+                            onClick={removeChoiceOptionRow}
+                            disabled={voteOptionRows.length <= MIN_CHOICE_OPTIONS}
+                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300 disabled:opacity-40"
+                          >
+                            - 삭제
                           </button>
                         </div>
                       </div>
@@ -1013,14 +1072,14 @@ export function TeacherDashboardPreview() {
                           ))}
                         </div>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {voteOptionRows.map((option, index) => (
                           <input
                             key={`slider-option-${index}`}
                             value={option}
                             onChange={(e) => updateVoteOptionRow(index, e.target.value)}
                             placeholder={`${index + 1}단계 라벨`}
-                            className="field-input h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm"
+                            className="field-input h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
                           />
                         ))}
                       </div>
@@ -1029,7 +1088,7 @@ export function TeacherDashboardPreview() {
 
                   <div className="space-y-1.5">
                     <div className="text-xs font-bold text-slate-700">제한시간</div>
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                       {voteDurationPresets.map((seconds) => (
                         <button
                           key={`vote-duration-${seconds}`}
@@ -1060,12 +1119,13 @@ export function TeacherDashboardPreview() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleOpenVoteFromDraft}
-                    className="action-primary w-full rounded-2xl py-3 text-sm font-bold"
-                  >
-                    {voteSummary.isActive ? "투표 다시 시작" : "투표 시작"}
-                  </button>
+                    <button
+                      onClick={handleOpenVoteFromDraft}
+                      className="action-primary w-full rounded-2xl py-3 text-sm font-bold"
+                    >
+                      {voteSummary.isActive ? "투표 다시 시작" : "투표 시작"}
+                    </button>
+                  </div>
                 </div>
                 <div className="hidden grid grid-cols-2 gap-2.5">
                   {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
