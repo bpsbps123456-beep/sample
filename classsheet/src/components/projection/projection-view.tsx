@@ -1892,8 +1892,72 @@ function VoteSidebar({
 }) {
   const hasResults = Boolean(activeVote && voteSummary.results.length > 0);
 
+  if (!compact) {
+    // 메인 송출 영역: 화면 꽉 채우기
+    return (
+      <section className="flex flex-1 flex-col items-center justify-center p-8">
+        <div className={cn(PANEL_SURFACE, "flex w-full max-w-[900px] flex-col overflow-hidden")}>
+          <header className="flex items-center justify-between border-b border-white/8 px-8 py-5">
+            <div className="flex items-center gap-3 text-[18px] font-black uppercase tracking-[0.16em] text-white">
+              <BarChart3 className="h-6 w-6" />
+              <span>Live Vote</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full p-2 text-[#8b9bb8] transition hover:bg-gray-100 hover:text-[#1a2338]"
+              aria-label="투표 닫기"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
+
+          {!activeVote ? (
+            <div className="flex flex-1 items-center justify-center px-10 py-20 text-center text-[24px] font-semibold text-[#66789b]">
+              진행 중인 투표가 없습니다
+            </div>
+          ) : (
+            <div className="flex-1 space-y-8 px-10 py-10">
+              <div className="text-[32px] font-black leading-snug text-white">{voteSummary.question}</div>
+              {!hasResults || !(voteSummary.isResultPublic ?? true) ? (
+                <div className="rounded-[14px] border border-white/8 bg-white/[0.03] px-6 py-14 text-center text-[22px] font-semibold text-[#7c8dae]">
+                  결과를 기다리는 중입니다
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {voteSummary.results.map((result) => {
+                    const percentage =
+                      voteSummary.responseCount > 0 ? Math.round((result.value / voteSummary.responseCount) * 100) : 0;
+
+                    return (
+                      <div key={result.label}>
+                        <div className="mb-2 flex items-center justify-between text-[22px] text-white">
+                          <span className="font-bold">{result.label}</span>
+                          <span className="font-bold text-[#a9b7cf]">
+                            {result.value}명 ({percentage}%)
+                          </span>
+                        </div>
+                        <div className="h-6 overflow-hidden rounded-full bg-white/8">
+                          <div className="h-6 rounded-full bg-[#10d5c2] transition-all duration-500" style={{ width: `${percentage}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="text-right text-[18px] font-bold text-[#66789b]">
+                총 {voteSummary.responseCount}명 참여
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  // 사이드바 compact 모드
   return (
-    <section className={cn("px-4 pb-4", compact ? "" : "flex-1 py-4")}>
+    <section className="px-4 pb-4">
       <div className={cn(PANEL_SURFACE, "overflow-hidden")}>
         <header className="flex items-center justify-between border-b border-white/8 px-5 py-4">
           <div className="flex items-center gap-2 text-[14px] font-black uppercase tracking-[0.16em] text-white">

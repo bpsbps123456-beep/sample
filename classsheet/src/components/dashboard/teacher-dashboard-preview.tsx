@@ -1152,7 +1152,7 @@ export function TeacherDashboardPreview() {
             )}
 
             {showVote && (
-              <div className="surface flex min-h-0 flex-col overflow-hidden rounded-2xl p-5">
+              <div className="surface flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <span className="text-base font-bold text-slate-800">투표</span>
