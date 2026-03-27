@@ -474,15 +474,9 @@ export function DrawingCanvas({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`relative h-9 w-9 rounded-full transition-transform hover:scale-110 ${color === c ? "ring-4 ring-slate-400/50 ring-offset-2 scale-110" : ""}`}
+                  className={`relative h-8 w-8 rounded-full transition-all duration-150 hover:scale-110 ${color === c ? "scale-110 ring-2 ring-white ring-offset-2 ring-offset-slate-200 shadow-md" : "opacity-70 hover:opacity-100"}`}
                   style={{ backgroundColor: c }}
-                >
-                  {color === c && (
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white mix-blend-difference">
-                      ✓
-                    </span>
-                  )}
-                </button>
+                />
               ))}
             </div>
 
