@@ -436,32 +436,31 @@ export function DrawingCanvas({
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-3 pt-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-4 pt-4">
+        <div className="flex items-center gap-3 text-sm font-bold text-slate-600">
           <button
             type="button"
             onClick={() => setTool("pen")}
-            className={`rounded-full px-3 py-1.5 ${tool === "pen" ? "bg-slate-950 text-white" : "bg-slate-100"}`}
+            className={`rounded-full px-5 py-2.5 transition-all ${tool === "pen" ? "bg-slate-950 text-white" : "bg-slate-100"}`}
           >
             펜
           </button>
           <button
             type="button"
             onClick={() => setTool("eraser")}
-            className={`rounded-full px-3 py-1.5 ${tool === "eraser" ? "bg-slate-950 text-white" : "bg-slate-100"}`}
+            className={`rounded-full px-5 py-2.5 transition-all ${tool === "eraser" ? "bg-slate-950 text-white" : "bg-slate-100"}`}
           >
             지우개
           </button>
-          <button type="button" onClick={handleClear} className="rounded-full bg-slate-100 px-3 py-1.5 transition-colors hover:bg-slate-200">
+          <button type="button" onClick={handleClear} className="rounded-full bg-slate-100 px-5 py-2.5 transition-colors hover:bg-slate-200">
             모두 지우기
           </button>
         </div>
 
-        {/* 색상 및 굵기 선택 */}
         {tool === "pen" && (
-          <div className="flex flex-wrap items-center gap-4 border-l border-slate-200 pl-4">
+          <div className="flex flex-wrap items-center gap-5 border-l-2 border-slate-200 pl-5">
             {/* 색상 팔레트 */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2.5">
               {[
                 "#111827", // Black
                 "#ef4444", // Red
@@ -475,7 +474,7 @@ export function DrawingCanvas({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`relative h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === c ? "ring-2 ring-slate-400 ring-offset-2" : ""}`}
+                  className={`relative h-9 w-9 rounded-full transition-transform hover:scale-110 ${color === c ? "ring-4 ring-slate-400/50 ring-offset-2 scale-110" : ""}`}
                   style={{ backgroundColor: c }}
                 >
                   {color === c && (
@@ -498,7 +497,7 @@ export function DrawingCanvas({
                   key={w.value}
                   type="button"
                   onClick={() => setLineWidth(w.value)}
-                  className={`flex h-6 w-8 items-center justify-center rounded-full text-[10px] font-bold transition-all ${lineWidth === w.value ? "bg-white text-slate-900 shadow-sm scale-105" : "text-slate-400 hover:text-slate-600"}`}
+                  className={`flex h-8 w-11 items-center justify-center rounded-full text-[13px] font-bold transition-all ${lineWidth === w.value ? "bg-white text-slate-900 shadow-md scale-105" : "text-slate-400 hover:text-slate-600 hover:bg-white/50"}`}
                 >
                   {w.label}
                 </button>
@@ -508,21 +507,6 @@ export function DrawingCanvas({
         )}
 
         <div className="flex items-center gap-2">
-          {isUploading ? (
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-600 animate-pulse">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-              실시간 동기화 중...
-            </div>
-          ) : isDirty ? (
-            <div className="text-[11px] font-medium text-orange-500">
-              저장되지 않은 변경사항 있음
-            </div>
-          ) : value ? (
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
-              <span className="text-[14px]">✓</span>
-              선생님께 전달됨
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -549,7 +533,7 @@ export function DrawingCanvas({
         onTouchCancel={() => stopDrawing()}
         onContextMenu={(e) => e.preventDefault()}
         className={`w-full touch-none bg-white ${disabled ? "cursor-not-allowed opacity-70" : "cursor-crosshair"}`}
-        style={{ aspectRatio: "3/2", maxHeight: "52vh", touchAction: "none" }}
+        style={{ height: "calc(100dvh - 360px)", minHeight: "360px", touchAction: "none" }}
       />
 
 
