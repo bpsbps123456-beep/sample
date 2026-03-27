@@ -819,9 +819,9 @@ export function TeacherDashboardPreview() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
-                  {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
+                  {(["ox", "choice"] as const).map((vType) => (
                     <button key={vType} onClick={() => openVote(vType)} className="action-secondary rounded-2xl py-3 text-sm font-semibold transition-all hover:bg-slate-50">
-                      {vType === "ox" ? "O/X" : vType === "choice" ? "객관식" : vType === "slider" ? "슬라이더" : "워드클라우드"}
+                      {vType === "ox" ? "O/X" : "객관식"}
                     </button>
                   ))}
                 </div>

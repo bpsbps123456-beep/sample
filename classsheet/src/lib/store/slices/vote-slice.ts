@@ -56,16 +56,6 @@ export function defaultVoteConfig(type: VoteType) {
         question: "이 활동에서 가장 중요한 개념을 이해했나요?",
         options: ["O", "X"],
       };
-    case "slider":
-      return {
-        question: "오늘 수업 이해도를 1부터 5까지 골라 주세요.",
-        options: ["1", "2", "3", "4", "5"],
-      };
-    case "wordcloud":
-      return {
-        question: "오늘 수업을 한 단어로 표현해 주세요.",
-        options: [],
-      };
     case "choice":
     default:
       return {
@@ -232,7 +222,7 @@ export function createVoteActions(set: VoteSetFn, get: VoteGetFn): VoteSliceActi
             .map((r) =>
               r.label === label ? { ...r, value: Math.max(0, r.value - 1) } : r,
             )
-            .filter((r) => r.value > 0 || state.voteSummary.type !== "wordcloud"),
+            .filter((r) => r.value > 0),
         },
       }));
     },

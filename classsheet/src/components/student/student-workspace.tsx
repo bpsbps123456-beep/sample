@@ -49,11 +49,7 @@ function isFilled(value: string | string[] | undefined) {
 }
 
 function labelForVote(type: VoteType) {
-  return type === "wordcloud"
-    ? "워드클라우드"
-    : type === "slider"
-      ? "슬라이더 투표"
-      : type === "ox"
+  return type === "ox"
         ? "O/X 투표"
         : "객관식 투표";
 }
@@ -939,25 +935,6 @@ export function StudentWorkspace() {
                 {activeVote.isResultPublic && voteSummary.results.length > 0 ? (
                   <div className="mt-5 space-y-3">
                     <div className="text-sm font-semibold text-slate-500">현재 결과 ({voteSummary.responseCount}명 응답)</div>
-                    {voteSummary.type === "wordcloud" ? (
-                      <div className="flex flex-wrap gap-3 rounded-2xl bg-slate-50 p-5">
-                        {[...voteSummary.results]
-                          .sort((a, b) => b.value - a.value)
-                          .filter((r) => r.value > 0)
-                          .map((result) => {
-                            const maxVal = Math.max(...voteSummary.results.map((r) => r.value), 1);
-                            return (
-                              <span
-                                key={result.label}
-                                style={{ fontSize: `${Math.round(20 + (result.value / maxVal) * 44)}px` }}
-                                className="font-semibold text-teal-700"
-                              >
-                                {result.label}
-                              </span>
-                            );
-                          })}
-                      </div>
-                    ) : (
                       <div className="space-y-3">
                         {voteSummary.results.map((result) => {
                           const pct = voteSummary.responseCount > 0
@@ -979,24 +956,16 @@ export function StudentWorkspace() {
                           );
                         })}
                       </div>
-                    )}
                   </div>
                 ) : !activeVote.isResultPublic ? (
                   <p className="mt-4 text-center text-sm text-slate-400">교사가 결과를 공개하면 표시됩니다.</p>
                 ) : null}
               </div>
-            ) : activeVote.type === "wordcloud" ? (
-              <div className="mt-6 space-y-4">
-                <input value={voteDraft} onChange={(e) => setVoteDraft(e.target.value)} placeholder="한 단어를 입력해 주세요" className="field-input w-full rounded-2xl px-5 py-4 text-lg" />
-                <button onClick={() => { if (!voteDraft.trim()) return; castVote(voteDraft.trim(), studentName, studentToken); setSubmittedVoteId(activeVote.id); setVoteDraft(""); }} className="action-primary w-full rounded-2xl py-4 text-lg font-semibold">
-                  응답 제출
-                </button>
-              </div>
             ) : (
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {activeVote.options.map((opt) => (
                   <button key={opt}
-                    onClick={() => { castVote(activeVote.type === "slider" ? Number(opt) : opt, studentName, studentToken); setSubmittedVoteId(activeVote.id); }}
+                    onClick={() => { castVote(opt, studentName, studentToken); setSubmittedVoteId(activeVote.id); }}
                     className="rounded-2xl border-2 border-slate-200 bg-white px-5 py-5 text-left text-lg font-semibold text-slate-800 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
                   >
                     {opt}

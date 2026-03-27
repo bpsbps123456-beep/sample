@@ -126,7 +126,6 @@ function normalizeVoteOptions(type: string, options: unknown): string[] {
     ? options.filter((o): o is string => typeof o === "string")
     : [];
   if (type === "ox") return arr.length > 0 ? arr : ["O", "X"];
-  if (type === "slider") return arr.length > 0 ? arr : ["1", "2", "3", "4", "5"];
   return arr;
 }
 

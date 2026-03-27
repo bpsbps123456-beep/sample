@@ -12,7 +12,7 @@ export type WorksheetComponentType =
   | "divider"
   | "ox";
 
-export type VoteType = "ox" | "choice" | "slider" | "wordcloud";
+export type VoteType = "ox" | "choice";
 
 export type PresenceStatus = "online" | "idle" | "offline" | "submitted";
 

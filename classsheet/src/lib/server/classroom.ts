@@ -259,10 +259,6 @@ function normalizeVoteOptions(vote: VoteRow) {
     return options.length > 0 ? options : ["O", "X"];
   }
 
-  if (vote.type === "slider") {
-    return options.length > 0 ? options : ["1", "2", "3", "4", "5"];
-  }
-
   return options;
 }
 

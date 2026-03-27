@@ -129,25 +129,14 @@ export function TeacherDashboardPreview() {
   const toggleGalleryProject = useClassroomStore((s) => s.toggleGalleryProject);
 
   function voteTypeLabel(type: VoteType) {
-    return type === "ox"
-      ? "O/X"
-      : type === "choice"
-        ? "객관식"
-        : type === "slider"
-          ? "슬라이더"
-          : "워드클라우드";
+    return type === "ox" ? "O/X" : "객관식";
   }
 
   function handleVoteTypeSelect(type: VoteType) {
     const config = defaultVoteConfig(type);
     setVoteDraftType(type);
     setVoteQuestionDraft(config.question);
-
-    if (type === "slider") {
-      setVoteOptionsDraft("1\n2\n3\n4\n5");
-    } else {
-      setVoteOptionsDraft(type === "wordcloud" ? "" : config.options.join("\n"));
-    }
+    setVoteOptionsDraft(type === "ox" ? "" : config.options.join("\n"));
   }
 
   const voteOptionRows = useMemo(() => {
@@ -158,15 +147,6 @@ export function TeacherDashboardPreview() {
       while (rows.length < MIN_CHOICE_OPTIONS) rows.push("");
       return rows.slice(0, MAX_CHOICE_OPTIONS);
     }
-
-    if (voteDraftType === "slider") {
-      const rows = voteOptionsDraft
-        .split(/\r?\n/)
-        .map((option) => option.trim())
-        .filter(Boolean);
-      return rows.length > 0 ? rows : ["1", "2", "3", "4", "5"];
-    }
-
     return [];
   }, [voteDraftType, voteOptionsDraft]);
 
@@ -186,21 +166,15 @@ export function TeacherDashboardPreview() {
     setVoteOptionsDraft(voteOptionRows.slice(0, -1).join("\n"));
   }
 
-  function applySliderStepPreset(count: number) {
-    setVoteOptionsDraft(Array.from({ length: count }, (_, i) => `${i + 1}`).join("\n"));
-  }
-
   function handleOpenVoteFromDraft() {
     const fallback = defaultVoteConfig(voteDraftType);
     const options =
-      voteDraftType === "wordcloud"
-        ? []
-        : voteDraftType === "ox"
-          ? ["O", "X"]
-          : voteOptionsDraft
-              .split(/\r?\n|,/)
-              .map((option) => option.trim())
-              .filter(Boolean);
+      voteDraftType === "ox"
+        ? ["O", "X"]
+        : voteOptionsDraft
+            .split(/\r?\n|,/)
+            .map((option) => option.trim())
+            .filter(Boolean);
 
     openVote(voteDraftType, {
       question: voteQuestionDraft.trim() || fallback.question,
@@ -1212,7 +1186,7 @@ export function TeacherDashboardPreview() {
                   </div>
                 </div>
                 <div className="mb-3 grid grid-cols-2 gap-2.5">
-                  {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
+                  {(["ox", "choice"] as const).map((vType) => (
                     <button
                       key={`draft-${vType}`}
                       onClick={() => handleVoteTypeSelect(vType)}
@@ -1292,36 +1266,6 @@ export function TeacherDashboardPreview() {
                     </div>
                   ) : null}
 
-                  {voteDraftType === "slider" ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs font-bold text-slate-700">단계 설정</div>
-                        <div className="flex gap-1">
-                          {[3, 5, 10].map((n) => (
-                            <button
-                              key={`slider-preset-${n}`}
-                              type="button"
-                              onClick={() => applySliderStepPreset(n)}
-                              className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
-                            >
-                              {n}단계
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        {voteOptionRows.map((option, index) => (
-                          <input
-                            key={`slider-option-${index}`}
-                            value={option}
-                            onChange={(e) => updateVoteOptionRow(index, e.target.value)}
-                            placeholder={`${index + 1}단계 라벨`}
-                            className="field-input h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
 
                   <div className="space-y-1.5">
                     <div className="text-xs font-bold text-slate-700">제한시간</div>
@@ -1363,13 +1307,6 @@ export function TeacherDashboardPreview() {
                       {voteSummary.isActive ? "투표 다시 시작" : "투표 시작"}
                     </button>
                   </div>
-                </div>
-                <div className="hidden grid grid-cols-2 gap-2.5">
-                  {(["ox", "choice", "slider", "wordcloud"] as const).map((vType) => (
-                    <button key={vType} onClick={() => openVote(vType)} className="action-secondary rounded-2xl py-3 text-sm font-semibold transition-all hover:bg-slate-50">
-                      {vType === "ox" ? "O/X" : vType === "choice" ? "객관식" : vType === "slider" ? "슬라이더" : "워드클라우드"}
-                    </button>
-                  ))}
                 </div>
                 {voteSummary.isActive && (
                   <div className="mt-4 space-y-2 border-t border-slate-50 pt-3">

@@ -22,28 +22,6 @@ export function ProjectionVoteDisplay() {
           <div className="text-5xl">🔒</div>
           <div className="mt-4 text-xl text-slate-400">교사가 결과를 공개하면 표시됩니다</div>
         </div>
-      ) : voteSummary.type === "wordcloud" ? (
-        <div className="mt-10 flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-10">
-          {[...voteSummary.results]
-            .sort((a, b) => b.value - a.value)
-            .filter((r) => r.value > 0)
-            .map((result) => {
-              const maxVal = Math.max(...voteSummary.results.map((r) => r.value), 1);
-              const size = Math.round(24 + (result.value / maxVal) * 56);
-              return (
-                <span
-                  key={result.label}
-                  style={{ fontSize: `${size}px` }}
-                  className="font-bold text-teal-300"
-                >
-                  {result.label}
-                </span>
-              );
-            })}
-          {voteSummary.results.every((r) => r.value === 0) ? (
-            <span className="text-slate-500">아직 응답이 없습니다</span>
-          ) : null}
-        </div>
       ) : (
         <div className="mt-8 grid gap-4">
           {voteSummary.results.map((result) => (

@@ -1921,17 +1921,6 @@ function VoteSidebar({
               <div className="rounded-[14px] border border-white/8 bg-white/[0.03] px-4 py-8 text-center text-[16px] font-semibold text-[#7c8dae]">
                 결과를 기다리는 중입니다
               </div>
-            ) : voteSummary.type === "wordcloud" ? (
-              <div className="flex flex-wrap gap-2 rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
-                {voteSummary.results
-                  .filter((result) => result.value > 0)
-                  .sort((left, right) => right.value - left.value)
-                  .map((result) => (
-                    <span key={result.label} className="font-black text-[#59f0dd]">
-                      {result.label}
-                    </span>
-                  ))}
-              </div>
             ) : (
               <div className="space-y-3">
                 {voteSummary.results.map((result) => {
