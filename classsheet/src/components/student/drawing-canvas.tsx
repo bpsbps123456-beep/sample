@@ -417,6 +417,7 @@ export function DrawingCanvas({
         .upload(filePath, blob, {
           contentType: "image/png",
           upsert: true,
+          cacheControl: "86400",
         });
 
       if (uploadResult.error) {

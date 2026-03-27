@@ -609,7 +609,7 @@ export function TeacherDashboardPreview() {
                                 {card.excerpt ? <p className="line-clamp-2 text-[14px] leading-relaxed text-slate-600">{card.excerpt}</p> : null}
                                 {card.imageUrl ? (
                                   <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
-                                    <Image src={card.imageUrl} alt={student.studentName} fill className="object-contain" unoptimized />
+                                    <Image src={card.imageUrl} alt={student.studentName} fill className="object-contain" sizes="300px" />
                                   </div>
                                 ) : null}
                                 <div className="flex items-center justify-between gap-1.5 pt-1">
@@ -1297,30 +1297,44 @@ export function TeacherDashboardPreview() {
                     </div>
                   </div>
 
-                    <button
-                      onClick={handleOpenVoteFromDraft}
-                      className="action-primary w-full rounded-2xl py-4 text-base font-bold"
-                    >
-                      {voteSummary.isActive ? "투표 다시 시작" : "투표 시작"}
-                    </button>
+                    {voteSummary.isActive ? (
+                      <>
+                        <div className="flex items-center justify-between text-sm font-bold mb-2.5">
+                          <span className="text-slate-600">응답 수</span>
+                          <span className="text-teal-600">{voteSummary.responseCount}명 참여</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={closeVote}
+                            className="action-primary flex-1 rounded-2xl py-4 text-base font-bold"
+                          >
+                            투표 종료
+                          </button>
+                          <button
+                            onClick={() => {
+                              closeVote();
+                              const config = defaultVoteConfig("ox");
+                              setVoteDraftType("ox");
+                              setVoteQuestionDraft(config.question);
+                              setVoteOptionsDraft(config.options.join("\n"));
+                              setVoteDurationDraft(30);
+                            }}
+                            className="action-secondary rounded-2xl px-5 py-4 text-base font-bold"
+                          >
+                            초기화
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <button
+                        onClick={handleOpenVoteFromDraft}
+                        className="action-primary w-full rounded-2xl py-4 text-base font-bold"
+                      >
+                        투표 시작
+                      </button>
+                    )}
                   </div>
                 </div>
-                {voteSummary.isActive && (
-                  <div className="mt-4 space-y-2.5 border-t border-slate-50 pt-4">
-                    <div className="rounded-xl bg-slate-50 px-4 py-3">
-                      <div className="text-xs font-bold text-slate-400">현재 질문</div>
-                      <div className="mt-1 text-base font-semibold text-slate-800">{voteSummary.question}</div>
-                    </div>
-                    <div className="flex items-center justify-between text-sm font-bold">
-                      <span className="text-slate-600">응답 수</span>
-                      <span className="text-teal-600">{voteSummary.responseCount}명 참여</span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <button onClick={closeVote} className="action-primary flex-1 rounded-lg py-1.5 text-[11px] font-bold">종료</button>
-                      <button onClick={resetVote} className="action-secondary flex-1 rounded-lg py-1.5 text-[11px] font-bold">초기화</button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

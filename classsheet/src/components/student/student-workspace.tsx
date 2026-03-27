@@ -866,7 +866,7 @@ export function StudentWorkspace() {
                               </button>
                               {card.imageUrl ? (
                                 <button onClick={() => setSelectedGalleryIndex(idx)} className="relative mt-2 block h-28 w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
-                                  <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
+                                  <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" sizes="300px" />
                                 </button>
                               ) : null}
                               <div className="mt-2 flex gap-1">

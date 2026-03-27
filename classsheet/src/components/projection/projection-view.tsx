@@ -2107,7 +2107,7 @@ function ProjectionGalleryCard({
           <div className="min-w-0 flex-1">
             {card.imageUrl ? (
               <div className="relative h-full w-full overflow-hidden rounded-[12px] bg-white/50 border border-[#e2e8f0]">
-                <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
+                <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" sizes="400px" />
               </div>
             ) : (
               <div

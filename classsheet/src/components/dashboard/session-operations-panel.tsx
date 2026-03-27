@@ -307,7 +307,7 @@ export function SessionOperationsPanel() {
                       ) : null}
                       {card.imageUrl ? (
                         <div className="relative mt-3 h-40 w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
-                          <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" unoptimized />
+                          <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" sizes="300px" />
                         </div>
                       ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
