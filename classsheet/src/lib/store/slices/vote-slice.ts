@@ -6,7 +6,7 @@ import type {
   VoteType,
 } from "@/lib/types/domain";
 import type { VoteRow } from "@/lib/realtime-transforms";
-import { voteRowToActiveVote, voteRowToSummary } from "@/lib/realtime-transforms";
+import { voteRowToActiveVote, voteRowToSummary, extractVoteResponseValue } from "@/lib/realtime-transforms";
 import { syncClassroomAction } from "@/lib/store/utils/sync-action";
 
 // ─── State & Actions 타입 ────────────────────────────────────────────────────
@@ -23,8 +23,8 @@ export interface VoteSliceActions {
   resetVote: () => void;
   castVote: (response: string | number, studentName?: string, studentToken?: string) => void;
   handleVoteUpsert: (row: VoteRow) => void;
-  handleVoteResponseInsert: (voteId: string, response: string) => void;
-  handleVoteResponseDelete: (voteId: string, response: string) => void;
+  handleVoteResponseInsert: (voteId: string, response: unknown) => void;
+  handleVoteResponseDelete: (voteId: string, response: unknown) => void;
 }
 
 export type VoteSlice = VoteSliceState & VoteSliceActions;
@@ -201,26 +201,38 @@ export function createVoteActions(set: VoteSetFn, get: VoteGetFn): VoteSliceActi
 
     handleVoteResponseInsert: (voteId, response) => {
       if (get().activeVote?.id !== voteId) return;
-      set((state) => ({
-        voteSummary: {
-          ...state.voteSummary,
-          responseCount: state.voteSummary.responseCount + 1,
-          results: state.voteSummary.results.map((r) =>
-            r.label === response ? { ...r, value: r.value + 1 } : r,
-          ),
-        },
-      }));
+      const label = extractVoteResponseValue(response);
+      if (!label) return;
+      set((state) => {
+        const exists = state.voteSummary.results.some((r) => r.label === label);
+        const results = exists
+          ? state.voteSummary.results.map((r) =>
+              r.label === label ? { ...r, value: r.value + 1 } : r,
+            )
+          : [...state.voteSummary.results, { label, value: 1 }];
+        return {
+          voteSummary: {
+            ...state.voteSummary,
+            responseCount: state.voteSummary.responseCount + 1,
+            results,
+          },
+        };
+      });
     },
 
     handleVoteResponseDelete: (voteId, response) => {
       if (get().activeVote?.id !== voteId) return;
+      const label = extractVoteResponseValue(response);
+      if (!label) return;
       set((state) => ({
         voteSummary: {
           ...state.voteSummary,
           responseCount: Math.max(0, state.voteSummary.responseCount - 1),
-          results: state.voteSummary.results.map((r) =>
-            r.label === response ? { ...r, value: Math.max(0, r.value - 1) } : r,
-          ),
+          results: state.voteSummary.results
+            .map((r) =>
+              r.label === label ? { ...r, value: Math.max(0, r.value - 1) } : r,
+            )
+            .filter((r) => r.value > 0 || state.voteSummary.type !== "wordcloud"),
         },
       }));
     },

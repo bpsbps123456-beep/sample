@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Shield } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SingleChoiceComponent, MultiChoiceComponent, VoteType } from "@/lib/types/domain";
@@ -20,6 +21,24 @@ function inputToSeconds(value: string) {
   return Number.isFinite(parsedMinutes) && Number.isFinite(parsedSeconds)
     ? Math.max(0, parsedMinutes * 60 + parsedSeconds)
     : 0;
+}
+
+function getStudentChatNameColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    "#3b82f6", // Blue 500
+    "#10b981", // Emerald 500
+    "#f59e0b", // Amber 500
+    "#ef4444", // Red 500
+    "#8b5cf6", // Violet 500
+    "#ec4899", // Pink 500
+    "#0ea5e9", // Sky 500
+    "#22c55e", // Green 500
+  ];
+  return colors[Math.abs(hash) % colors.length];
 }
 
 const voteDurationPresets = [10, 20, 30, 60] as const;
@@ -833,12 +852,12 @@ export function TeacherDashboardPreview() {
                                       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                                         <div className={cn(
                                           "flex items-center justify-center p-4",
-                                          isEnlargedSingle ? "min-h-[420px]" : "min-h-[240px]"
+                                          isEnlargedSingle ? "min-h-[600px]" : "min-h-[480px]"
                                         )}>
                                           {answer?.imageUrl ? (
                                             <div className={cn(
                                               "relative w-full overflow-hidden rounded-lg",
-                                              isEnlargedSingle ? "h-[420px]" : "h-[240px]"
+                                              isEnlargedSingle ? "h-[600px]" : "h-[480px]"
                                             )}>
                                               <Image src={answer.imageUrl} alt={comp.title} fill className="object-contain" unoptimized />
                                             </div>
@@ -1041,18 +1060,22 @@ export function TeacherDashboardPreview() {
                       const isTeacher = msg.isTeacher;
                       const isAnonymousSender = !isTeacher && (chatAnonymousMode || msg.isAnonymous);
                       const displayName = isTeacher ? msg.senderName : isAnonymousSender ? "익명" : msg.senderName;
+                      const senderColor = isTeacher ? "#3b82f6" : getStudentChatNameColor(displayName);
+
                       return (
-                        <div key={msg.id} className={`flex flex-col ${isTeacher ? "items-end" : "items-start"}`}>
-                          {!isTeacher && (
-                            <div className="mb-0.5 ml-1 flex items-center gap-1.5 text-[12px] font-semibold text-slate-400">
-                              {displayName}
+                        <div key={msg.id} className="w-full text-left py-1 hover:bg-slate-50 rounded-lg transition-colors px-1">
+                          <div className="flex items-start gap-2.5 text-[18px] leading-relaxed text-slate-800">
+                            <div className="flex shrink-0 items-center font-bold pt-0.5" style={{ color: senderColor }}>
+                              {isTeacher && <Shield className="mr-1 h-4 w-4 fill-blue-500 text-blue-500" />}
+                              <span>{displayName}</span>
                               {isAnonymousSender && (
-                                <span className="rounded-md border border-slate-200 bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-400">익명</span>
+                                <span className="ml-1.5 rounded-md border border-slate-200 bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-400 leading-none">익명</span>
                               )}
+                              <span className="ml-1.5 font-normal text-slate-300">|</span>
                             </div>
-                          )}
-                          <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-[14px] leading-relaxed ${isTeacher ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
-                            {msg.content}
+                            <div className="min-w-0 flex-1 break-words font-semibold text-slate-900">
+                              {msg.content}
+                            </div>
                           </div>
                         </div>
                       );
@@ -1164,7 +1187,19 @@ export function TeacherDashboardPreview() {
                     {voteSummary.isActive ? <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs font-bold text-teal-700">진행 중</span> : null}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
+                      onClick={toggleVoteResultPublic}
+                      title={voteSummary.isResultPublic !== false ? "결과 비공개로 전환" : "결과 공개로 전환"}
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[10px] border px-3 text-[14px] font-black transition-all",
+                        !(voteSummary.isResultPublic ?? true)
+                          ? "border-teal-400 bg-teal-50 text-teal-700 shadow-[0_0_0_1px_rgba(20,184,166,0.2),0_0_12px_rgba(20,184,166,0.1)]"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      결과 비공개
+                    </button>
+                    <button
                       onClick={() => setProjection(projectedType === "vote" ? null : "vote")}
                       title="화면 송출"
                       className={`rounded-xl p-3 transition-all ${projectedType === "vote" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}

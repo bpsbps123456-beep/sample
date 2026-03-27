@@ -83,7 +83,16 @@ export interface VoteRow {
 
 export interface VoteResponseRow {
   vote_id: string;
-  response: string;
+  response: unknown; // JSONB — may be { value: string }, number, or string
+}
+
+/** Extract the display label from a Supabase JSONB vote response. */
+export function extractVoteResponseValue(response: unknown): string {
+  if (response == null) return "";
+  if (typeof response === "object" && "value" in (response as Record<string, unknown>)) {
+    return String((response as Record<string, unknown>).value);
+  }
+  return String(response);
 }
 
 export interface GalleryReactionRow {
