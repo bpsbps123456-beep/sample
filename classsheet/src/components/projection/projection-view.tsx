@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Play,
   Shield,
+  SlidersHorizontal,
   Sparkles,
   Timer,
   Unlock,
@@ -264,6 +265,7 @@ export default function ProjectionView({
   const toggleShowVote = useClassroomStore((state) => state.toggleShowVote);
 
   const [zoomPercent, setZoomPercent] = useState(100);
+  const [showViewTools, setShowViewTools] = useState(true);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [timerInput, setTimerInput] = useState("05:00");
   const [selectedStudentMessageId, setSelectedStudentMessageId] = useState<string | null>(null);
@@ -467,6 +469,13 @@ export default function ProjectionView({
           <div className="flex flex-wrap items-center justify-end gap-3 pr-1">
             <PagesControl pages={pages} currentPage={currentPageData.pageNumber} onSelectPage={setCurrentPage} />
             <TopBarButton
+              icon={<SlidersHorizontal className="h-4 w-4" />}
+              label="보기 도구"
+              active={showViewTools}
+              activeClassName="border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
+              onClick={() => setShowViewTools((v) => !v)}
+            />
+            <TopBarButton
               icon={<Sparkles className="h-4 w-4" />}
               label="집중 모드"
               active={focusMode}
@@ -550,7 +559,8 @@ export default function ProjectionView({
             )}
           </div>
 
-          {!chatHighlightModeEnabled &&
+          {showViewTools &&
+          !chatHighlightModeEnabled &&
           (projectionMode === "worksheet" || projectionMode === "student") &&
           answerableSections.length > 0 ? (
             <section className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
@@ -1380,14 +1390,14 @@ function ProjectionQuestionSurface({
         isGallery ? "" : "border border-[#e4ebf5] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
       )}>
         <div className={cn(
-          "flex min-h-[320px] items-center justify-center p-4",
+          "flex min-h-[320px] items-center justify-center p-0",
           fillHeight ? "h-full" : "",
           isGallery ? "" : "bg-[#fbfcff]"
         )}>
           {answer?.imageUrl ? (
             <div className={cn(
               "relative w-full overflow-hidden rounded-[12px]",
-              fillHeight ? "h-full min-h-[320px]" : "h-[320px]",
+              fillHeight ? "h-full min-h-[320px]" : "h-[65vh] min-h-[320px]",
             )}>
               <Image src={answer.imageUrl} alt={component.title} fill className="object-contain" unoptimized />
             </div>
@@ -1742,12 +1752,12 @@ function ProjectionChatSidebar({
                       : "border-transparent px-3 py-1.5 hover:border-white/8 hover:bg-white/[0.03]",
                   )}
                 >
-                  <div className="flex items-center gap-2.5 text-[21px] leading-8">
-                    <div className="flex shrink-0 items-center gap-1 font-black" style={{ color: senderColor }}>
+                  <div className="flex items-start gap-2.5 text-[21px] leading-8">
+                    <div className="flex shrink-0 items-center font-black pt-0.5" style={{ color: senderColor }}>
+                      {isTeacher ? <Shield className="mr-1.5 h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
                       <span>{displayName}</span>
-                      {isTeacher ? <Shield className="h-4 w-4 fill-[#60a5fa] text-[#60a5fa]" /> : null}
+                      <span className="ml-1.5 font-normal text-[#4a5e7a]">|</span>
                     </div>
-                    <span className="text-[#4a5e7a]">|</span>
                     <div className={cn("min-w-0 flex-1 break-all font-semibold", isSelected ? "text-[#e8f4ff]" : "text-[#c8d8f0]")}>
                       {message.content}
                     </div>
