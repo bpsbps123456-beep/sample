@@ -141,9 +141,7 @@ export function TeacherDashboardPreview() {
 
   const voteOptionRows = useMemo(() => {
     if (voteDraftType === "choice") {
-      const rows = voteOptionsDraft
-        .split(/\r?\n/)
-        .map((option) => option.trim());
+      const rows = voteOptionsDraft.split(/\r?\n/);
       while (rows.length < MIN_CHOICE_OPTIONS) rows.push("");
       return rows.slice(0, MAX_CHOICE_OPTIONS);
     }
@@ -1185,12 +1183,12 @@ export function TeacherDashboardPreview() {
                     </button>
                   </div>
                 </div>
-                <div className="mb-3 grid grid-cols-2 gap-2.5">
+                <div className="mb-4 grid grid-cols-2 gap-3">
                   {(["ox", "choice"] as const).map((vType) => (
                     <button
                       key={`draft-${vType}`}
                       onClick={() => handleVoteTypeSelect(vType)}
-                      className={`rounded-2xl py-3 text-sm font-semibold transition-all ${
+                      className={`rounded-2xl py-4 text-base font-semibold transition-all ${
                         voteDraftType === vType
                           ? "bg-slate-900 text-white shadow-sm"
                           : "action-secondary hover:bg-slate-50"
@@ -1201,36 +1199,36 @@ export function TeacherDashboardPreview() {
                   ))}
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-bold text-slate-700">질문 입력하기</div>
+                  <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="space-y-2">
+                    <div className="text-sm font-bold text-slate-700">질문 입력하기</div>
                     <textarea
                       value={voteQuestionDraft}
                       onChange={(e) => setVoteQuestionDraft(e.target.value)}
                       placeholder="질문을 입력하세요"
                       className={cn(
-                        "field-input w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed",
-                        voteDraftType === "ox" ? "min-h-[96px]" : "min-h-[72px]",
+                        "field-input w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base leading-relaxed",
+                        voteDraftType === "ox" ? "min-h-[110px]" : "min-h-[90px]",
                       )}
                     />
                   </div>
 
                   {voteDraftType === "choice" ? (
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs font-bold text-slate-700">보기 입력하기</div>
-                        <div className="flex gap-1">
+                        <div className="text-sm font-bold text-slate-700">보기 입력하기</div>
+                        <div className="flex gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setVoteOptionsDraft("A\nB\nC\nD")}
-                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
+                            onClick={() => setVoteOptionsDraft("A \nB \nC \nD ")}
+                            className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-300"
                           >
                             A-D
                           </button>
                           <button
                             type="button"
-                            onClick={() => setVoteOptionsDraft("1\n2\n3\n4\n5")}
-                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
+                            onClick={() => setVoteOptionsDraft("1 \n2 \n3 \n4 \n5 ")}
+                            className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-300"
                           >
                             1-5
                           </button>
@@ -1238,7 +1236,7 @@ export function TeacherDashboardPreview() {
                             type="button"
                             onClick={addChoiceOptionRow}
                             disabled={voteOptionRows.length >= MAX_CHOICE_OPTIONS}
-                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300 disabled:opacity-40"
+                            className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-300 disabled:opacity-40"
                           >
                             + 추가
                           </button>
@@ -1246,29 +1244,28 @@ export function TeacherDashboardPreview() {
                             type="button"
                             onClick={removeChoiceOptionRow}
                             disabled={voteOptionRows.length <= MIN_CHOICE_OPTIONS}
-                            className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300 disabled:opacity-40"
+                            className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-300 disabled:opacity-40"
                           >
                             - 삭제
                           </button>
                         </div>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {voteOptionRows.map((option, index) => (
                           <input
                             key={`choice-option-${index}`}
                             value={option}
                             onChange={(e) => updateVoteOptionRow(index, e.target.value)}
                             placeholder={`보기 ${index + 1}. 내용을 입력하세요`}
-                            className="field-input h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm"
+                            className="field-input h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base"
                           />
                         ))}
                       </div>
                     </div>
                   ) : null}
 
-
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-bold text-slate-700">제한시간</div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-bold text-slate-700">제한시간</div>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                       {voteDurationPresets.map((seconds) => (
                         <button
@@ -1276,7 +1273,7 @@ export function TeacherDashboardPreview() {
                           type="button"
                           onClick={() => setVoteDurationDraft(seconds)}
                           className={cn(
-                            "rounded-xl border px-2 py-2 text-xs font-bold transition-all",
+                            "rounded-xl border px-2 py-2.5 text-sm font-bold transition-all",
                             voteDurationDraft === seconds
                               ? "border-blue-500 bg-blue-500 text-white shadow-sm"
                               : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
@@ -1289,7 +1286,7 @@ export function TeacherDashboardPreview() {
                         type="button"
                         onClick={() => setVoteDurationDraft(null)}
                         className={cn(
-                          "rounded-xl border px-2 py-2 text-xs font-bold transition-all",
+                          "rounded-xl border px-2 py-2.5 text-sm font-bold transition-all",
                           voteDurationDraft === null
                             ? "border-blue-500 bg-blue-500 text-white shadow-sm"
                             : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
@@ -1302,19 +1299,19 @@ export function TeacherDashboardPreview() {
 
                     <button
                       onClick={handleOpenVoteFromDraft}
-                      className="action-primary w-full rounded-2xl py-3 text-sm font-bold"
+                      className="action-primary w-full rounded-2xl py-4 text-base font-bold"
                     >
                       {voteSummary.isActive ? "투표 다시 시작" : "투표 시작"}
                     </button>
                   </div>
                 </div>
                 {voteSummary.isActive && (
-                  <div className="mt-4 space-y-2 border-t border-slate-50 pt-3">
-                    <div className="rounded-xl bg-slate-50 px-3 py-2">
-                      <div className="text-[11px] font-bold text-slate-400">현재 질문</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-800">{voteSummary.question}</div>
+                  <div className="mt-4 space-y-2.5 border-t border-slate-50 pt-4">
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs font-bold text-slate-400">현재 질문</div>
+                      <div className="mt-1 text-base font-semibold text-slate-800">{voteSummary.question}</div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] font-bold">
+                    <div className="flex items-center justify-between text-sm font-bold">
                       <span className="text-slate-600">응답 수</span>
                       <span className="text-teal-600">{voteSummary.responseCount}명 참여</span>
                     </div>
