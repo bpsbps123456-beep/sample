@@ -785,14 +785,14 @@ export function StudentWorkspace() {
                           const displayName = isTeacher ? "🛡️ 교사" : ((chatAnonymousMode || msg.isAnonymous) && !isSelf ? "익명 친구" : msg.senderName);
                           return (
                             <div key={msg.id} className="flex items-start gap-2.5 text-[18px] leading-relaxed text-slate-800">
-                              <div className={`min-w-[76px] shrink-0 font-bold ${
+                              <div className={`flex shrink-0 items-center font-bold ${
                                 isTeacher ? "text-teal-600"
                                 : isSelf ? "text-emerald-600"
                                 : "text-slate-500"
                               }`}>
-                                {displayName}
+                                <span>{displayName}</span>
+                                <span className="ml-1.5 font-normal text-slate-300">|</span>
                               </div>
-                              <span className="shrink-0 text-slate-300">|</span>
                               <div className={`min-w-0 flex-1 break-words font-semibold ${
                                 isSelf ? "text-emerald-700" : "text-slate-900"
                               }`}>
@@ -922,25 +922,25 @@ export function StudentWorkspace() {
       {/* Vote modal */}
       {activeVote ? (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/60 px-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl">
-            <div className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-[11px] font-bold text-teal-700 ring-1 ring-teal-200/60">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-10 shadow-2xl">
+            <div className="inline-flex rounded-full bg-teal-50 px-4 py-1.5 text-sm font-bold text-teal-700 ring-1 ring-teal-200/60">
               📊 {labelForVote(activeVote.type)}
             </div>
-            <div className="mt-3 text-xl font-bold text-slate-900">{activeVote.question}</div>
+            <div className="mt-4 text-3xl font-bold text-slate-900">{activeVote.question}</div>
             {submittedVoteId === activeVote.id ? (
-              <div className="mt-5">
-                <div className="flex items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3.5 text-sm text-emerald-700">
-                  <svg className="h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <div className="mt-6">
+                <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-5 py-4 text-lg text-emerald-700">
+                  <svg className="h-6 w-6 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                   응답이 제출되었습니다.
                 </div>
                 {/* 투표 결과 공개 시 실시간 결과 표시 */}
                 {activeVote.isResultPublic && voteSummary.results.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    <div className="text-xs font-semibold text-slate-500">현재 결과 ({voteSummary.responseCount}명 응답)</div>
+                  <div className="mt-5 space-y-3">
+                    <div className="text-sm font-semibold text-slate-500">현재 결과 ({voteSummary.responseCount}명 응답)</div>
                     {voteSummary.type === "wordcloud" ? (
-                      <div className="flex flex-wrap gap-2 rounded-xl bg-slate-50 p-3">
+                      <div className="flex flex-wrap gap-3 rounded-2xl bg-slate-50 p-5">
                         {[...voteSummary.results]
                           .sort((a, b) => b.value - a.value)
                           .filter((r) => r.value > 0)
@@ -949,7 +949,7 @@ export function StudentWorkspace() {
                             return (
                               <span
                                 key={result.label}
-                                style={{ fontSize: `${Math.round(11 + (result.value / maxVal) * 18)}px` }}
+                                style={{ fontSize: `${Math.round(20 + (result.value / maxVal) * 44)}px` }}
                                 className="font-semibold text-teal-700"
                               >
                                 {result.label}
@@ -958,20 +958,20 @@ export function StudentWorkspace() {
                           })}
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-3">
                         {voteSummary.results.map((result) => {
                           const pct = voteSummary.responseCount > 0
                             ? Math.round((result.value / voteSummary.responseCount) * 100)
                             : 0;
                           return (
                             <div key={result.label}>
-                              <div className="mb-0.5 flex items-center justify-between text-[11px]">
+                              <div className="mb-1.5 flex items-center justify-between text-base">
                                 <span className="text-slate-600">{result.label}</span>
                                 <span className="font-semibold text-slate-400">{result.value}표 ({pct}%)</span>
                               </div>
-                              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                                 <div
-                                  className="h-1.5 rounded-full bg-teal-400 transition-all duration-500"
+                                  className="h-3 rounded-full bg-teal-400 transition-all duration-500"
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
@@ -982,29 +982,29 @@ export function StudentWorkspace() {
                     )}
                   </div>
                 ) : !activeVote.isResultPublic ? (
-                  <p className="mt-3 text-center text-xs text-slate-400">교사가 결과를 공개하면 표시됩니다.</p>
+                  <p className="mt-4 text-center text-sm text-slate-400">교사가 결과를 공개하면 표시됩니다.</p>
                 ) : null}
               </div>
             ) : activeVote.type === "wordcloud" ? (
-              <div className="mt-5 space-y-2.5">
-                <input value={voteDraft} onChange={(e) => setVoteDraft(e.target.value)} placeholder="한 단어를 입력해 주세요" className="field-input w-full rounded-xl px-4 py-3.5 text-base" />
-                <button onClick={() => { if (!voteDraft.trim()) return; castVote(voteDraft.trim(), studentName, studentToken); setSubmittedVoteId(activeVote.id); setVoteDraft(""); }} className="action-primary w-full rounded-xl py-3 font-semibold">
+              <div className="mt-6 space-y-4">
+                <input value={voteDraft} onChange={(e) => setVoteDraft(e.target.value)} placeholder="한 단어를 입력해 주세요" className="field-input w-full rounded-2xl px-5 py-4 text-lg" />
+                <button onClick={() => { if (!voteDraft.trim()) return; castVote(voteDraft.trim(), studentName, studentToken); setSubmittedVoteId(activeVote.id); setVoteDraft(""); }} className="action-primary w-full rounded-2xl py-4 text-lg font-semibold">
                   응답 제출
                 </button>
               </div>
             ) : (
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {activeVote.options.map((opt) => (
                   <button key={opt}
                     onClick={() => { castVote(activeVote.type === "slider" ? Number(opt) : opt, studentName, studentToken); setSubmittedVoteId(activeVote.id); }}
-                    className="rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-left font-semibold text-slate-800 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                    className="rounded-2xl border-2 border-slate-200 bg-white px-5 py-5 text-left text-lg font-semibold text-slate-800 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
                   >
                     {opt}
                   </button>
                 ))}
               </div>
             )}
-            <p className="mt-4 text-center text-xs text-slate-300">응답 {voteSummary.responseCount}명</p>
+            <p className="mt-5 text-center text-sm text-slate-300">응답 {voteSummary.responseCount}명</p>
           </div>
         </div>
       ) : null}
