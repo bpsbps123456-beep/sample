@@ -268,6 +268,7 @@ export default function ProjectionView({
   const [timerInput, setTimerInput] = useState("05:00");
   const [selectedStudentMessageId, setSelectedStudentMessageId] = useState<string | null>(null);
   const appliedInitialProjectionRef = useRef(false);
+  const guardedToggleTimestampsRef = useRef<Record<string, number>>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -406,6 +407,28 @@ export default function ProjectionView({
     }
   }, [projectedType]);
 
+  const runGuardedToggle = (key: string, action: () => void) => {
+    const now = Date.now();
+    const lastTriggeredAt = guardedToggleTimestampsRef.current[key] ?? 0;
+
+    if (now - lastTriggeredAt < 650) {
+      return;
+    }
+
+    guardedToggleTimestampsRef.current[key] = now;
+    action();
+  };
+
+  const handleToggleFocusMode = () => runGuardedToggle("focus-mode", toggleFocusMode);
+  const handleToggleWritingLock = () => runGuardedToggle("writing-lock", toggleWritingLock);
+  const handleToggleTimerPanel = () => runGuardedToggle("timer-panel", toggleShowTimer);
+  const handleToggleVotePanel = () => runGuardedToggle("vote-panel", toggleShowVote);
+  const handleToggleChatPanel = () => runGuardedToggle("chat-panel", handleToggleChatVisibility);
+  const handleToggleHighlightMode = () => runGuardedToggle("chat-highlight-mode", toggleChatHighlightMode);
+  const handleToggleAnonymousMode = () => runGuardedToggle("chat-anonymous-mode", toggleChatAnonymousMode);
+  const handleToggleChatEnabled = () => runGuardedToggle("chat-enabled", toggleChat);
+  const handleToggleChatPaused = () => runGuardedToggle("chat-paused", toggleChatPaused);
+
   useEffect(() => {
     setActiveSectionId(answerableSections[0]?.id ?? null);
     scrollRef.current?.scrollTo({ top: 0 });
@@ -448,35 +471,35 @@ export default function ProjectionView({
               label="집중 모드"
               active={focusMode}
               activeClassName="border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
-              onClick={toggleFocusMode}
+              onClick={handleToggleFocusMode}
             />
             <TopBarButton
               icon={isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               label="쓰기 잠금"
               active={isLocked}
               activeClassName="border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
-              onClick={toggleWritingLock}
+              onClick={handleToggleWritingLock}
             />
             <TopBarButton
               icon={<Timer className="h-4 w-4" />}
               label="타이머"
               active={showTimer}
               activeClassName="border-[#0e7769] bg-[#0b6055] text-[#d7fff8]"
-              onClick={toggleShowTimer}
+              onClick={handleToggleTimerPanel}
             />
             <TopBarButton
               icon={<BarChart3 className="h-4 w-4" />}
               label="투표"
               active={showVote}
               activeClassName="border-[#8d2b63] bg-[#712050] text-[#ffe2f4]"
-              onClick={toggleShowVote}
+              onClick={handleToggleVotePanel}
             />
             <TopBarButton
               icon={<MessageSquare className="h-4 w-4" />}
               label="채팅창"
               active={showChat}
               activeClassName="border-[#4f53dd] bg-[#3d3aa2] text-white"
-              onClick={handleToggleChatVisibility}
+              onClick={handleToggleChatPanel}
             />
           </div>
         </div>
@@ -484,7 +507,7 @@ export default function ProjectionView({
 
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
-          <div ref={scrollRef} className="h-full overflow-auto pl-0 pr-[100px] py-0">
+          <div ref={scrollRef} className="h-full overflow-auto pl-0 pr-0 py-0">
             {mainProjectionType === "chat" ? (
               <MemoizedProjectionChatStage messages={chatMessages} anonymous={chatAnonymousMode} />
             ) : mainProjectionType === "timer" ? (
@@ -530,7 +553,7 @@ export default function ProjectionView({
           {!chatHighlightModeEnabled &&
           (projectionMode === "worksheet" || projectionMode === "student") &&
           answerableSections.length > 0 ? (
-            <section className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+            <section className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
               <VerticalActionButton label="TOP" compact onClick={jumpToTop} />
               {answerableSections.map((component, index) => (
                 <VerticalActionButton
@@ -567,13 +590,13 @@ export default function ProjectionView({
                 }
                 onClear={clearChat}
                 onClearHighlights={clearChatHighlights}
-                onToggleHighlightMode={toggleChatHighlightMode}
+                onToggleHighlightMode={handleToggleHighlightMode}
                 onToggleHighlighted={toggleChatHighlighted}
                 onSelectStudent={handleSelectStudentProjection}
                 onClearStudentView={handleClearStudentProjection}
-                onToggleAnonymous={toggleChatAnonymousMode}
-                onToggleEnabled={toggleChat}
-                onTogglePaused={toggleChatPaused}
+                onToggleAnonymous={handleToggleAnonymousMode}
+                onToggleEnabled={handleToggleChatEnabled}
+                onTogglePaused={handleToggleChatPaused}
                 onClose={handleToggleChatVisibility}
               />
             ) : null}
@@ -1267,7 +1290,7 @@ function ProjectionWorksheetPage({
       <div className="pointer-events-none absolute inset-y-0 left-[52px] w-[3px] bg-[#f6c7d2]" />
       <div className="pointer-events-none absolute inset-y-0 left-[64px] w-[3px] bg-[#f9d7de]" />
 
-      <div className="flex flex-1 flex-col pb-20 pl-[78px] pr-[42px] pt-16">
+      <div className="flex flex-1 flex-col pb-20 pl-[78px] pr-[118px] pt-16">
         <div className="sr-only">{worksheetTitle}</div>
 
         {components.map((component) => {
@@ -1412,7 +1435,7 @@ function ProjectionQuestionSurface({
     );
   }
 
-  const textValue = answer?.textValue?.trim() ?? "";
+  const textValue = answer?.textValue ?? "";
   const galleryTextMinHeight =
     galleryVariant === "single"
       ? "820px"
@@ -1448,7 +1471,7 @@ function ProjectionQuestionSurface({
         }}
         >
         {textValue ? (
-          <div className="whitespace-pre-line text-[28px] font-bold text-[#1e293b]">
+          <div className="whitespace-pre-wrap break-words text-[28px] font-bold text-[#1e293b]">
             {textValue}
           </div>
         ) : null}
@@ -1525,7 +1548,7 @@ function ChatSidebar({
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-[10px] transition-all",
               paused
-                ? "border border-[#425375] bg-[#24304b] text-white"
+                ? "border border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
                 : "border border-white/10 bg-[#192238] text-[#dce6f8]",
             )}
             aria-label="채팅 일시정지"
@@ -1657,7 +1680,7 @@ function ProjectionChatSidebar({
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-[10px] transition-all",
               paused
-                ? "border border-[#425375] bg-[#24304b] text-white"
+                ? "border border-[#2af1d3] bg-[#24304b] text-white shadow-[0_0_0_1px_rgba(42,241,211,0.25),0_0_18px_rgba(42,241,211,0.22)]"
                 : "border border-white/10 bg-[#192238] text-[#dce6f8]",
             )}
             aria-label="채팅 일시정지"
@@ -1691,7 +1714,7 @@ function ProjectionChatSidebar({
               const matchedStudent = isTeacher ? null : studentByName.get(message.senderName) ?? null;
               const isStudentProjectionTarget =
                 studentProjectionEnabled && !highlightModeEnabled && Boolean(matchedStudent);
-              const isSelected = Boolean(message.isHighlighted);
+              const isSelected = highlightModeEnabled && Boolean(message.isHighlighted);
               const senderColor = isTeacher ? "#8f97ff" : getStudentChatNameColor(displayName);
               const isProjectionSelected = selectedMessageId === message.id;
 

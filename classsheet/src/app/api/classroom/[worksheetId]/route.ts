@@ -11,6 +11,7 @@ const teacherOnlyActionTypes = new Set<ClassroomSyncAction["type"]>([
   "timer_timeout_decision",
   "focus",
   "page",
+  "page_lock",
   "learning_goal_update",
   "chat_toggle",
   "chat_pause",

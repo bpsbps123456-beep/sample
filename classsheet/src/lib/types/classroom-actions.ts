@@ -24,6 +24,7 @@ export type ClassroomSyncAction =
   | { type: "timer_timeout_decision"; decision: "lock" | "extend"; seconds?: number }
   | { type: "focus"; enabled: boolean }
   | { type: "page"; page: number }
+  | { type: "page_lock"; locked: boolean }
   | { type: "learning_goal_update"; learningGoal: string }
   | { type: "chat_toggle"; enabled: boolean }
   | { type: "chat_pause"; paused: boolean }

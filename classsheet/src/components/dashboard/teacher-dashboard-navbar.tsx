@@ -25,6 +25,7 @@ export function TeacherDashboardNavbar({
   const focusMode = useClassroomStore((s) => s.focusMode);
   const currentPage = useClassroomStore((s) => s.currentPage);
   const totalPages = useClassroomStore((s) => s.totalPages);
+  const pageLockEnabled = useClassroomStore((s) => s.pageLockEnabled);
   const students = useClassroomStore((s) => s.students);
   const onlineCount = students.filter((s) => s.status === "online" || s.status === "idle").length;
   const sessionClosed = useClassroomStore((s) => s.sessionClosed);
@@ -36,6 +37,7 @@ export function TeacherDashboardNavbar({
   const toggleFocusMode = useClassroomStore((s) => s.toggleFocusMode);
   const toggleWritingLock = useClassroomStore((s) => s.toggleWritingLock);
   const setCurrentPage = useClassroomStore((s) => s.setCurrentPage);
+  const togglePageLock = useClassroomStore((s) => s.togglePageLock);
 
   const showChat = useClassroomStore((s) => s.showChat);
   const showTimer = useClassroomStore((s) => s.showTimer);
@@ -143,6 +145,26 @@ export function TeacherDashboardNavbar({
                   disabled={currentPage >= totalPages}
                   className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-900 hover:bg-white transition-all disabled:opacity-30"
                 >&rarr;</button>
+                <button
+                  type="button"
+                  onClick={togglePageLock}
+                  title={pageLockEnabled ? "학생 페이지 이동 잠금 해제" : "학생 페이지 이동 잠금"}
+                  className={`h-9 w-9 flex items-center justify-center rounded-xl transition-all ${
+                    pageLockEnabled
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {pageLockEnabled ? (
+                    <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V7.75a4.25 4.25 0 10-8.5 0v2.75m-.75 0h10.5A1.25 1.25 0 0119 11.75v7A1.25 1.25 0 0117.75 20h-11.5A1.25 1.25 0 015 18.75v-7A1.25 1.25 0 016.25 10.5z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10.5V7.75a4.25 4.25 0 118.062 1.814M7.25 10.5h10.5A1.25 1.25 0 0119 11.75v7A1.25 1.25 0 0117.75 20h-11.5A1.25 1.25 0 015 18.75v-7A1.25 1.25 0 016.25 10.5z" />
+                    </svg>
+                  )}
+                </button>
               </div>
             )}
           </div>

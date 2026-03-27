@@ -17,6 +17,15 @@ import { formatCountdown } from "@/lib/utils";
 
 type DraftAnswers = Record<string, string | string[]>;
 
+interface LinedTextareaProps {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  placeholder: string;
+  className: string;
+  minHeightPx: number;
+}
+
 const FS = {
   title:  { sm: "text-xl",     md: "text-2xl",     lg: "text-3xl"     },
   body:   { sm: "text-base",   md: "text-lg",      lg: "text-xl"      },
@@ -49,6 +58,45 @@ function labelForVote(type: VoteType) {
         : "객관식 투표";
 }
 
+function LinedTextarea({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  className,
+  minHeightPx,
+}: LinedTextareaProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const element = textareaRef.current;
+    if (!element) return;
+
+    element.style.height = "auto";
+    element.style.height = `${Math.max(element.scrollHeight, minHeightPx)}px`;
+  }, [minHeightPx, value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={disabled}
+      placeholder={placeholder}
+      spellCheck={false}
+      rows={1}
+      className={`w-full resize-none overflow-hidden border-none bg-transparent p-0 text-slate-800 outline-none disabled:bg-transparent disabled:opacity-70 placeholder:font-medium placeholder:text-slate-300 ${className}`}
+      style={{
+        backgroundImage: "linear-gradient(transparent 38px, #94a3b8 38px, #94a3b8 40px)",
+        backgroundSize: "100% 40px",
+        backgroundAttachment: "local",
+        lineHeight: "40px",
+        minHeight: `${minHeightPx}px`,
+      }}
+    />
+  );
+}
+
 export function StudentWorkspace() {
   const router = useRouter();
   const storedEntry = readStoredStudentEntry();
@@ -64,6 +112,7 @@ export function StudentWorkspace() {
   const learningGoal = useClassroomStore((s) => s.learningGoal);
   const currentPage = useClassroomStore((s) => s.currentPage);
   const totalPages = useClassroomStore((s) => s.totalPages);
+  const pageLockEnabled = useClassroomStore((s) => s.pageLockEnabled);
   const isActive = useClassroomStore((s) => s.isActive);
   const isLocked = useClassroomStore((s) => s.isLocked);
   const sessionClosed = useClassroomStore((s) => s.sessionClosed);
@@ -86,7 +135,6 @@ export function StudentWorkspace() {
   const syncAnswers = useClassroomStore((s) => s.syncAnswers);
   const updateStudentProgress = useClassroomStore((s) => s.updateStudentProgress);
   const submitStudent = useClassroomStore((s) => s.submitStudent);
-  const unsubmitStudent = useClassroomStore((s) => s.unsubmitStudent);
   const addHelpRequest = useClassroomStore((s) => s.addHelpRequest);
   const sendChatMessage = useClassroomStore((s) => s.sendChatMessage);
   const castVote = useClassroomStore((s) => s.castVote);
@@ -133,8 +181,7 @@ export function StudentWorkspace() {
   const storageKey = draftKey(worksheetId, sessionCode, identity);
   const completedCount = answerable.filter((c) => isFilled(answers[c.id])).length;
   const chatMuted = currentStudent?.chatMuted ?? false;
-  const canEdit = isActive && !isLocked && !sessionClosed && !focusMode && !submitted && !(currentStudent?.writingLocked ?? false);
-  // 그림은 제출 후에도 수정 가능
+  const canEdit = isActive && !isLocked && !sessionClosed && !focusMode && !(currentStudent?.writingLocked ?? false);
   const canDraw = isActive && !isLocked && !sessionClosed && !focusMode && !(currentStudent?.writingLocked ?? false);
   const currentQuestion =
     answerable.find((c) => c.page === currentPage && !isFilled(answers[c.id]))?.title ??
@@ -143,15 +190,24 @@ export function StudentWorkspace() {
   const progressPct = answerable.length ? Math.round((completedCount / answerable.length) * 100) : 0;
   const timerLow = timerSecondsRemaining > 0 && timerSecondsRemaining <= 60;
   const writingLockedByTeacher = currentStudent?.writingLocked ?? false;
+  const maxAccessiblePage = pageLockEnabled ? Math.min(currentPage, totalPages) : totalPages;
 
-  // Sync activePage with teacher's currentPage on first load or if we are behind (optional)
+  // Sync initial page and clamp students back when page lock is re-enabled.
   const isFirstLoad = useRef(true);
   useEffect(() => {
-    if (currentPage > 1 && isFirstLoad.current) {
-      setActivePage(currentPage);
-      isFirstLoad.current = false;
-    }
-  }, [currentPage]);
+    setActivePage((prev) => {
+      if (isFirstLoad.current) {
+        isFirstLoad.current = false;
+        return Math.min(Math.max(currentPage, 1), totalPages);
+      }
+
+      if (pageLockEnabled && prev > currentPage) {
+        return Math.min(currentPage, totalPages);
+      }
+
+      return prev;
+    });
+  }, [currentPage, pageLockEnabled, totalPages]);
 
   useEffect(() => {
     if (worksheetId) {
@@ -315,19 +371,13 @@ export function StudentWorkspace() {
 
             {component.type === "short_text" || component.type === "long_text" ? (
               <div className="mt-6 ml-0">
-                <textarea
+                <LinedTextarea
                   value={typeof answers[component.id] === "string" ? (answers[component.id] as string) : ""}
-                  onChange={(e) => updateAnswer(component, e.target.value)}
+                  onChange={(nextValue) => updateAnswer(component, nextValue)}
                   disabled={!editable}
                   placeholder={component.placeholder || "여기에 답을 적어주세요..."}
-                  spellCheck={false}
-                  className={`w-full resize-none border-none outline-none p-0 text-slate-800 font-bold disabled:opacity-70 disabled:bg-transparent bg-transparent placeholder:font-medium placeholder:text-slate-300 ${fs("input", component.titleFontSize)}`}
-                  style={{
-                    backgroundImage: 'linear-gradient(transparent 38px, #94a3b8 38px, #94a3b8 40px)',
-                    backgroundSize: '100% 40px',
-                    lineHeight: '40px',
-                    minHeight: component.type === "short_text" ? '120px' : '240px'
-                  }}
+                  className={`font-bold ${fs("input", component.titleFontSize)}`}
+                  minHeightPx={component.type === "short_text" ? 120 : 240}
                 />
               </div>
             ) : null}
@@ -473,8 +523,8 @@ export function StudentWorkspace() {
                 </button>
                 <span className="min-w-[48px] text-center text-sm font-bold text-slate-700">{activePage} / {totalPages}</span>
                 <button
-                  onClick={() => setActivePage((p) => Math.min(currentPage, p + 1))}
-                  disabled={activePage >= currentPage}
+                  onClick={() => setActivePage((p) => Math.min(maxAccessiblePage, p + 1))}
+                  disabled={activePage >= maxAccessiblePage}
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 disabled:opacity-30"
                 >
                   <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
@@ -538,24 +588,13 @@ export function StudentWorkspace() {
               </div>
             )}
             {submitted && !sessionClosed && (
-              <div className="flex items-center justify-between border-t border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
+              <div className="flex items-center gap-2 border-t border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
                 <div className="flex items-center gap-2">
                   <svg className="h-3.5 w-3.5 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  답안을 제출했습니다. 수정하려면 '회수하기'를 클릭하세요.
+                  답안을 제출했습니다. 제출 상태는 유지되며 계속 수정할 수 있습니다.
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm("제출을 회수하시겠습니까? 답변을 수정한 후 다시 제출할 수 있습니다.")) {
-                      unsubmitStudent(studentName, studentToken);
-                    }
-                  }}
-                  className="rounded-md border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-600 hover:bg-emerald-50"
-                >
-                  ↺ 회수하기
-                </button>
               </div>
             )}
             {sessionClosed && (
@@ -651,7 +690,7 @@ export function StudentWorkspace() {
                   const pageData = pages.find((p) => p.page === activePage);
                   if (!pageData) return null;
                   const { page, items } = pageData;
-                  const isLocked = page > currentPage;
+                  const isLocked = pageLockEnabled && page > currentPage;
                   return (
                     <section className="overflow-hidden border border-slate-300 bg-[#faf9f6] shadow-sm lg:min-h-[calc(95vh-3.5rem-2rem)] relative rounded-sm">
                       {/* Notebook red margin lines */}
@@ -991,7 +1030,7 @@ export function StudentWorkspace() {
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_220px]">
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
                 {selectedGalleryCard.questionTitle ? <div className="mb-2 text-xs font-semibold text-slate-400">{selectedGalleryCard.questionTitle}</div> : null}
-                <p className="text-sm leading-7 text-slate-700">{selectedGalleryCard.excerpt}</p>
+                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">{selectedGalleryCard.excerpt}</p>
                 {selectedGalleryCard.imageUrl ? (
                   <div className="relative mt-4 h-80 w-full overflow-hidden rounded-xl border border-slate-200 bg-white">
                     <Image src={selectedGalleryCard.imageUrl} alt={selectedGalleryCard.displayName} fill className="object-contain" unoptimized />

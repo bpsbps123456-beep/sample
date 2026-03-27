@@ -150,6 +150,7 @@ export async function createWorksheetAction(formData: FormData) {
       chat_paused: false,
       session_mode: mode,
       current_page: 1,
+      page_lock_enabled: true,
     })
     .select("id")
     .single<{ id: string }>();
@@ -304,6 +305,7 @@ export async function duplicateWorksheetAction(formData: FormData) {
       chat_paused: false,
       session_mode: source.data.session_mode,
       current_page: 1,
+      page_lock_enabled: true,
     })
     .select("id")
     .single<{ id: string }>();
@@ -368,6 +370,7 @@ export async function saveAsTemplateAction(formData: FormData) {
     chat_paused: false,
     session_mode: source.data.session_mode,
     current_page: 1,
+    page_lock_enabled: true,
   });
 
   redirect("/teacher/worksheets");

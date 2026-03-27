@@ -76,7 +76,7 @@ export function LiveDrawingOverlay({
 
     return () => {
       window.removeEventListener("resize", resizeCanvas);
-      channel.unsubscribe();
+      void supabase.removeChannel(channel);
     };
   }, [worksheetId, studentName, componentId]);
 

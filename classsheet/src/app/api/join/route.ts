@@ -37,8 +37,7 @@ export async function POST(request: Request) {
   }
 
   const worksheetId = worksheetResult.data.id;
-  const authUser = await supabase.auth.getUser();
-  const authUserId = authUser.data.user?.id ?? body.authUserId;
+  const authUserId = body.authUserId;
   type SubmissionRow = { id: string; student_token: string; student_name: string; auth_user_id?: string | null; group_id?: string | null };
 
   let existingSubmission: { data: SubmissionRow | null; error: unknown } = { data: null, error: null };

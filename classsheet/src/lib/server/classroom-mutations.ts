@@ -243,6 +243,7 @@ export async function applyClassroomMutation(
             is_active: true,
             is_locked: false,
             current_page: 1,
+            page_lock_enabled: true,
           })
           .eq("id", worksheetId);
         break;
@@ -308,6 +309,13 @@ export async function applyClassroomMutation(
         await supabase
           .from("worksheets")
           .update({ current_page: action.page })
+          .eq("id", worksheetId);
+        break;
+      }
+      case "page_lock": {
+        await supabase
+          .from("worksheets")
+          .update({ page_lock_enabled: action.locked })
           .eq("id", worksheetId);
         break;
       }
@@ -622,6 +630,7 @@ export async function applyClassroomMutation(
           .update({
             is_active: false,
             is_locked: true,
+            page_lock_enabled: true,
             chat_active: false,
             timer_active: false,
             timer_end_at: null,

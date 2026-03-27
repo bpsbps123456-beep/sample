@@ -174,6 +174,7 @@ export interface Worksheet {
   mode: SessionMode;
   currentPage: number;
   totalPages: number;
+  pageLockEnabled: boolean;
   isActive: boolean;
   isLocked: boolean;
   sessionClosed: boolean;

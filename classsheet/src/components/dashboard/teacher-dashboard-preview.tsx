@@ -691,16 +691,67 @@ export function TeacherDashboardPreview() {
             ) : null}
           </div>
 
-          {/* Selected student detail */}
-          {selectedStudent ? (
-            <div className="surface rounded-2xl p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="muted-label">학생 상세 보기</div>
-                  <div className="mt-0.5 text-lg font-bold text-slate-950">{selectedStudent.studentName}</div>
-                  <div className="mt-1 text-xs text-slate-400">위 목록에서 선택한 학생의 답안을 자세히 보여주는 영역입니다.</div>
+          {/* Selected student detail – worksheet-style view */}
+          {selectedStudent ? (() => {
+            // Determine view mode based on which filter was active when student was clicked
+            const studentAnswerMap = Object.fromEntries(
+              (selectedStudent.answers ?? []).map((a) => [a.componentId, a])
+            );
+
+            // Determine which components to show
+            let detailComponents: typeof components;
+            let detailViewLabel: string;
+
+            if (showConnectedOnly) {
+              // "현재 접속" mode → show ALL pages' answers
+              detailComponents = components.filter((c) => !["prompt", "divider"].includes(c.type));
+              detailViewLabel = "전체 페이지 답변";
+            } else if (galleryFilterQuestion) {
+              // Specific question mode → show only that question enlarged
+              detailComponents = components.filter((c) => c.id === galleryFilterQuestion);
+              detailViewLabel = "문항 상세";
+            } else {
+              // "X페이지 전체" mode → show current page answers
+              detailComponents = components.filter(
+                (c) => c.page === currentPage && !["prompt", "divider"].includes(c.type)
+              );
+              detailViewLabel = `${currentPage}페이지 답변`;
+            }
+
+            // Group by page for "all pages" mode
+            const detailPages = showConnectedOnly
+              ? Array.from(
+                  detailComponents.reduce((map, c) => {
+                    const p = c.page ?? 1;
+                    if (!map.has(p)) map.set(p, []);
+                    map.get(p)!.push(c);
+                    return map;
+                  }, new Map<number, typeof components>())
+                ).sort(([a], [b]) => a - b)
+              : [[currentPage, detailComponents] as [number, typeof components]];
+
+            const isEnlargedSingle = !!galleryFilterQuestion && detailComponents.length === 1;
+
+            return (
+            <div className="surface rounded-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
+                    {selectedStudent.studentName.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-slate-950">{selectedStudent.studentName}</div>
+                    <div className="text-xs text-slate-400">{detailViewLabel}</div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => setSelectedStudentId(null)}
+                    className="rounded-xl px-3 py-2 text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                  >
+                    닫기
+                  </button>
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -726,22 +777,157 @@ export function TeacherDashboardPreview() {
                   ) : null}
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {(selectedStudent.answers ?? []).map((answer) => (
-                  <div key={answer.componentId} className={`rounded-xl border border-slate-100 bg-slate-50 p-3.5 ${answer.imageUrl ? "sm:col-span-2" : ""}`}>
-                    <div className="text-xs font-bold text-slate-400">{answer.questionTitle}</div>
-                    {answer.textValue ? <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{answer.textValue}</p> : null}
-                    {answer.choiceValues?.length ? <p className="mt-1.5 text-sm text-slate-700">{answer.choiceValues.join(", ")}</p> : null}
-                    {answer.imageUrl ? (
-                      <div className="relative mt-2 h-40 w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
-                        <Image src={answer.imageUrl} alt={answer.questionTitle} fill className="object-contain" unoptimized />
+
+              {/* Worksheet-style answer view */}
+              <div className="px-3 py-4">
+                {detailPages.map(([pageNum, pageComponents]) => (
+                  <div key={pageNum}>
+                    {/* Page header (only in multi-page mode) */}
+                    {showConnectedOnly && (
+                      <div className="mb-3 flex items-center gap-2 px-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">
+                          {pageNum}
+                        </div>
+                        <span className="text-sm font-bold text-slate-600">{pageNum}페이지</span>
                       </div>
-                    ) : null}
+                    )}
+
+                    {/* Notebook-style worksheet */}
+                    <article className={cn(
+                      "relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-[#fdfcf8] shadow-sm",
+                      showConnectedOnly ? "mb-5" : ""
+                    )}>
+                      {/* Red margin lines */}
+                      <div className="pointer-events-none absolute inset-y-0 left-[36px] w-[2px] bg-[#f6c7d2]" />
+                      <div className="pointer-events-none absolute inset-y-0 left-[42px] w-[2px] bg-[#f9d7de]" />
+
+                      <div className="flex flex-1 flex-col py-8 pl-[56px] pr-[40px]">
+                        {pageComponents.map((comp, idx) => {
+                          const answer = studentAnswerMap[comp.id];
+                          const hasAnswer = !!(answer?.textValue || answer?.imageUrl || answer?.choiceValues?.length);
+
+                          return (
+                            <section
+                              key={comp.id}
+                              className={cn(
+                                idx < pageComponents.length - 1 ? "pb-10" : "pb-4",
+                                isEnlargedSingle ? "" : ""
+                              )}
+                            >
+                              <div className="flex items-start gap-5">
+                                <div className="pt-0.5 font-serif text-3xl font-bold italic leading-none tracking-tight text-[#1b2c4d]">
+                                  {idx + 1}.
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className={cn(
+                                    "font-extrabold leading-tight text-[#10274b]",
+                                    isEnlargedSingle ? "text-2xl" : "text-lg"
+                                  )}>
+                                    {comp.title}
+                                  </h3>
+
+                                  {/* Answer area */}
+                                  <div className={cn("mt-5", isEnlargedSingle ? "" : "")}>
+                                    {/* Drawing type */}
+                                    {comp.type === "drawing" ? (
+                                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                        <div className={cn(
+                                          "flex items-center justify-center p-4",
+                                          isEnlargedSingle ? "min-h-[420px]" : "min-h-[240px]"
+                                        )}>
+                                          {answer?.imageUrl ? (
+                                            <div className={cn(
+                                              "relative w-full overflow-hidden rounded-lg",
+                                              isEnlargedSingle ? "h-[420px]" : "h-[240px]"
+                                            )}>
+                                              <Image src={answer.imageUrl} alt={comp.title} fill className="object-contain" unoptimized />
+                                            </div>
+                                          ) : (
+                                            <div className="text-base font-semibold text-slate-300">그림 답안 없음</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {/* Choice types (single, multi, ox) */}
+                                    {(comp.type === "single_choice" || comp.type === "multi_choice" || comp.type === "ox") ? (() => {
+                                      const options = comp.type === "ox" ? ["O", "X"] : "options" in comp ? comp.options : [];
+                                      const selected = new Set(answer?.choiceValues ?? []);
+                                      return (
+                                        <div className={cn("grid gap-2", isEnlargedSingle ? "gap-3" : "")}>
+                                          {options.map((opt, optIdx) => {
+                                            const isSelected = selected.has(opt);
+                                            return (
+                                              <div
+                                                key={opt}
+                                                className={cn(
+                                                  "flex items-center gap-3 rounded-xl border px-4 py-3 font-bold transition-all",
+                                                  isEnlargedSingle ? "text-xl" : "text-base",
+                                                  isSelected
+                                                    ? "border-[#10274b] bg-[#1a2b4d] text-white"
+                                                    : "border-slate-200 bg-white text-slate-500"
+                                                )}
+                                              >
+                                                <span className={cn(
+                                                  "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold",
+                                                  isSelected ? "bg-teal-400 text-slate-900" : "bg-slate-100 text-slate-400"
+                                                )}>
+                                                  {optIdx + 1}
+                                                </span>
+                                                <span>{opt}</span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })() : null}
+
+                                    {/* Text types (short_text, long_text) */}
+                                    {(comp.type === "short_text" || comp.type === "long_text") ? (
+                                      <div
+                                        className="overflow-hidden"
+                                        style={{
+                                          minHeight: isEnlargedSingle
+                                            ? comp.type === "short_text" ? "240px" : "400px"
+                                            : comp.type === "short_text" ? "120px" : "200px",
+                                          backgroundImage: "linear-gradient(transparent 38px, #cbd5e1 38px, #cbd5e1 40px)",
+                                          backgroundSize: "100% 40px",
+                                          paddingTop: "2px",
+                                        }}
+                                      >
+                                        {answer?.textValue ? (
+                                          <div className={cn(
+                                            "whitespace-pre-wrap break-words font-semibold text-slate-800",
+                                            isEnlargedSingle ? "text-[20px]/[40px]" : "text-[16px]/[40px]"
+                                          )}>
+                                            {answer.textValue}
+                                          </div>
+                                        ) : (
+                                          <div className="text-base font-medium text-slate-300 italic">답변 없음</div>
+                                        )}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            </section>
+                          );
+                        })}
+
+                        {/* Empty state */}
+                        {pageComponents.length === 0 && (
+                          <div className="py-12 text-center text-base font-semibold text-slate-300">
+                            이 페이지에 답변 가능한 문항이 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    </article>
                   </div>
                 ))}
               </div>
             </div>
-          ) : null}
+            );
+          })() : null}
 
           {/* Choice response stats */}
           {choiceStats.length > 0 ? (
@@ -787,20 +973,30 @@ export function TeacherDashboardPreview() {
                     <button
                       onClick={() => { if (confirm("채팅 내용을 모두 초기화할까요?")) clearChat(); }}
                       title="채팅 초기화"
-                      className="h-10 shrink-0 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50"
+                      className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[10px] border border-slate-200 bg-white px-3 text-[14px] font-black text-slate-600 transition-all hover:bg-slate-50"
                     >
                       초기화
                     </button>
                     <button
                       onClick={toggleChatAnonymousMode}
                       title={chatAnonymousMode ? "익명 모드 끄기" : "익명 모드 켜기"}
-                      className={`h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-bold transition-all ${chatAnonymousMode ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"}`}
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[10px] border px-3 text-[14px] font-black transition-all",
+                        chatAnonymousMode
+                          ? "border-teal-400 bg-teal-50 text-teal-700 shadow-[0_0_0_1px_rgba(20,184,166,0.2),0_0_12px_rgba(20,184,166,0.1)]"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      )}
                     >
                       익명
                     </button>
                     <button
                       onClick={toggleChat}
-                      className={`h-10 shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-bold transition-all ${chatEnabled ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[10px] border px-3 text-[14px] font-black transition-all",
+                        chatEnabled
+                          ? "border-teal-400 bg-teal-50 text-teal-700 shadow-[0_0_0_1px_rgba(20,184,166,0.2),0_0_12px_rgba(20,184,166,0.1)]"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      )}
                     >
                       활성화
                     </button>
@@ -808,11 +1004,12 @@ export function TeacherDashboardPreview() {
                       onClick={toggleChatPaused}
                       title={chatPaused ? "채팅 재개" : "채팅 일시중지"}
                       aria-label={chatPaused ? "채팅 재개" : "채팅 일시중지"}
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${
+                      className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border transition-all",
                         chatPaused
-                          ? "bg-slate-900 text-white shadow-md shadow-slate-900/20"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      }`}
+                          ? "border-teal-400 bg-teal-50 text-teal-700 shadow-[0_0_0_1px_rgba(20,184,166,0.2),0_0_12px_rgba(20,184,166,0.1)]"
+                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                      )}
                     >
                       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M6.5 4.5h2.5v11H6.5zM11 4.5h2.5v11H11z" />
@@ -821,11 +1018,16 @@ export function TeacherDashboardPreview() {
                     <button
                       onClick={() => setProjection(projectedType === "chat" ? null : "chat")}
                       title="화면 송출"
-                      className={`rounded-xl p-3 transition-all ${projectedType === "chat" ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                      className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-[10px] border transition-all",
+                        projectedType === "chat"
+                          ? "border-teal-400 bg-teal-50 text-teal-700 shadow-[0_0_0_1px_rgba(20,184,166,0.2),0_0_12px_rgba(20,184,166,0.1)]"
+                          : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
+                      )}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     </button>
-                    <button onClick={toggleShowChat} className="rounded-xl p-2.5 text-slate-300 hover:bg-slate-50 hover:text-slate-500">
+                    <button onClick={toggleShowChat} className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-300 transition-all hover:bg-slate-50 hover:text-slate-500">
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>

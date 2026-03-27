@@ -246,7 +246,7 @@ export function SessionOperationsPanel() {
                       </span>
                     </div>
                     {card.excerpt ? (
-                      <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{card.excerpt}</p>
+                      <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[11px] leading-relaxed text-slate-400">{card.excerpt}</p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <button
@@ -303,7 +303,7 @@ export function SessionOperationsPanel() {
                     <div className="mt-3">
                       <div className="text-sm font-semibold text-slate-900">{card.displayName}</div>
                       {card.excerpt ? (
-                        <p className="mt-2 text-sm leading-relaxed text-slate-600">{card.excerpt}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{card.excerpt}</p>
                       ) : null}
                       {card.imageUrl ? (
                         <div className="relative mt-3 h-40 w-full overflow-hidden rounded-lg border border-slate-200 bg-white">

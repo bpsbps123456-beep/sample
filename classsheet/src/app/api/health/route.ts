@@ -31,6 +31,7 @@ export async function GET(request: Request) {
         chat_paused: false,
         session_mode: "individual",
         current_page: 1,
+        page_lock_enabled: true,
       })
       .select("id")
       .single<{ id: string }>();
@@ -70,7 +71,7 @@ export async function GET(request: Request) {
     const worksheetQuery = await admin
       .from("worksheets")
       .select(
-        "id, title, description, components, session_code, is_active, gallery_open, gallery_filter_question, gallery_anonymous, is_locked, timer_end_at, timer_active, focus_mode, chat_active, chat_paused, session_mode, current_page, learning_goal",
+        "id, title, description, components, session_code, is_active, gallery_open, gallery_filter_question, gallery_anonymous, is_locked, timer_end_at, timer_active, focus_mode, chat_active, chat_paused, session_mode, current_page, page_lock_enabled, learning_goal",
       )
       .eq("id", id)
       .maybeSingle();

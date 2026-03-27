@@ -61,6 +61,7 @@ interface ClassroomState extends UISlice, TimerSlice, VoteSlice, ChatSlice, Stud
   learningGoal: string;
   currentPage: number;
   totalPages: number;
+  pageLockEnabled: boolean;
   isActive: boolean;
   isLocked: boolean;
   focusMode: boolean;
@@ -72,6 +73,7 @@ interface ClassroomState extends UISlice, TimerSlice, VoteSlice, ChatSlice, Stud
   startSession: () => void;
   toggleFocusMode: () => void;
   setCurrentPage: (page: number) => void;
+  togglePageLock: () => void;
   updateLearningGoal: (learningGoal: string) => void;
   setSessionMode: (mode: "individual" | "group") => void;
   toggleWritingLock: () => void;
@@ -94,6 +96,7 @@ function emptySnapshot() {
     learningGoal: "",
     currentPage: 1,
     totalPages: 1,
+    pageLockEnabled: true,
     isActive: false,
     isLocked: false,
     ...timerSliceDefaults,
@@ -120,6 +123,7 @@ function createClassroomSnapshot(worksheet: Worksheet) {
     learningGoal: worksheet.learningGoal,
     currentPage: worksheet.currentPage,
     totalPages: worksheet.totalPages,
+    pageLockEnabled: worksheet.pageLockEnabled,
     isActive: worksheet.isActive,
     isLocked: worksheet.isLocked,
     timerSecondsRemaining: worksheet.timerSecondsRemaining,
@@ -175,7 +179,7 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
   },
   ...createStudentActions(set, get),
   startSession: () => {
-    set({ isActive: true, sessionClosed: false, isLocked: false, currentPage: 1 });
+    set({ isActive: true, sessionClosed: false, isLocked: false, currentPage: 1, pageLockEnabled: true });
     syncClassroomAction(get().worksheetId, { type: "session_start" });
   },
   ...createTimerActions(set, get),
@@ -187,6 +191,11 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
   setCurrentPage: (page) => {
     set({ currentPage: page });
     syncClassroomAction(get().worksheetId, { type: "page", page });
+  },
+  togglePageLock: () => {
+    const locked = !get().pageLockEnabled;
+    set({ pageLockEnabled: locked });
+    syncClassroomAction(get().worksheetId, { type: "page_lock", locked });
   },
   updateLearningGoal: (learningGoal) => {
     set({ learningGoal });
@@ -220,6 +229,7 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
       sessionClosed: true,
       isActive: false,
       isLocked: true,
+      pageLockEnabled: true,
       chatEnabled: false,
       focusMode: false,
       timerRunning: false,

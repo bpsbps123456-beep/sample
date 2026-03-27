@@ -30,6 +30,7 @@ export interface WorksheetRow {
   chat_anonymous_mode: boolean | null;
   session_mode: string;
   current_page: number | null;
+  page_lock_enabled: boolean | null;
   learning_goal: string | null;
   projected_type: string | null;
   projected_target_id: string | null;
@@ -156,6 +157,7 @@ export function worksheetRowToPartialState(row: WorksheetRow) {
       | "individual"
       | "group",
     currentPage: row.current_page ?? 1,
+    pageLockEnabled: row.page_lock_enabled ?? true,
     chatAnonymousMode: row.chat_anonymous_mode ?? false,
     learningGoal: row.learning_goal ?? "",
     projectedType: row.projected_type,

@@ -39,6 +39,7 @@ interface WorksheetRow {
   chat_anonymous_mode: boolean | null;
   session_mode: string;
   current_page: number | null;
+  page_lock_enabled: boolean | null;
   learning_goal: string | null;
   projected_type: string | null;
   projected_target_id: string | null;
@@ -576,6 +577,7 @@ function buildWorksheetFromRows(input: {
     mode: input.worksheet.session_mode === "group" ? "group" : "individual",
     currentPage: input.worksheet.current_page ?? 1,
     totalPages,
+    pageLockEnabled: input.worksheet.page_lock_enabled ?? true,
     isActive: input.worksheet.is_active,
     isLocked: input.worksheet.is_locked,
     sessionClosed: !input.worksheet.is_active && input.worksheet.is_locked,
@@ -633,7 +635,7 @@ async function fetchWorksheetByField(
   const worksheetQuery = await supabase
     .from("worksheets")
     .select(
-      "id, title, description, components, session_code, is_active, gallery_open, gallery_filter_question, gallery_anonymous, is_locked, timer_end_at, timer_active, focus_mode, chat_active, chat_paused, chat_anonymous_mode, session_mode, current_page, learning_goal, projected_type, projected_target_id",
+      "id, title, description, components, session_code, is_active, gallery_open, gallery_filter_question, gallery_anonymous, is_locked, timer_end_at, timer_active, focus_mode, chat_active, chat_paused, chat_anonymous_mode, session_mode, current_page, page_lock_enabled, learning_goal, projected_type, projected_target_id",
     )
     .eq(field, value)
     .maybeSingle<WorksheetRow>();
