@@ -179,7 +179,18 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
   },
   ...createStudentActions(set, get),
   startSession: () => {
-    set({ isActive: true, sessionClosed: false, isLocked: false, currentPage: 1, pageLockEnabled: true });
+    const state = get();
+    set({
+      isActive: true,
+      sessionClosed: false,
+      isLocked: false,
+      currentPage: 1,
+      pageLockEnabled: true,
+      projectedType: null,
+      projectedTargetId: null,
+      galleryProjectedSelections: {},
+      galleryCards: state.galleryCards.map((card) => ({ ...card, isProjected: false })),
+    });
     syncClassroomAction(get().worksheetId, { type: "session_start" });
   },
   ...createTimerActions(set, get),
@@ -267,9 +278,14 @@ export const useClassroomStore = create<ClassroomState>((set, get) => ({
             );
     }
 
+    const projectionChanged =
+      partial.projectedType !== state.projectedType ||
+      partial.projectedTargetId !== state.projectedTargetId;
+
     let extra = {};
     if (
       partial.galleryFilterQuestion !== state.galleryFilterQuestion ||
+      projectionChanged ||
       (parsedProjectedTarget.questionId &&
         parsedProjectedTarget.questionId === (partial.galleryFilterQuestion ?? state.galleryFilterQuestion))
     ) {

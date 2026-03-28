@@ -1446,6 +1446,13 @@ function ProjectionQuestionSurface({
   }
 
   const textValue = answer?.textValue ?? "";
+
+  const lineH = isGallery
+    ? galleryVariant === "single" ? 38 : galleryVariant === "duo" ? 36 : 32
+    : 34;
+  const textSize = isGallery
+    ? galleryVariant === "single" ? "text-[24px]" : galleryVariant === "duo" ? "text-[22px]" : "text-[18px]"
+    : "text-[22px]";
   const galleryTextMinHeight =
     galleryVariant === "single"
       ? "820px"
@@ -1475,13 +1482,13 @@ function ProjectionQuestionSurface({
             : component.type === "short_text"
               ? "120px"
               : "240px",
-          backgroundImage: "linear-gradient(transparent 38px, #94a3b8 38px, #94a3b8 40px)",
-          backgroundSize: "100% 40px",
-          lineHeight: "40px",
+          backgroundImage: `linear-gradient(transparent ${lineH - 2}px, #b8c4d4 ${lineH - 2}px, #b8c4d4 ${lineH}px)`,
+          backgroundSize: `100% ${lineH}px`,
+          lineHeight: `${lineH}px`,
         }}
         >
         {textValue ? (
-          <div className="whitespace-pre-wrap break-words text-[28px] font-bold text-[#1e293b]">
+          <div className={cn("whitespace-pre-wrap break-words font-bold text-[#1e293b]", textSize)}>
             {textValue}
           </div>
         ) : null}
@@ -2052,7 +2059,7 @@ function SidebarAction({
 function ProjectionGalleryCard({
   card,
   component,
-  expanded = false,
+  expanded: fullWidth = false,
   variant = "grid",
   hideQuestion = false,
 }: {
@@ -2063,6 +2070,35 @@ function ProjectionGalleryCard({
   hideQuestion?: boolean;
 }) {
   const derivedAnswer = buildGalleryAnswerDetail(card, component);
+
+  // --- expand / collapse state for text cards ---
+  const isDrawing = component?.type === "drawing";
+  const isChoiceType = component?.type === "single_choice" || component?.type === "multi_choice" || component?.type === "ox";
+  const isTextCard = component && !isDrawing && !isChoiceType;
+
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Detect overflow to decide whether to show the toggle button
+  useEffect(() => {
+    if (!isTextCard) return;
+    const el = contentRef.current;
+    if (!el) return;
+
+    const check = () => {
+      // When collapsed, check if content exceeds the container
+      if (!isExpanded) {
+        setNeedsToggle(el.scrollHeight > el.clientHeight + 4);
+      }
+    };
+
+    check();
+    // Re-check on resize
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isTextCard, isExpanded, card.excerpt, derivedAnswer?.textValue]);
 
   const shellClassName =
     variant === "single"
@@ -2095,15 +2131,15 @@ function ProjectionGalleryCard({
 
   const fallbackTextClassName =
     variant === "single"
-      ? "text-[42px] leading-[1.65]"
+      ? "text-[24px]"
       : variant === "duo"
-        ? "text-[34px] leading-[1.6]"
+        ? "text-[22px]"
         : variant === "trio"
-          ? "text-[28px] leading-[1.55]"
-          : "text-[22px] leading-[1.45]";
+          ? "text-[18px]"
+          : "text-[16px]";
 
   const drawingCardHeightClassName =
-    component?.type === "drawing"
+    isDrawing
       ? variant === "single"
         ? "min-h-[900px]"
         : variant === "duo"
@@ -2114,32 +2150,56 @@ function ProjectionGalleryCard({
               ? "min-h-[460px]"
               : "min-h-[420px]"
       : "";
+
+  // Text card: collapsed = 60% of original, expanded = full original
   const textCardHeightClassName =
-    component && component.type !== "drawing" && component.type !== "single_choice" && component.type !== "multi_choice" && component.type !== "ox"
-      ? variant === "single"
-        ? "min-h-[980px]"
-        : variant === "duo"
-          ? "min-h-[760px]"
-          : variant === "trio"
-            ? "min-h-[560px]"
-            : variant === "quad"
-              ? "min-h-[480px]"
-              : "min-h-[420px]"
+    isTextCard
+      ? isExpanded
+        ? variant === "single"
+          ? "min-h-[980px]"
+          : variant === "duo"
+            ? "min-h-[760px]"
+            : variant === "trio"
+              ? "min-h-[560px]"
+              : variant === "quad"
+                ? "min-h-[480px]"
+                : "min-h-[420px]"
+        : variant === "single"
+          ? "min-h-[588px]"
+          : variant === "duo"
+            ? "min-h-[456px]"
+            : variant === "trio"
+              ? "min-h-[336px]"
+              : variant === "quad"
+                ? "min-h-[288px]"
+                : "min-h-[252px]"
       : "";
 
   return (
     <article
       className={cn(
-        "relative flex h-full flex-col overflow-hidden rounded-[16px] border border-[#dce4f0] bg-[#fdfcf8] shadow-[0_12px_30px_rgba(0,0,0,0.1)]",
+        "relative flex flex-col overflow-hidden rounded-[16px] border border-[#dce4f0] bg-[#fdfcf8] shadow-[0_12px_30px_rgba(0,0,0,0.1)] transition-all duration-300",
         shellClassName,
         drawingCardHeightClassName,
         textCardHeightClassName,
-        expanded ? "p-12" : undefined,
+        fullWidth ? "p-12" : undefined,
       )}
     >
       {/* Notebook red margin lines */}
       <div className="pointer-events-none absolute bottom-0 left-[28px] top-0 w-[1.5px] bg-[#f6c7d2] opacity-60" />
       <div className="pointer-events-none absolute bottom-0 left-[34px] top-0 w-[1.5px] bg-[#f9d7de] opacity-60" />
+
+      {/* Expand / Collapse toggle button — text cards only */}
+      {isTextCard && needsToggle && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#d0d8e6] bg-[#eef2f8] text-[18px] font-bold leading-none text-[#3d5278] shadow-sm transition-all hover:border-[#b0bcd4] hover:bg-[#dfe6f0] hover:text-[#1b2c4d] active:scale-95"
+          aria-label={isExpanded ? "답변 접기" : "답변 펼치기"}
+        >
+          {isExpanded ? "−" : "+"}
+        </button>
+      )}
 
       <div className="relative z-10 flex flex-col h-full pl-6">
         <header className="mb-4">
@@ -2158,37 +2218,45 @@ function ProjectionGalleryCard({
         ) : null}
 
         {component ? (
-          <div className="min-w-0 flex-1">
+          <div ref={isTextCard ? contentRef : undefined} className={cn("min-w-0 flex-1", isTextCard && !isExpanded ? "overflow-hidden" : "")}>
             <ProjectionQuestionSurface
               component={component}
               answer={derivedAnswer}
-              fillHeight
+              fillHeight={isExpanded || !isTextCard}
               isGallery={true}
               galleryVariant={variant}
             />
           </div>
         ) : (
-          <div className="min-w-0 flex-1">
+          <div ref={!card.imageUrl ? contentRef : undefined} className={cn("min-w-0 flex-1", isTextCard && !isExpanded ? "overflow-hidden" : "")}>
             {card.imageUrl ? (
               <div className="relative h-full w-full overflow-hidden rounded-[12px] bg-white/50 border border-[#e2e8f0]">
                 <Image src={card.imageUrl} alt={card.displayName} fill className="object-contain" sizes="400px" />
               </div>
-            ) : (
-              <div
-                className={cn(
-                  "whitespace-pre-line font-bold text-[#10274b]",
-                  fallbackTextClassName,
-                )}
-                style={{
-                  backgroundImage: "linear-gradient(transparent 43px, #cbd5e1 43px, #cbd5e1 45px)",
-                  backgroundSize: "100% 45px",
-                  lineHeight: "45px",
-                }}
-              >
-                {card.excerpt}
-              </div>
-            )}
+            ) : (() => {
+              const fbLineH = variant === "single" ? 38 : variant === "duo" ? 36 : 32;
+              return (
+                <div
+                  className={cn(
+                    "whitespace-pre-line font-bold text-[#10274b]",
+                    fallbackTextClassName,
+                  )}
+                  style={{
+                    backgroundImage: `linear-gradient(transparent ${fbLineH - 2}px, #b8c4d4 ${fbLineH - 2}px, #b8c4d4 ${fbLineH}px)`,
+                    backgroundSize: `100% ${fbLineH}px`,
+                    lineHeight: `${fbLineH}px`,
+                  }}
+                >
+                  {card.excerpt}
+                </div>
+              );
+            })()}
           </div>
+        )}
+
+        {/* Bottom fade when collapsed and content overflows */}
+        {isTextCard && !isExpanded && needsToggle && (
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-16 bg-gradient-to-t from-[#fdfcf8] via-[#fdfcf8]/80 to-transparent" />
         )}
       </div>
     </article>

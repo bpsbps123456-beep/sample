@@ -237,15 +237,23 @@ export async function applyClassroomMutation(
         break;
       }
       case "session_start": {
-        await supabase
-          .from("worksheets")
-          .update({
-            is_active: true,
-            is_locked: false,
-            current_page: 1,
-            page_lock_enabled: true,
-          })
-          .eq("id", worksheetId);
+        await Promise.all([
+          supabase
+            .from("worksheets")
+            .update({
+              is_active: true,
+              is_locked: false,
+              current_page: 1,
+              page_lock_enabled: true,
+              projected_type: null,
+              projected_target_id: null,
+            })
+            .eq("id", worksheetId),
+          supabase
+            .from("submissions")
+            .update({ is_projected: false })
+            .eq("worksheet_id", worksheetId),
+        ]);
         break;
       }
       case "timer": {

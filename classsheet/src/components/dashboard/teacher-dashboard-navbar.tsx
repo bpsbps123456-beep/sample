@@ -50,8 +50,8 @@ export function TeacherDashboardNavbar({
   const setProjection = useClassroomStore((s) => s.setProjection);
 
   return (
-    <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm">
-      <div className="mx-auto flex h-18 items-center justify-between gap-5 px-5">
+    <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm overflow-x-auto">
+      <div className="flex h-18 min-w-max items-center justify-between gap-5 px-5">
         {/* Left: Title */}
         <div className="flex min-w-0 flex-1 items-center gap-5">
           <div className="hidden lg:block">
@@ -64,7 +64,7 @@ export function TeacherDashboardNavbar({
           <div className="h-8 w-px bg-slate-200 hidden lg:block" />
 
           {/* Center-Left: Classroom Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* 수업 세션 그룹: 수업 버튼 + 세션 코드 */}
             <div className={`flex items-center gap-1.5 rounded-2xl p-1.5 ring-1 transition-all ${
               isActive
@@ -75,24 +75,21 @@ export function TeacherDashboardNavbar({
             }`}>
               <button
                 onClick={() => {
-                  if (sessionClosed) return;
                   if (isActive) {
                     if (confirm("수업을 종료하시겠습니까?")) closeSession();
                   } else {
                     startSession();
                   }
                 }}
-                className={`h-10 rounded-xl px-4 text-sm font-bold transition-all ${
-                  sessionClosed
-                    ? "bg-slate-100 text-slate-400 cursor-default"
-                    : isActive
+                className={`h-10 whitespace-nowrap rounded-xl px-4 text-sm font-bold transition-all ${
+                  isActive
                     ? "bg-emerald-500 text-white shadow-sm hover:bg-rose-500 group"
+                    : sessionClosed
+                    ? "action-primary shadow-sm opacity-70 hover:opacity-100"
                     : "action-primary shadow-sm"
                 }`}
               >
-                {sessionClosed
-                  ? "종료됨"
-                  : isActive
+                {isActive
                   ? (
                       <>
                         <span className="group-hover:hidden flex items-center gap-2">
@@ -102,6 +99,8 @@ export function TeacherDashboardNavbar({
                         <span className="hidden group-hover:inline">종료하기</span>
                       </>
                     )
+                  : sessionClosed
+                  ? "수업 재시작"
                   : "수업 시작"}
               </button>
               <div className="h-5 w-px bg-slate-200/80 mx-1" />
@@ -114,7 +113,7 @@ export function TeacherDashboardNavbar({
             {projectedType ? (
               <button
                 onClick={() => setProjection(null)}
-                className="h-11 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-600 hover:bg-rose-100 transition-all group"
+                className="h-11 flex items-center gap-2 whitespace-nowrap rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-600 hover:bg-rose-100 transition-all group"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
                 <span className="group-hover:hidden text-xs">화면 송출 중</span>
@@ -124,7 +123,7 @@ export function TeacherDashboardNavbar({
               <Link
                 href={`/projection/${worksheetId}`}
                 target="_blank"
-                className="h-11 flex items-center gap-2 rounded-2xl bg-white ring-1 ring-slate-200 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                className="h-11 flex items-center gap-2 whitespace-nowrap rounded-2xl bg-white ring-1 ring-slate-200 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -171,12 +170,12 @@ export function TeacherDashboardNavbar({
         </div>
 
         {/* Center-Right: Mode & Feature Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {/* Widget toggles */}
           <div className="flex bg-slate-100 p-1.5 rounded-2xl ring-1 ring-slate-200/50">
             <button
               onClick={toggleShowChat}
-              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
+              className={`h-9 whitespace-nowrap px-4 rounded-xl text-sm font-bold transition-all ${
                 showChat ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -184,7 +183,7 @@ export function TeacherDashboardNavbar({
             </button>
             <button
               onClick={toggleShowTimer}
-              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
+              className={`h-9 whitespace-nowrap px-4 rounded-xl text-sm font-bold transition-all ${
                 showTimer ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -192,7 +191,7 @@ export function TeacherDashboardNavbar({
             </button>
             <button
               onClick={toggleShowVote}
-              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
+              className={`h-9 whitespace-nowrap px-4 rounded-xl text-sm font-bold transition-all ${
                 showVote ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -204,7 +203,7 @@ export function TeacherDashboardNavbar({
 
           <button
             onClick={toggleFocusMode}
-            className={`h-11 rounded-2xl px-4 text-sm font-bold transition-all ${
+            className={`h-11 whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition-all ${
               focusMode
                 ? "bg-slate-900 text-white"
                 : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
@@ -215,7 +214,7 @@ export function TeacherDashboardNavbar({
 
           <button
             onClick={toggleWritingLock}
-            className={`h-11 rounded-2xl px-4 text-sm font-bold transition-all ${
+            className={`h-11 whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition-all ${
               isLocked
                 ? "bg-slate-900 text-white"
                 : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
@@ -229,7 +228,7 @@ export function TeacherDashboardNavbar({
           <div className="flex bg-slate-100 p-1.5 rounded-2xl ring-1 ring-slate-200/50">
             <button
               onClick={() => setSessionMode("individual")}
-              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
+              className={`h-9 whitespace-nowrap px-4 rounded-xl text-sm font-bold transition-all ${
                 sessionMode === "individual"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-400 hover:text-slate-600"
@@ -237,7 +236,7 @@ export function TeacherDashboardNavbar({
             >개인</button>
             <button
               onClick={() => setSessionMode("group")}
-              className={`h-9 px-4 rounded-xl text-sm font-bold transition-all ${
+              className={`h-9 whitespace-nowrap px-4 rounded-xl text-sm font-bold transition-all ${
                 sessionMode === "group"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-400 hover:text-slate-600"
@@ -248,16 +247,16 @@ export function TeacherDashboardNavbar({
         </div>
 
         {/* Right: Meta Actions */}
-        <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+        <div className="flex shrink-0 items-center gap-2 pl-3 border-l border-slate-200">
           <Link
             href={`/teacher/worksheets/${worksheetId}/edit`}
-            className="h-10 flex items-center px-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl"
+            className="h-10 flex items-center whitespace-nowrap px-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl"
           >
             수정
           </Link>
           <Link
             href="/teacher/worksheets"
-            className="h-10 flex items-center px-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl"
+            className="h-10 flex items-center whitespace-nowrap px-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl"
           >
             목록
           </Link>

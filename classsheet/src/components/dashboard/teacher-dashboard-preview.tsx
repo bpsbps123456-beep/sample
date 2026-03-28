@@ -224,11 +224,10 @@ export function TeacherDashboardPreview() {
     [galleryCards, galleryFilterQuestion],
   );
 
-  // 부분 송출 모드: 선택한 문항에서 일부 학생 카드만 골라 송출하는 상태
+  // 부분 송출 모드: 일부 학생 카드만 골라 송출하는 상태 (문항·페이지·접속 모드 모두 지원)
   const isPartialMode =
     projectedType === "gallery_partial" &&
-    projectedGalleryQuestionId === galleryFilterQuestion &&
-    !!galleryFilterQuestion;
+    projectedGalleryQuestionId === galleryFilterQuestion;
   const submittedCount = students.filter((s) => s.submitted).length;
   const connectedStudents = students.filter((s) => s.status !== "offline");
   const connectedCount = connectedStudents.length;
