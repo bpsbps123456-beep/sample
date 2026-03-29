@@ -9,8 +9,8 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "클래스ON",
-  description: "실시간 학급 활동지 플랫폼 클래스ON",
+  title: "클래스캐스트",
+  description: "아이들과 함께하는 라이브 수업 플랫폼 클래스캐스트",
 };
 
 export default function RootLayout({
