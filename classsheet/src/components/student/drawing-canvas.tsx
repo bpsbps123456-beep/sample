@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { readStoredStudentEntry } from "@/lib/student-session";
@@ -21,6 +22,28 @@ function sanitizeSegment(value: string) {
   return value.trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/-+/g, "-").slice(0, 40);
 }
 
+function drawContainedImage(
+  context: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+) {
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, targetWidth, targetHeight);
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    return;
+  }
+
+  const scale = Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const offsetX = (targetWidth - drawWidth) / 2;
+  const offsetY = (targetHeight - drawHeight) / 2;
+  context.drawImage(source, offsetX, offsetY, drawWidth, drawHeight);
+}
+
 export function DrawingCanvas({
   worksheetId,
   sessionCode,
@@ -36,12 +59,12 @@ export function DrawingCanvas({
   const [tool, setTool] = useState<ToolMode>("pen");
   const [color, setColor] = useState("#111827");
   const [lineWidth, setLineWidth] = useState(4);
-  const [isDirty, setIsDirty] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const isDirtyRef = useRef(false);
   const [uploadError, setUploadError] = useState("");
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const supportsPointerEventsRef = useRef(false);
   const hydratedValueRef = useRef<string | null>(null);
+  const canvasSizeRef = useRef<{ width: number; height: number } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
@@ -75,7 +98,11 @@ export function DrawingCanvas({
     context.lineJoin = "round";
   }
 
-  const initCanvas = () => {
+  function setDirty(next: boolean) {
+    isDirtyRef.current = next;
+  }
+
+  const resizeCanvas = useCallback((preserveContents: boolean) => {
     const canvas = canvasRef.current;
     if (!canvas) return false;
     const context = canvas.getContext("2d");
@@ -84,42 +111,83 @@ export function DrawingCanvas({
     const rect = canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return false;
 
+    let snapshot: HTMLCanvasElement | null = null;
+    const previousSize = canvasSizeRef.current;
+    if (
+      preserveContents &&
+      previousSize &&
+      canvas.width > 0 &&
+      canvas.height > 0
+    ) {
+      snapshot = document.createElement("canvas");
+      snapshot.width = previousSize.width;
+      snapshot.height = previousSize.height;
+      const snapshotContext = snapshot.getContext("2d");
+      if (snapshotContext) {
+        snapshotContext.drawImage(canvas, 0, 0, previousSize.width, previousSize.height);
+      }
+    }
+
     const ratio = window.devicePixelRatio || 1;
     canvas.width = rect.width * ratio;
     canvas.height = rect.height * ratio;
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.scale(ratio, ratio);
     configureContext(context);
-    paintCanvasBackground(context, rect.width, rect.height);
+    canvasSizeRef.current = { width: rect.width, height: rect.height };
+
+    if (snapshot) {
+      drawContainedImage(
+        context,
+        snapshot,
+        snapshot.width,
+        snapshot.height,
+        rect.width,
+        rect.height,
+      );
+    } else {
+      paintCanvasBackground(context, rect.width, rect.height);
+    }
+
     initializedRef.current = true;
     setCanvasReady(true);
     return true;
-  };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // ResizeObserver: 캔버스가 화면에 보이게 되면(=크기가 잡히면) 초기화
+    // Keep the backing canvas in sync with the rendered size to avoid bitmap stretching.
     const observer = new ResizeObserver((entries) => {
-      if (initializedRef.current) return;
       const entry = entries[0];
-      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
-        initCanvas();
+      if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) {
+        return;
       }
+
+      const currentSize = canvasSizeRef.current;
+      if (
+        currentSize &&
+        Math.abs(currentSize.width - entry.contentRect.width) < 0.5 &&
+        Math.abs(currentSize.height - entry.contentRect.height) < 0.5
+      ) {
+        return;
+      }
+
+      resizeCanvas(initializedRef.current);
     });
     observer.observe(canvas);
 
     // 즉시 시도도 병행
     const t = setTimeout(() => {
-      if (!initializedRef.current) initCanvas();
+      if (!initializedRef.current) resizeCanvas(false);
     }, 100);
 
     return () => {
       observer.disconnect();
       clearTimeout(t);
     };
-  }, []);
+  }, [resizeCanvas]);
 
   function getContext() {
     const canvas = canvasRef.current;
@@ -181,7 +249,7 @@ export function DrawingCanvas({
     // 만약 캔버스 크기가 초기화되지 않았다면 지연 초기화 시도
     const canvas = canvasRef.current;
     if (canvas && (canvas.width === 0 || canvas.height === 0 || !initializedRef.current)) {
-      initCanvas();
+      resizeCanvas(false);
     }
 
     const context = getContext();
@@ -197,7 +265,7 @@ export function DrawingCanvas({
     
     context.strokeStyle = strokeColor;
     context.lineWidth = strokeWidth;
-    setIsDirty(true);
+    setDirty(true);
     setUploadError("");
 
     // 실시간 브로드캐스트: 시작점 전송 (정규화된 좌표)
@@ -247,6 +315,18 @@ export function DrawingCanvas({
     moveStroke(event.clientX, event.clientY);
   }
 
+  function handlePointerLeave(event: React.PointerEvent<HTMLCanvasElement>) {
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        return;
+      }
+    } catch {
+      // Ignore capture lookup failures and fall back to ending the stroke.
+    }
+
+    stopDrawing();
+  }
+
   function stopDrawing() {
     if (!drawingRef.current) return;
     drawingRef.current = false;
@@ -265,7 +345,7 @@ export function DrawingCanvas({
     }
 
     // 선을 떼는 즉시 서버에 영구 이미지 업로드 (최신 상태 동기화)
-    if (isDirty && !disabled) {
+    if (isDirtyRef.current && !disabled) {
       void handleUpload();
     }
   }
@@ -280,7 +360,7 @@ export function DrawingCanvas({
     context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-    setIsDirty(true);
+    setDirty(true);
     setUploadError("");
 
     // 실시간 브로드캐스트: 모두 지우기 전송
@@ -332,7 +412,7 @@ export function DrawingCanvas({
     if (!canvasReady || !initializedRef.current) return;
 
     if (!value) {
-      if (!drawingRef.current && !isDirty) {
+      if (!drawingRef.current && !isDirtyRef.current) {
         hydratedValueRef.current = null;
       }
       return;
@@ -360,10 +440,16 @@ export function DrawingCanvas({
       if (cancelled) return;
       const activeContext = getContext();
       if (!activeContext) return;
-      paintCanvasBackground(activeContext, rect.width, rect.height);
-      activeContext.drawImage(image, 0, 0, rect.width, rect.height);
+      drawContainedImage(
+        activeContext,
+        image,
+        image.naturalWidth,
+        image.naturalHeight,
+        rect.width,
+        rect.height,
+      );
       hydratedValueRef.current = value;
-      setIsDirty(false);
+      setDirty(false);
       setUploadError("");
     };
     image.onerror = () => {
@@ -375,7 +461,7 @@ export function DrawingCanvas({
     return () => {
       cancelled = true;
     };
-  }, [canvasReady, isDirty, value]);
+  }, [canvasReady, value]);
 
   async function handleUpload() {
     const canvas = canvasRef.current;
@@ -389,7 +475,6 @@ export function DrawingCanvas({
       return;
     }
 
-    setIsUploading(true);
     setUploadError("");
 
     try {
@@ -426,12 +511,10 @@ export function DrawingCanvas({
 
       const { data } = supabase.storage.from("drawings").getPublicUrl(filePath);
       onChange(data.publicUrl);
-      setIsDirty(false);
+      setDirty(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "업로드에 실패했습니다.";
       setUploadError(message);
-    } finally {
-      setIsUploading(false);
     }
   }
 
@@ -517,7 +600,7 @@ export function DrawingCanvas({
           try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
           stopDrawing();
         }}
-        onPointerLeave={() => stopDrawing()}
+        onPointerLeave={handlePointerLeave}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={() => stopDrawing()}
