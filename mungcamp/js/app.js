@@ -821,7 +821,9 @@
   // 오프라인에서도 열리도록 (지원하는 곳에서만)
   try {
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+      window.addEventListener('load', () => {
+        try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) { /* 등록할 수 없는 환경 */ }
+      });
     }
   } catch (e) { /* 등록할 수 없는 환경 */ }
 
