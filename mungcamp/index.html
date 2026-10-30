@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>멍캠프</title>
+  <meta name="description" content="불멍, 물멍, 숲멍. 연구로 확인된 회복의 원리를 담아 브라우저가 실시간으로 그리고 들려주는 작은 힐링 캠프.">
+  <meta name="theme-color" content="#0c0e1a">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="멍캠프">
+  <meta property="og:description" content="잠깐, 멍 때리고 가요. 모닥불, 달빛 바다, 편백 숲.">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Nanum+Pen+Script&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-log" viewBox="0 0 24 24"><rect x="2.5" y="9" width="15" height="7" rx="3.5"/><ellipse cx="17.6" cy="12.5" rx="2.6" ry="3.5"/><path d="M6 11.6h5M8 14h4"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/></symbol>
+    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/></symbol>
+    <symbol id="i-breath" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5l-7 7 7 7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 2M9.5 3h5"/></symbol>
+    <symbol id="w-1" viewBox="0 0 32 32"><circle cx="16" cy="16" r="5.5"/><path d="M16 4v3M16 25v3M4 16h3M25 16h3M7.5 7.5l2 2M22.5 22.5l2 2M7.5 24.5l2-2M22.5 9.5l2-2"/></symbol>
+    <symbol id="w-2" viewBox="0 0 32 32"><circle cx="12" cy="11" r="4.5"/><path d="M12 3v2M4 11h2M6.3 5.3l1.4 1.4M17.7 5.3l-1.4 1.4"/><path d="M11 26h12a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.4 1.8A3.6 3.6 0 0 0 11 26z"/></symbol>
+    <symbol id="w-3" viewBox="0 0 32 32"><path d="M9 24h14a5 5 0 0 0 0-10 7 7 0 0 0-13.3 2.2A4 4 0 0 0 9 24z"/></symbol>
+    <symbol id="w-4" viewBox="0 0 32 32"><path d="M9 19h14a5 5 0 0 0 0-10 7 7 0 0 0-13.3 2.2A4 4 0 0 0 9 19z"/><path d="M11 23l-1.5 4M16 23l-1.5 4M21 23l-1.5 4"/></symbol>
+    <symbol id="w-5" viewBox="0 0 32 32"><path d="M9 18h14a5 5 0 0 0 0-10 7 7 0 0 0-13.3 2.2A4 4 0 0 0 9 18z"/><path d="M17 18l-3.5 6h4L15 29"/></symbol>
+  </svg>
+
+  <div id="home">
+    <header class="hero">
+      <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
+      <div class="hero-inner">
+        <p class="eyebrow">MUNG CAMP · 멍캠프</p>
+        <h1>잠깐,<br>멍 때리고 가요.</h1>
+        <p class="lede">일렁이는 불꽃, 밀려오는 파도, 숲으로 드는 빛. 애쓰지 않아도 눈길이 머무는 것 앞에서 지친 집중력이 회복된다는 연구가 있어요. 오늘은 여기서 조금 쉬어 가요.</p>
+        <div class="hero-actions">
+          <a class="btn btn-ember" href="#fire">모닥불 앞에 앉기</a>
+          <a class="btn btn-ghost" href="#seats">다른 자리 보기</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="band seats" id="seats" aria-labelledby="seats-title">
+        <div class="wrap">
+          <h2 id="seats-title">오늘은 어디에 앉을까요?</h2>
+          <p class="section-lede">세 자리 모두 영상이나 음원 파일 없이, 지금 이 기기에서 실시간으로 그려지고 합성돼요. 헤드폰을 쓰면 소리가 더 가깝게 들려요.</p>
+          <div class="seat-grid">
+            <a class="seat seat-fire" href="#fire">
+              <canvas class="seat-thumb" data-scene="fire" aria-hidden="true"></canvas>
+              <div class="seat-body">
+                <p class="seat-kicker">불멍</p>
+                <h3>모닥불 글램핑</h3>
+                <p>별 아래 벨텐트, 장작 타는 소리와 풀벌레. 장작을 넣어 불을 키우고, 걱정을 장작에 적어 직접 불 속에 넣어요.</p>
+                <ul class="seat-tags"><li>장작 넣기</li><li>걱정 태우기</li><li>풀벌레</li></ul>
+                <span class="seat-go">불 앞에 앉기</span>
+              </div>
+            </a>
+            <a class="seat seat-water" href="#water">
+              <canvas class="seat-thumb" data-scene="water" aria-hidden="true"></canvas>
+              <div class="seat-body">
+                <p class="seat-kicker">물멍</p>
+                <h3>달빛 바다</h3>
+                <p>10초마다 밀려오는 파도는 1분에 6번 숨쉬는 리듬과 같아요. 물을 톡 건드리면 동심원이 퍼지고, 멀리 등대가 깜빡여요.</p>
+                <ul class="seat-tags"><li>파도 호흡</li><li>물결 만들기</li><li>등대</li></ul>
+                <span class="seat-go">바닷가에 앉기</span>
+              </div>
+            </a>
+            <a class="seat seat-forest" href="#forest">
+              <canvas class="seat-thumb" data-scene="forest" aria-hidden="true"></canvas>
+              <div class="seat-body">
+                <p class="seat-kicker">숲멍</p>
+                <h3>편백 숲의 아침</h3>
+                <p>빛내림 사이로 떠다니는 먼지, 계곡물과 새소리. 화면을 누르면 바람이 지나가며 잎이 떨어져요.</p>
+                <ul class="seat-tags"><li>빛내림</li><li>계곡물</li><li>새소리</li></ul>
+                <span class="seat-go">숲에 앉기</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="band science" id="science" aria-labelledby="science-title">
+        <div class="wrap">
+          <h2 id="science-title">왜 멍때리면 편안해질까요?</h2>
+          <p class="section-lede">멍캠프의 장면, 소리, 호흡, 타이머는 아래 연구를 바탕으로 정했어요. 연구마다 사이트의 어느 부분에 쓰였는지 함께 적었어요.</p>
+
+          <div class="sci-group">
+            <h3 class="sci-group-title">멍의 원리</h3>
+            <div class="sci-grid">
+              <article class="sci-card">
+                <p class="sci-tag">주의 회복 이론</p>
+                <h4>애쓰지 않아도 눈길이 머무는 것</h4>
+                <p>일렁이는 불꽃, 반짝이는 물결, 흔들리는 나뭇잎처럼 힘들이지 않아도 시선을 붙잡는 것을 ‘부드러운 매혹’이라고 해요. 이런 대상 앞에서는 일하고 공부할 때 쓰는 집중력이 쉬면서 회복된다는 이론이에요. 실제로 자연 속을 걷거나 자연 사진만 본 사람들도 도시 풍경을 본 사람들보다 집중력 과제를 더 잘 해냈어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>알림도, 점수도, 광고도 없어요. 화면을 가만히 두면 버튼까지 스르르 사라져요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1016/0272-4944(95)90001-2" target="_blank" rel="noopener">Kaplan (1995) · J. Environ. Psychol. 15(3)</a><a href="https://doi.org/10.1111/j.1467-9280.2008.02225.x" target="_blank" rel="noopener">Berman, Jonides &amp; Kaplan (2008) · Psychol. Sci. 19(12)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">프랙탈</p>
+                <h4>불꽃과 파도와 나무의 공통점</h4>
+                <p>불꽃, 물결, 나뭇가지는 작은 부분이 전체를 닮은 프랙탈 구조를 갖고 있어요. 사람들은 중간 정도로 복잡한 프랙탈(D ≈ 1.3–1.5)을 가장 좋아했고, 이런 패턴이 생리적 스트레스를 낮출 수 있다는 예비 결과도 있어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>불꽃의 흔들림, 파도의 높낮이, 바람의 세기를 큰 흔들림 위에 작은 흔들림이 겹치는 1/f 요동으로 만들었어요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1162/leon.2006.39.3.245" target="_blank" rel="noopener">Taylor (2006) · Leonardo 39(3)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">멍때림의 두 얼굴</p>
+                <h4>머물 곳이 있는 멍, 걱정으로 빠지는 멍</h4>
+                <p>2,250명의 일상을 스마트폰으로 기록한 연구에서 사람들은 깨어 있는 시간의 47%쯤 딴생각을 했고, 그때 덜 행복했어요. 반면 쉬는 동안 쉬운 일로 생각을 풀어 둔 사람들은 다시 만난 창의력 문제를 훨씬 잘 풀었어요. 차이는 생각이 걱정으로 빠지느냐, 가볍게 머물 곳이 있느냐예요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>“생각이 떠오르면 떠오르게 두고, 다시 불꽃으로.” 시선을 돌려놓을 대상을 늘 화면 가운데에 둬요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1126/science.1192439" target="_blank" rel="noopener">Killingsworth &amp; Gilbert (2010) · Science 330</a><a href="https://doi.org/10.1177/0956797612446024" target="_blank" rel="noopener">Baird 외 (2012) · Psychol. Sci. 23(10)</a></p>
+              </article>
+            </div>
+          </div>
+
+          <div class="sci-group">
+            <h3 class="sci-group-title">불 · 물 · 숲</h3>
+            <div class="sci-grid">
+              <article class="sci-card">
+                <p class="sci-tag">불멍</p>
+                <h4>소리가 있는 모닥불이 혈압을 낮췄어요</h4>
+                <p>성인 226명이 참여한 실험에서, 장작 타는 소리가 함께 나오는 모닥불 영상을 본 사람들의 혈압이 꾸준히 내려갔고 오래 볼수록 더 많이 내려갔어요. 소리 없는 불 영상에서는 이런 효과가 나타나지 않았어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>불멍은 장작 소리와 함께 시작해요. 장작을 넣어 가며 오래 머물 수 있게 만들었어요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1177/147470491401200509" target="_blank" rel="noopener">Lynn (2014) · Evolutionary Psychology 12(5)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">불가의 대화</p>
+                <h4>밤의 불 앞에서 사람들은 이야기를 나눴어요</h4>
+                <p>아프리카 수렵채집 사회의 대화를 기록한 연구에서 낮의 대화는 주로 일과 불평이었지만, 밤 불가의 대화는 상상과 이야기로 채워졌어요. 불은 아주 오래전부터 하루를 내려놓는 자리였던 셈이에요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>벨텐트와 줄전구, 풀벌레 소리로 밤의 불가를 옮겨 왔어요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1073/pnas.1404212111" target="_blank" rel="noopener">Wiessner (2014) · PNAS 111(39)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">걱정 태우기</p>
+                <h4>생각을 버리는 몸짓은 힘이 있어요</h4>
+                <p>자기 생각을 적은 종이를 버린 사람들은 간직한 사람들보다 그 생각에 덜 휘둘렸어요. 컴퓨터에 적은 생각을 휴지통으로 끌어다 놓아도 효과가 있었지만, 버리는 상상만 한 경우에는 효과가 없었어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>걱정을 장작에 적고, 직접 끌어서 불 속에 넣어요. 글자가 불티가 되어 날아가요. 적은 내용은 어디에도 저장되거나 전송되지 않아요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1177/0956797612449176" target="_blank" rel="noopener">Briñol, Gascó, Petty &amp; Horcajo (2013) · Psychol. Sci. 24(1)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">물멍</p>
+                <h4>사람들은 물이 보이는 풍경을 더 좋아해요</h4>
+                <p>120장의 풍경 사진을 평가한 실험에서 물이 들어간 장면은 더 선호되고, 기분을 더 좋게 하고, 더 회복된다고 느껴졌어요. 건물이 있는 풍경도 물이 있으면 푸른 자연 풍경만큼 좋은 평가를 받았어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>달빛이 부서지는 블루아워의 바다와 멀리서 깜빡이는 등대.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1016/j.jenvp.2010.04.004" target="_blank" rel="noopener">White 외 (2010) · J. Environ. Psychol. 30(4)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">자연의 소리</p>
+                <h4>물소리는 기분을, 새소리는 스트레스를</h4>
+                <p>18편의 연구를 묶어 분석한 결과, 자연의 소리는 스트레스와 짜증을 줄이고 건강과 긍정적인 기분을 높였어요. 물소리는 기분과 건강에, 새소리는 스트레스를 줄이는 데 효과가 가장 컸어요. 스트레스 과제 뒤에 자연의 소리를 들은 사람들은 소음을 들은 사람들보다 긴장이 더 빨리 풀리는 경향도 보였어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>파도, 계곡물, 새소리, 장작 소리를 이 기기에서 실시간으로 합성해요. 똑같이 되풀이되는 녹음 구간이 없어요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1073/pnas.2013097118" target="_blank" rel="noopener">Buxton 외 (2021) · PNAS 118(14)</a><a href="https://doi.org/10.3390/ijerph7031036" target="_blank" rel="noopener">Alvarsson, Wiens &amp; Nilsson (2010) · IJERPH 7(3)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">숲멍</p>
+                <h4>숲에 있으면 몸이 먼저 쉬어요</h4>
+                <p>일본 24개 숲에서 280명이 참여한 현장 실험에서, 숲을 걷고 바라본 날은 도시에서보다 코르티솔, 맥박, 혈압이 낮았고 몸을 쉬게 하는 부교감신경 활동이 높았어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>빛내림이 드는 편백 숲, 빛 속에서만 반짝이는 먼지, 바람에 흔들리는 고사리.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1007/s12199-009-0086-9" target="_blank" rel="noopener">Park 외 (2010) · Environ. Health Prev. Med. 15(1)</a></p>
+              </article>
+            </div>
+          </div>
+
+          <div class="sci-group">
+            <h3 class="sci-group-title">호흡과 시간</h3>
+            <div class="sci-grid">
+              <article class="sci-card">
+                <p class="sci-tag">공명 호흡</p>
+                <h4>1분에 6번, 파도처럼 숨쉬기</h4>
+                <p>1분에 6번(0.1Hz) 안팎으로 천천히 숨쉬면 심장 박동과 호흡이 공명하며 심박변이도가 가장 크게 늘어나요. 혈압을 조절하는 반사가 강해지는 것이 주된 원리로 꼽혀요. 가장 잘 맞는 빠르기는 사람마다 조금씩 달라요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>5초 들숨, 5초 날숨. 물멍의 파도는 정확히 10초마다 밀려와서, 파도가 차오를 때 들이쉬고 쓸려 갈 때 내쉬도록 맞춰 뒀어요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.3389/fpsyg.2014.00756" target="_blank" rel="noopener">Lehrer &amp; Gevirtz (2014) · Front. Psychol. 5</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">주기적 한숨</p>
+                <h4>하루 5분, 길게 내쉬는 숨</h4>
+                <p>한 달 동안 매일 5분씩 호흡법이나 마음챙김 명상을 한 무작위 실험에서 모든 그룹이 나아졌지만, 날숨을 길게 하는 ‘주기적 한숨’이 기분 개선과 호흡수 감소에서 명상보다 효과가 컸어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>호흡 안내에 주기적 한숨과 박스 호흡을 함께 넣었어요. 5분 타이머와 같이 써 보세요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1016/j.xcrm.2022.100895" target="_blank" rel="noopener">Balban 외 (2023) · Cell Rep. Med. 4(1)</a></p>
+              </article>
+              <article class="sci-card">
+                <p class="sci-tag">자연 처방</p>
+                <h4>20~30분이 가장 효율적이에요</h4>
+                <p>도시에 사는 36명이 8주 동안 자연 속에서 보낸 시간과 침 속 스트레스 호르몬을 쟀어요. 코르티솔은 시간당 21% 넘게 떨어졌고, 들인 시간 대비 효율은 20~30분일 때 가장 높았어요. 그 뒤로도 효과는 천천히 계속 커졌어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>타이머 기본값이 20분이에요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.3389/fpsyg.2019.00722" target="_blank" rel="noopener">Hunter, Gillespie &amp; Chen (2019) · Front. Psychol. 10</a></p>
+              </article>
+              <article class="sci-card is-wide">
+                <p class="sci-tag">화면 속 자연의 한계</p>
+                <h4>그래도 진짜 자연이 더 좋아요</h4>
+                <p>화면이나 VR 속 자연도 마음을 회복시키지만 진짜 자연만큼은 아니었어요. 실제 자연에서는 기분과 활력이 더 올랐고, 시뮬레이션을 본 사람들 사이에서는 진짜 자연에 있고 싶다는 반응도 나왔어요.</p>
+                <p class="sci-apply"><span>멍캠프에서는</span>진짜 자연으로 가기 전의 짧은 쉼표가 되려고 해요. 세션이 끝나면 바깥으로 나가 보자고 살짝 권해요.</p>
+                <p class="sci-cite"><a href="https://doi.org/10.1016/j.jenvp.2010.01.011" target="_blank" rel="noopener">Kjellgren &amp; Buhrkall (2010) · J. Environ. Psychol. 30(4)</a><a href="https://doi.org/10.3389/fpsyg.2019.02667" target="_blank" rel="noopener">Browning 외 (2020) · Front. Psychol. 10</a></p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band log" id="log" aria-labelledby="log-title">
+        <div class="wrap">
+          <h2 id="log-title">나의 쉼 기록</h2>
+          <p class="section-lede">세션 앞뒤로 고른 마음 날씨가 이 기기에만 저장돼요. 의학적 측정이 아니라 나를 돌아보는 작은 메모예요.</p>
+          <div class="log-stats" id="logStats" hidden>
+            <div class="stat"><span class="stat-num" id="statCount">0</span><span class="stat-label">쉬어 간 횟수</span></div>
+            <div class="stat"><span class="stat-num" id="statMinutes">0</span><span class="stat-label">머문 시간(분)</span></div>
+            <div class="stat"><span class="stat-num" id="statDelta">–</span><span class="stat-label">마음 날씨 평균 변화</span></div>
+          </div>
+          <ol class="log-list" id="logList"></ol>
+          <p class="log-empty" id="logEmpty">아직 기록이 없어요. 첫 멍을 마치면 여기에 남아요.</p>
+          <div class="log-clear" id="logClearRow" hidden>
+            <button class="link-btn" id="logClear" type="button">기록 지우기</button>
+            <span id="logConfirm" hidden>모두 지울까요? <button class="link-btn" id="logClearYes" type="button">지우기</button> <button class="link-btn" id="logClearNo" type="button">그대로 두기</button></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="band care" id="care" aria-labelledby="care-title">
+        <div class="wrap care-inner">
+          <div>
+            <h2 id="care-title">마음이 많이 힘들 때는</h2>
+            <p>멍캠프는 잠깐 쉬어 가는 곳이고, 진료나 상담을 대신하지 않아요. 힘든 마음이 2주 넘게 이어지거나 혼자 감당하기 어렵다면 전문가와 이야기해 주세요. 언제든 전화할 수 있어요.</p>
+          </div>
+          <ul class="care-list">
+            <li><span class="care-num">109</span><span>자살예방 상담전화 · 24시간</span></li>
+            <li><span class="care-num">1577-0199</span><span>정신건강 위기상담전화 · 24시간</span></li>
+            <li><span class="care-num">1588-9191</span><span>한국생명의전화 · 24시간</span></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <p>멍캠프의 그림과 소리는 모두 지금 이 기기에서 실시간으로 만들어져요. 영상과 음원 파일이 없어 가볍고, 기록은 이 기기에만 남아요.</p>
+        <p class="foot-keys">단축키 · <kbd>Space</kbd> 장작 넣기·물결·바람 · <kbd>B</kbd> 호흡 · <kbd>M</kbd> 소리 끄기 · <kbd>H</kbd> 화면만 보기 · <kbd>F</kbd> 전체 화면</p>
+      </div>
+    </footer>
+  </div>
+
+  <div class="session" id="session" hidden>
+    <canvas class="stage" id="stage" aria-label="장면"></canvas>
+    <div class="ui" id="ui">
+      <div class="topbar">
+        <button class="chip" id="exitBtn" type="button"><svg class="ico"><use href="#i-back"/></svg>나가기</button>
+        <p class="scene-name" id="sceneName"></p>
+        <div class="top-right">
+          <button class="chip" id="timerChip" type="button" aria-haspopup="true"><svg class="ico"><use href="#i-timer"/></svg><span id="timerText">20:00</span></button>
+          <button class="chip chip-icon" id="fsBtn" type="button" aria-label="전체 화면"><svg class="ico"><use href="#i-full"/></svg></button>
+        </div>
+      </div>
+
+      <p class="guidance" id="guidance"></p>
+
+      <div class="breath" id="breath" hidden aria-live="polite">
+        <div class="breath-ring" data-breath-ring></div>
+        <p class="breath-label" data-breath-label></p>
+        <p class="breath-count" data-breath-count></p>
+      </div>
+
+      <div class="worry-hint" id="worryHint" hidden>
+        <p>장작을 끌어서 불 속에 넣어 보세요</p>
+        <button class="chip" id="worryThrow" type="button">그냥 불에 넣기</button>
+      </div>
+
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+      <section class="panel" id="panel-sound" hidden aria-labelledby="panel-sound-title">
+        <header class="panel-head"><h3 id="panel-sound-title">소리</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <label class="slider"><span>전체 크기</span><input type="range" id="vol-master" min="0" max="1" step="0.01"></label>
+        <div id="layerSliders"></div>
+        <button class="chip" id="muteBtn" type="button" aria-pressed="false">소리 끄기</button>
+      </section>
+
+      <section class="panel" id="panel-breath" hidden aria-labelledby="panel-breath-title">
+        <header class="panel-head"><h3 id="panel-breath-title">호흡</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <div class="seg" id="breathPatterns" role="radiogroup" aria-label="호흡법"></div>
+        <p class="panel-note" id="breathNote"></p>
+        <label class="check"><input type="checkbox" id="breathCue"> 숨 바뀔 때 작은 소리로 알려 주기</label>
+        <button class="btn btn-ember btn-block" id="breathToggle" type="button">호흡 시작</button>
+      </section>
+
+      <section class="panel" id="panel-worry" hidden aria-labelledby="panel-worry-title">
+        <header class="panel-head"><h3 id="panel-worry-title">걱정 태우기</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <form id="worryForm" class="worry-form">
+          <label for="worryInput" class="panel-note">지금 마음을 무겁게 하는 걸 짧게 적어 보세요. 장작에 적힌 걱정을 직접 불 속에 넣게 돼요.</label>
+          <input id="worryInput" class="text-input" type="text" maxlength="24" autocomplete="off" placeholder="예: 다음 주 면접" required>
+          <p class="panel-fine">적은 내용은 저장되지도, 어디로 보내지지도 않아요.</p>
+          <button class="btn btn-ember btn-block" type="submit">장작에 적기</button>
+        </form>
+      </section>
+
+      <section class="panel" id="panel-timer" hidden aria-labelledby="panel-timer-title">
+        <header class="panel-head"><h3 id="panel-timer-title">머무는 시간</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <div class="seg" id="timerOptions" role="radiogroup" aria-label="머무는 시간"></div>
+        <p class="panel-note">20~30분일 때 스트레스 호르몬이 가장 효율적으로 줄었어요.</p>
+      </section>
+
+      <nav class="dock" id="dock" aria-label="장면 조작">
+        <div class="dock-scene" id="dockScene"></div>
+        <span class="dock-sep" aria-hidden="true"></span>
+        <button class="dock-btn" type="button" data-panel="breath" id="breathBtn" aria-pressed="false"><svg class="ico"><use href="#i-breath"/></svg><span>호흡</span></button>
+        <button class="dock-btn" type="button" data-panel="sound"><svg class="ico"><use href="#i-sound"/></svg><span>소리</span></button>
+        <button class="dock-btn" type="button" id="hideBtn"><svg class="ico"><use href="#i-eye"/></svg><span>화면만</span></button>
+      </nav>
+    </div>
+
+    <div class="modal" id="checkin" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="checkin-title">
+        <p class="modal-kicker" id="checkinPlace"></p>
+        <h2 id="checkin-title">들어가기 전에, 지금 마음 날씨는요?</h2>
+        <p class="modal-sub">긴장되고 무거울수록 폭풍 쪽이에요. 건너뛰어도 괜찮아요.</p>
+        <div class="moods" id="moodBefore" role="radiogroup" aria-label="지금 마음 날씨"></div>
+        <h3 class="modal-h3">얼마나 머물까요?</h3>
+        <div class="seg" id="durationOptions" role="radiogroup" aria-label="머무는 시간"></div>
+        <button class="btn btn-ember btn-block" id="startBtn" type="button">자리에 앉기</button>
+        <p class="modal-fine">소리가 함께 나와요. 이어폰이나 헤드폰을 추천해요.</p>
+        <div class="modal-actions"><button class="link-btn" id="checkinBack" type="button">다른 자리 보기</button></div>
+      </div>
+    </div>
+
+    <div class="modal" id="checkout" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+        <div id="checkoutAsk">
+          <p class="modal-kicker" id="checkoutKicker"></p>
+          <h2 id="checkout-title">지금 마음 날씨는 어때요?</h2>
+          <div class="moods" id="moodAfter" role="radiogroup" aria-label="지금 마음 날씨"></div>
+          <button class="btn btn-ember btn-block" id="saveLeaveBtn" type="button">기록하고 나가기</button>
+          <div class="modal-actions">
+            <button class="link-btn" id="stayBtn" type="button">조금 더 머물기</button>
+            <button class="link-btn" id="leaveBtn" type="button">기록 없이 나가기</button>
+          </div>
+        </div>
+        <div id="checkoutDone" hidden>
+          <p class="modal-kicker">오늘의 쉼</p>
+          <h2 id="doneTitle"></h2>
+          <p class="modal-sub" id="doneText"></p>
+          <p class="done-care" id="doneCare" hidden>많이 힘들다면 혼자 견디지 않아도 돼요. <strong>109</strong>(자살예방 상담전화)나 <strong>1577-0199</strong>(정신건강 위기상담)로 언제든 이야기할 수 있어요.</p>
+          <p class="done-tip" id="doneTip"></p>
+          <button class="btn btn-ember btn-block" id="doneBtn" type="button">캠프로 돌아가기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/util.js" defer></script>
+  <script src="js/audio.js" defer></script>
+  <script src="js/scene-fire.js" defer></script>
+  <script src="js/scene-water.js" defer></script>
+  <script src="js/scene-forest.js" defer></script>
+  <script src="js/breath.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
