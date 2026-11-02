@@ -159,7 +159,7 @@
     const t = ink.getContext('2d');
     const maxW = LOG_L - LOG_R * 2.2;
     let size = 34;
-    const font = (px) => `${px}px "Nanum Pen Script", "Gaegu", cursive`;
+    const font = (px) => `${px}px "Gamja Flower", "Dongle", cursive`;
     t.font = font(size);
     while (t.measureText(text).width > maxW && size > 18) {
       size -= 2;

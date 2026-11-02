@@ -72,6 +72,9 @@
   const curtain = $('#curtain');
   const breath = new MC.Breath($('#breath'), sound);
 
+  const finePointer = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+  const focusSoft = (el) => { if (finePointer) setTimeout(() => el.focus({ preventScroll: true }), 50); };
+
   const fmt = (sec) => {
     sec = Math.max(0, Math.round(sec));
     return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
@@ -184,7 +187,7 @@
     $('#endCard').hidden = true;
     $('#startCard').hidden = false;
     updateTimer();
-    setTimeout(() => $('#startBtn').focus({ preventScroll: true }), 50);
+    focusSoft($('#startBtn'));
   }
 
   function startSession() {
@@ -291,8 +294,7 @@
         state.worryShown = st.waiting;
         $('#worryHint').hidden = !st.waiting;
         if (st.waiting) {
-          clearTimeout(state.guideTimer);
-          $('#guidance').classList.remove('is-on');
+          hideGuidance();
           wake();
         }
       }
@@ -343,7 +345,7 @@
       setBreathUI(false);
       $('#endCard').hidden = false;
       wake();
-      setTimeout(() => $('#stayBtn').focus({ preventScroll: true }), 50);
+      focusSoft($('#stayBtn'));
     }, 6000);
   }
 
@@ -360,9 +362,17 @@
   function showGuidance(text) {
     const g = $('#guidance');
     g.textContent = text;
+    g.classList.remove('is-quick');
     requestAnimationFrame(() => g.classList.add('is-on'));
     clearTimeout(state.guideTimer);
     state.guideTimer = setTimeout(() => g.classList.remove('is-on'), 6000);
+  }
+
+  function hideGuidance() {
+    clearTimeout(state.guideTimer);
+    const g = $('#guidance');
+    g.classList.add('is-quick');
+    g.classList.remove('is-on');
   }
 
   // ── 조작부 ───────────────────────────────────────────
@@ -449,8 +459,7 @@
     const on = typeof force === 'boolean' ? force : !breath.active;
     if (on) {
       breath.start(state.scene === 'water' ? -0.16 * MC.WAVE_T : null);
-      clearTimeout(state.guideTimer);
-      $('#guidance').classList.remove('is-on');
+      hideGuidance();
     } else {
       breath.stop();
     }
@@ -633,7 +642,7 @@
     input.blur();
     closePanels();
     const go = () => sc.burnWorry(text);
-    if (document.fonts && document.fonts.load) document.fonts.load('34px "Nanum Pen Script"', text).then(go, go);
+    if (document.fonts && document.fonts.load) document.fonts.load('34px "Gamja Flower"', text).then(go, go);
     else go();
   });
   $('#worryThrow').addEventListener('click', () => {
