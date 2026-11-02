@@ -59,6 +59,9 @@
     return SPR;
   }
 
+  // 침대에 엎드려 누울 수 있는 멍이 수
+  const BED_SPOTS = 3;
+
   // 여럿이 오면 앉는 자리 (장면 좌표: X는 화면 가로 천분율, Z는 바닥 깊이 천분율)
   const TENT_SEATS = [
     [480, 870], [600, 930], [300, 720], [545, 620], [705, 825], [150, 515], [410, 180], [510, 260],
@@ -88,6 +91,9 @@
       this.onLog = null;
       this.onCute = null;
       this.onToggle = null;
+      this.onToast = null;
+      this.bedSpot = 0; // 내가 누운 침대 자리 (1..BED_SPOTS, 0이면 아님)
+      this.pendingSpot = 0;
       this.toDoor = false;
       this.leaving = false;
       this.useGL = null;
@@ -115,17 +121,23 @@
           seats: () => TENT_SEATS,
           lightFor: (p, X, Z, a) => this.lightPup(p, a),
           env: () => ({}),
+          // 침대: 정해진 자리(BED_SPOTS)에만 엎드려 눕는다
           perch: {
             get X() {
-              return sc.bedFoot().X;
+              return sc.bedFootOf(sc.bedSpot || sc.pendingSpot || 2).X;
             },
             get Z() {
-              return sc.bedFoot().Z;
+              return sc.bedFootOf(sc.bedSpot || sc.pendingSpot || 2).Z;
             },
-            seat: (id) => sc.bedSeat(id),
+            seat: (id, st) => sc.bedSeat(id, st),
             hit: (x, y) => sc.hitBed(x, y),
             sortY: () => sc.L.bed.y + 1,
+            claim: () => sc.claimBed(),
+            onSit: () => sc.lieDown(),
+            onLeave: () => sc.getUp(),
+            onFull: () => sc.bedFull(),
           },
+          extra: () => ({ l: sc.crowd && sc.crowd.perched ? sc.bedSpot : 0 }),
         });
         // 텐트 안에서는 바닥에서 시작한다
         this.crowd.perched = false;
@@ -1617,15 +1629,102 @@
     }
 
     // ── 자리, 빛 ─────────────────────────────────────────
-    bedFoot() {
+    // ── 침대 자리 ─────────────────────────────────────────
+    // 자리마다 침대 위 가로 위치(디자인 단위). 화면 오른쪽 끝에 걸리면 조금씩 당긴다
+    bedSpotX(i) {
       const L = this.L;
-      return this.toCanon(L.bed.x - 40 * L.bed.k, L.bed.y + 18 * this.s);
+      const xs = [-112, -14, 84];
+      const right = L.bed.x + (xs[BED_SPOTS - 1] + 62) * L.bed.k;
+      const shift = right > this.w ? (this.w - right) / L.bed.k : 0;
+      return xs[MC.clamp(i, 1, BED_SPOTS) - 1] + shift;
     }
 
-    bedSeat(id) {
+    // 그 자리 앞 바닥 (여기까지 걸어와서 폴짝 올라간다)
+    bedFootOf(i) {
       const L = this.L;
-      const off = id ? (MC.hash(id.length * 5.1 + id.charCodeAt(id.length - 1)) - 0.5) * 230 : -20;
-      return { x: L.bed.x + off * L.bed.k, y: L.bed.y - 78 * L.bed.k, k: L.bed.k * 0.98 };
+      return this.toCanon(L.bed.x + (this.bedSpotX(i) - 6) * L.bed.k, L.bed.y + 18 * this.s);
+    }
+
+    takenSpots() {
+      const taken = new Set();
+      if (this.crowd) for (const v of this.crowd.visitors.values()) if (!v.leaving && v.st.q && v.st.l) taken.add(v.st.l);
+      return taken;
+    }
+
+    // 빈자리: 바라는 자리와 가까운 것부터
+    freeSpot(want) {
+      const taken = this.takenSpots();
+      const order = [];
+      for (let i = 1; i <= BED_SPOTS; i++) order.push(i);
+      order.sort((a, b) => Math.abs(a - want) - Math.abs(b - want));
+      for (const i of order) if (!taken.has(i)) return i;
+      return 0;
+    }
+
+    nearestSpot(x) {
+      const L = this.L;
+      let best = 1;
+      for (let i = 2; i <= BED_SPOTS; i++) {
+        if (Math.abs(L.bed.x + this.bedSpotX(i) * L.bed.k - x) < Math.abs(L.bed.x + this.bedSpotX(best) * L.bed.k - x)) best = i;
+      }
+      return best;
+    }
+
+    bedSeat(id, st) {
+      const L = this.L;
+      let spot;
+      if (!id) spot = this.bedSpot || this.pendingSpot || 2;
+      else spot = st && st.l ? st.l : 1 + Math.floor(MC.hash(id.length * 5.1 + id.charCodeAt(id.length - 1)) * BED_SPOTS);
+      return { x: L.bed.x + this.bedSpotX(spot) * L.bed.k, y: L.bed.y - 76 * L.bed.k, k: L.bed.k * 0.98 };
+    }
+
+    // 도착했을 때 그 자리가 비었는지 다시 본다 (그새 누가 누웠으면 옆자리로)
+    claimBed() {
+      const spot = this.freeSpot(this.pendingSpot || 2);
+      this.pendingSpot = 0;
+      if (!spot) return false;
+      this.bedSpot = spot;
+      return true;
+    }
+
+    lieDown() {
+      this.pup.setLie(true);
+      this.pup.sleepAfter = Math.min(this.pup.sleepAfter, 20);
+    }
+
+    getUp() {
+      this.pup.setLie(false);
+      this.bedSpot = 0;
+    }
+
+    // 침대가 꽉 찼으면 알려 주고, 침대 옆 양털 깔개에 앉는다
+    bedFull() {
+      if (this.onToast) this.onToast('침대가 꽉 찼어요');
+      const sk = this.L.skin;
+      const c = this.crowd;
+      c.go(c.pushOut(c.clampIn(this.toCanon(sk.x, sk.y))));
+    }
+
+    // 침대를 톡: 빈자리로 걸어가 폴짝 올라가 엎드린다. 이미 누워 있으면 옆 빈자리로 옮겨 눕는다
+    tapBed(x) {
+      const c = this.crowd;
+      const want = this.nearestSpot(x);
+      if (c.perched) {
+        if (want !== this.bedSpot && !this.takenSpots().has(want)) {
+          this.bedSpot = want;
+          this.pup.hopV = -60;
+          this.pup.emit('hop');
+        }
+        return;
+      }
+      const spot = this.freeSpot(want);
+      if (!spot) {
+        this.bedFull();
+        return;
+      }
+      this.pendingSpot = spot;
+      c.go(this.bedFootOf(spot), true);
+      this.toDoor = false;
     }
 
     hitBed(x, y) {
@@ -1709,6 +1808,10 @@
       }
       if (this.hitDoor(x, y)) {
         this.walkOut();
+        return true;
+      }
+      if (this.crowd && this.hitBed(x, y)) {
+        this.tapBed(x);
         return true;
       }
       if (this.crowd && this.crowd.walkTo(x, y)) {
@@ -1846,8 +1949,23 @@
             else this.toDoor = false;
           } else if (near && c.keys.y < 0 && c.me.Z < 30) this.exitDoor();
         }
-        // 침대에 올라앉으면 금세 꾸벅꾸벅
-        if (c.perched) this.pup.sleepAfter = Math.min(this.pup.sleepAfter, 22);
+        // 침대에 엎드리면 금세 꾸벅꾸벅
+        if (c.perched) this.pup.sleepAfter = Math.min(this.pup.sleepAfter, 20);
+        // 같은 자리에 둘이 누우면 꼬리표가 앞선 사람이 그 자리를 갖고, 나는 옆으로 옮기거나 내려온다
+        if (c.perched && this.bedSpot && c.selfId) {
+          for (const v of c.visitors.values()) {
+            if (v.leaving || !v.st.q || v.st.l !== this.bedSpot || !(v.id < c.selfId)) continue;
+            const other = this.freeSpot(this.bedSpot);
+            if (other) {
+              this.bedSpot = other;
+              this.pup.hopV = -50;
+            } else {
+              c.hopDown();
+              this.bedFull();
+            }
+            break;
+          }
+        }
       }
       this.pup.update(dt, { walking: !!(this.crowd && this.crowd.moving) });
     }

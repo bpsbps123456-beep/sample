@@ -56,6 +56,7 @@ function clean(raw) {
     hp: num(raw.hp, 0, 1e9) | 0,
     bp,
     g: gx != null && gy != null ? [Math.round(gx), Math.round(gy)] : null,
+    l: num(raw.l, 0, 9) | 0,
   };
 }
 

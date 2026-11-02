@@ -64,8 +64,9 @@
       p.baseTurn = st.t;
       p.flip = st.f;
       p.setStick(st.s);
+      p.setLie(!!st.l);
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
-      const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.mood === 'eating' || p.mood === 'startled';
+      const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.mood === 'eating' || p.mood === 'startled' || (p.lie > 0 && p.lie < 1);
       p.paintEvery = lively ? 1 / 20 : 1 / 8;
       if (st.z && !p.sleeping) p.setMood('sleepy', 2.5);
       else if (!st.z && p.sleeping) p.wake();
@@ -352,10 +353,11 @@
 
     hopDown() {
       const P = this.cfg.perch;
-      this.perched = false;
       this.me.X = P.X;
       this.me.Z = P.Z;
+      this.perched = false;
       this.pup.hopV = -55;
+      if (P.onLeave) P.onLeave();
     }
 
     arrive() {
@@ -366,11 +368,18 @@
       this.target = null;
       if (this.toPerch) {
         this.toPerch = false;
+        const P = this.cfg.perch;
+        // 자리가 정해진 곳(침대)은 도착했을 때 빈자리가 있어야 올라간다
+        if (P.claim && !P.claim()) {
+          if (P.onFull) P.onFull();
+          return;
+        }
         this.perched = true;
         this.posed = false;
         this.still = 0;
         this.pup.hopV = -80;
         this.pup.emit('hop');
+        if (P.onSit) P.onSit();
       }
     }
 
@@ -449,7 +458,7 @@
     placeVisitor(v) {
       const p = v.pup;
       const cfg = this.cfg;
-      const q = v.st.q && cfg.perch ? cfg.perch.seat(v.id) : cfg.toScreen(v.x, v.y);
+      const q = v.st.q && cfg.perch ? cfg.perch.seat(v.id, v.st) : cfg.toScreen(v.x, v.y);
       p.x = q.x;
       p.y = q.y;
       p.k = q.k;
@@ -602,6 +611,7 @@
         z: p.sleeping ? 1 : 0,
         hp: p.heartBursts || 0,
         g: this.target ? [Math.round(this.target.X), Math.round(this.target.Z)] : null,
+        l: this.cfg.extra ? this.cfg.extra().l || 0 : 0,
       };
     }
 

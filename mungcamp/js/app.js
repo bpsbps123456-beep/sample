@@ -394,6 +394,7 @@
     if (state.scene === 'tent') {
       scene.onExit = () => switchScene('fire');
       scene.onToggle = (id, on) => setPressed(id, on);
+      scene.onToast = (msg) => toast(msg);
     }
     scene.onCute = (kind) => sound.cute(kind);
     if (scene.crowd) scene.crowd.onBoop = (id) => net.boop(id);
@@ -515,6 +516,7 @@
     const sc = state.sceneObj;
     if (!sc) return;
     if (sc.crowd) {
+      sc.crowd.selfId = net.id;
       net.set(sc.crowd.state());
       sc.crowd.sync(net.list(state.scene));
       net.tick();

@@ -114,6 +114,8 @@
       this.stickDrop = 0;
       this.tip = { x: 120, y: -95 };
       this.walk = 0;
+      this.lie = 0; // 0 앉음 … 1 엎드려 누움
+      this.lieTo = 0;
       this.walkPhase = 0;
       this.cv = null;
     }
@@ -128,6 +130,16 @@
       this.coat = COATS[this.coatId];
       this.hat = HATS[this.hatId];
       this.paintedAt = -9;
+    }
+
+    // 침대에 엎드려 눕기 / 일어나 앉기
+    setLie(on) {
+      this.lieTo = on ? 1 : 0;
+    }
+
+    // 누우면 머리가 이만큼 내려간다 (하트·zZ도 같이)
+    get lieDrop() {
+      return this.lie >= 0.5 ? 40 : 0;
     }
 
     // 모닥불 곁에 앉으면 꼬치를 꺼내고, 일어서면 넣는다
@@ -227,6 +239,10 @@
     hit(x, y) {
       const lx = ((x - this.x) / this.k) * this.flip;
       const ly = (y - this.y) / this.k;
+      if (this.lie >= 0.5) {
+        const head = ((lx / 42) ** 2 + ((ly + 31) / 34) ** 2) <= 1;
+        return head || (lx > -48 && lx < 48 && ly > -50 && ly < 6);
+      }
       const head = ((lx / 42) ** 2 + ((ly + 72) / 36) ** 2) <= 1;
       const body = lx > -32 && lx < 32 && ly > -54 && ly < 6;
       return head || body;
@@ -263,6 +279,16 @@
         if (u >= 1) {
           this.blinkT = -1;
           this.blink = 0;
+        }
+      }
+
+      // 엎드리기: 살짝 눌렸다가 털썩
+      if (this.lie !== this.lieTo) {
+        const was = this.lie;
+        this.lie = MC.clamp(this.lie + (this.lieTo > this.lie ? 1 : -1) * (dt / 0.3), 0, 1);
+        if (was < 0.5 && this.lie >= 0.5) {
+          this.hopV = -26;
+          this.emit('hop');
         }
       }
 
@@ -490,9 +516,81 @@
       o.translate(shake, this.hop + bob);
       o.rotate(Math.sin(this.walkPhase) * 0.04 * this.walk);
       o.scale(spinX, 1);
-      if (this.view === 'back') this.paintBack(o, b);
+      // 눕고 일어날 때 몽글하게 눌렸다 펴진다
+      const L = this.lie;
+      if (L > 0 && L < 1) {
+        const sq = L < 0.5 ? 1 - 0.6 * L : 0.7 + 0.6 * (L - 0.5);
+        o.scale(1 + (1 - sq) * 0.35, sq);
+      }
+      if (L >= 0.5) this.paintLying(o, b);
+      else if (this.view === 'back') this.paintBack(o, b);
       else this.paintFront(o, b);
       o.restore();
+    }
+
+    // 엎드려 누운 모습: 턱을 앞발에 괴고, 등은 동그랗게, 뒷발은 양옆으로 빼꼼, 꼬리는 등 위로 살랑
+    paintLying(o, b) {
+      // 동그란 등
+      o.save();
+      o.translate(0, -2);
+      o.scale(1 + 0.01 * b, 1 + 0.035 * b);
+      o.beginPath();
+      o.moveTo(-46, 0);
+      o.bezierCurveTo(-50, -30, -26, -50, 0, -50);
+      o.bezierCurveTo(26, -50, 50, -30, 46, 0);
+      o.bezierCurveTo(28, 5, -28, 5, -46, 0);
+      o.closePath();
+      const grd = o.createRadialGradient(-10, -38, 4, 0, -24, 52);
+      grd.addColorStop(0, this.coat.hi);
+      grd.addColorStop(0.55, this.coat.fur);
+      grd.addColorStop(1, this.coat.lo);
+      o.fillStyle = grd;
+      o.fill();
+      o.lineWidth = 2.4;
+      o.strokeStyle = INK;
+      o.stroke();
+      o.restore();
+      // 꼬리: 몸 옆으로 살랑
+      o.save();
+      o.translate(40, -12);
+      o.rotate(0.9);
+      this.paintTail(o, 0, 0, 1);
+      o.restore();
+      // 뒷발
+      for (const side of [-1, 1]) {
+        ellipse(o, side * 45, -5, 9.5, 6.2, side * 0.35);
+        o.fillStyle = '#fffaf1';
+        o.fill();
+        o.lineWidth = 2.2;
+        o.strokeStyle = INK;
+        o.stroke();
+      }
+      // 머리: 앞발 위에 턱을 괸다 (누워 있을 때는 늘 얼굴이 보인다)
+      const view = this.view;
+      this.view = 'front';
+      o.save();
+      o.translate(0, this.lieDrop);
+      this.paintHeadGroup(o, b * 0.5);
+      o.restore();
+      this.view = view;
+      // 앞발: 턱 밑으로 빼꼼
+      for (const side of [-1, 1]) {
+        const x = side * 13;
+        ellipse(o, x, -2.5, 9.5, 6.4);
+        o.fillStyle = '#fffaf1';
+        o.fill();
+        o.lineWidth = 2.2;
+        o.strokeStyle = INK;
+        o.stroke();
+        o.strokeStyle = 'rgba(91,61,44,0.5)';
+        o.lineWidth = 1.2;
+        o.beginPath();
+        o.moveTo(x - 3, 0);
+        o.lineTo(x - 3, 2.6);
+        o.moveTo(x + 3, 0);
+        o.lineTo(x + 3, 2.6);
+        o.stroke();
+      }
     }
 
     paintFront(o, b) {
@@ -1175,7 +1273,7 @@
       for (const h of this.hearts) {
         if (h.t < 0) continue;
         const a = h.t < 0.2 ? h.t / 0.2 : Math.max(0, 1 - (h.t - 1.1) / 0.8);
-        const p = this.world(h.x, h.y);
+        const p = this.world(h.x, h.y + this.lieDrop);
         const s = k * h.s * (h.t < 0.2 ? 0.6 + 2 * h.t : 1);
         g.save();
         g.translate(p.x, p.y);
@@ -1195,7 +1293,7 @@
       // zZ
       for (const z of this.zs) {
         const u = z.t / 3;
-        const p = this.world(15 + z.t * 9, -100 - z.t * 15 + this.headDrop);
+        const p = this.world(15 + z.t * 9, -100 - z.t * 15 + this.headDrop + this.lieDrop);
         const s = (3 + 4 * u) * k;
         const a = u < 0.15 ? u / 0.15 : 1 - Math.max(0, (u - 0.6) / 0.4);
         g.save();
@@ -1232,7 +1330,7 @@
       }
       // 느낌표
       if (this.surprise > 0.01) {
-        const p = this.world(30, -112);
+        const p = this.world(30, -112 + this.lieDrop);
         const s = k * (1 + 0.4 * Math.sin(Math.min(1, (1 - this.surprise) * 4) * Math.PI));
         g.save();
         g.translate(p.x, p.y);
