@@ -30,6 +30,8 @@
     <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5l-7 7 7 7"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 18.5h5M10.5 21h3"/><path d="M12 3.5a5.6 5.6 0 0 0-3.3 10.1c.8.6 1.2 1.5 1.2 2.4v.5h4.2V16c0-.9.4-1.8 1.2-2.4A5.6 5.6 0 0 0 12 3.5z"/></symbol>
+    <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 14.5a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.2 7a3.8 3.8 0 0 1 .3 7.5z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/></symbol>
     <symbol id="pup-face" viewBox="0 0 120 104">
       <path d="M60 14C83 14 96 27 96 45C96 64 81 72 60 72C39 72 24 64 24 45C24 27 37 14 60 14Z" fill="#fff3e3" stroke="#5b3d2c" stroke-width="2.6"/>
       <path d="M36 25C22 24 15 43 19 58C22 67 33 68 36 58C39 47 41 34 36 25Z" fill="#dc9a5c" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
@@ -79,6 +81,7 @@
 
   <div class="session" id="session" hidden>
     <canvas class="stage" id="stage" aria-label="장면"></canvas>
+    <div class="scene-act-wrap" id="sceneActWrap" hidden><button class="scene-act" id="sceneAct" type="button"></button></div>
     <div class="curtain" id="curtain" aria-hidden="true"></div>
     <div class="ui" id="ui">
       <div class="topbar">
@@ -161,6 +164,7 @@
   <script src="js/scene-fire.js" defer></script>
   <script src="js/scene-water.js" defer></script>
   <script src="js/scene-forest.js" defer></script>
+  <script src="js/scene-tent.js" defer></script>
   <script src="js/camp-map.js" defer></script>
   <script src="js/breath.js" defer></script>
   <script src="js/app.js" defer></script>

@@ -283,6 +283,32 @@ a { color: inherit; }
 }
 .session[data-scene="water"] { --accent: var(--sea); }
 .session[data-scene="forest"] { --accent: var(--moss); }
+.session[data-scene="tent"] { --accent: #ffc27a; }
+/* 장면 속 문 앞에 뜨는 단추: 모닥불 앞 텐트의 '들어가기' */
+.scene-act-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  will-change: transform;
+}
+.scene-act-wrap[hidden] { display: none; }
+.scene-act {
+  display: block;
+  padding: 3px 24px 1px;
+  font: inherit;
+  font-size: var(--step-1);
+  line-height: 1.25;
+  color: var(--on-ember);
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: pop 0.35s ease both;
+}
+.scene-act:hover { filter: brightness(1.08); }
 .session.is-idle { cursor: none; }
 .stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 /* 들어올 때는 어둠에서 천천히 밝아지고, 나갈 때는 천천히 어두워진다 */
@@ -580,5 +606,5 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .seat, .ui, .toast, .guidance { transition: none; }
-  .modal, .pup-face, .spot-act, .together { animation: none; }
+  .modal, .pup-face, .spot-act, .together, .scene-act { animation: none; }
 }

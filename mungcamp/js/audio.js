@@ -923,7 +923,201 @@
   }
   MapScape.layers = [{ key: 'night', label: '밤', value: 1 }];
 
+  // ── 텐트 안 ─────────────────────────────────────────────
+  // 무쇠 난로 안의 낮은 불 소리와 조금 먹먹한 타닥, 천막 너머로 들리는 모닥불과 풀벌레와 바람,
+  // 비를 부르면 천막을 토독토독 두드리는 빗방울과 문가에서 떨어지는 물방울
+  class TentScape extends Scape {
+    constructor(snd) {
+      super(snd, TentScape.layers);
+      const s = snd;
+      this.draft = this.noiseLayer('brown', [['lowpass', 210, 0.6]], 0.1, this.layers.stove);
+      this.modulate(this.draft.gain.gain, 0.8, 0.045);
+      this.stoveBus = s.gain(1.8);
+      const lp = s.filter('lowpass', 3800, 0.6);
+      this.stoveBus.connect(lp);
+      lp.connect(this.layers.stove);
+      const send = s.gain(0.1);
+      this.stoveBus.connect(send);
+      send.connect(s.verbIn);
+      this.crackBus = this.stoveBus;
+      // 천막 너머: 아주 먹먹하게
+      this.outBus = s.gain(0.9);
+      const olp = s.filter('lowpass', 900, 0.5);
+      this.outBus.connect(olp);
+      olp.connect(this.layers.outside);
+      this.cricketBus = s.gain(0.75);
+      const clp = s.filter('lowpass', 2600, 0.5);
+      this.cricketBus.connect(clp);
+      clp.connect(this.layers.outside);
+      this.wind = this.noiseLayer('pink', [['bandpass', 240, 0.6]], 0.09, this.layers.outside);
+      this.modulate(this.wind.gain.gain, 0.35, 0.04);
+      // 비
+      this.rainBed = this.noiseLayer('pink', [['bandpass', 760, 0.45], ['lowpass', 2400, 0.5]], 0, this.layers.rain);
+      this.dropBus = s.gain(1);
+      const dlp = s.filter('lowpass', 4200, 0.5);
+      this.dropBus.connect(dlp);
+      dlp.connect(this.layers.rain);
+      const dsend = s.gain(0.2);
+      this.dropBus.connect(dsend);
+      dsend.connect(s.verbIn);
+      this.E = 0.72;
+      this.rain = 0;
+      const now = MC.clock();
+      this.nextCluster = now + 0.3;
+      this.nextTick = now + 0.2;
+      this.nextPop = now + MC.rand(4, 9);
+      this.nextOut = now + 0.6;
+      this.nextDrop = now;
+      this.nextDrip = now + 1;
+      this.nextPing = now + MC.rand(6, 14);
+      this.crickets = [
+        { next: now + 1.4, f: 4300, pan: -0.5 },
+        { next: now + 2.3, f: 4740, pan: 0.55 },
+      ];
+      this.visual = [];
+    }
+
+    setParams(p) {
+      const now = this.snd.ctx.currentTime;
+      this.E = Math.min(1.25, p.stove == null ? this.E : p.stove);
+      this.rain = p.rain || 0;
+      this.draft.gain.gain.setTargetAtTime(0.13 + 0.19 * this.E, now, 0.8);
+      this.rainBed.gain.gain.setTargetAtTime(0.3 * this.rain, now, 1.2);
+    }
+
+    crack(t, st) {
+      FireScape.prototype.crack.call(this, t, st);
+    }
+
+    tick(t) {
+      FireScape.prototype.tick.call(this, t);
+    }
+
+    pop(t) {
+      FireScape.prototype.pop.call(this, t);
+    }
+
+    drain() {
+      return FireScape.prototype.drain.call(this);
+    }
+
+    schedule() {
+      const now = MC.clock();
+      const until = now + 1.3;
+      const E = this.E;
+      const R = this.rain;
+      // 난로 안의 타닥: 모닥불보다 드문드문, 묶음도 작게
+      while (this.nextCluster < until) {
+        const t0 = this.nextCluster;
+        if (t0 > now - 0.05) {
+          const n = 1 + Math.floor(Math.random() * 3 * (0.5 + 0.5 * E));
+          const loud = Math.pow(Math.random(), 1.6);
+          let t = t0;
+          for (let i = 0; i < n; i++) {
+            this.crack(t, loud * MC.rand(0.4, 0.9));
+            t += MC.rand(0.03, 0.13);
+          }
+          if (loud > 0.5) this.visual.push({ t: t0, strength: loud });
+        }
+        this.nextCluster += -Math.log(1 - Math.random()) / (0.3 + 1.2 * E);
+      }
+      while (this.nextTick < until) {
+        if (this.nextTick > now - 0.05) this.tick(this.nextTick);
+        this.nextTick += -Math.log(1 - Math.random()) / (1.5 + 4 * E);
+      }
+      while (this.nextPop < until) {
+        if (this.nextPop > now - 0.05) this.pop(this.nextPop);
+        this.nextPop += MC.rand(9, 22) / (0.4 + E);
+      }
+      // 천막 너머 모닥불
+      while (this.nextOut < until) {
+        if (this.nextOut > now - 0.05 && R < 0.9) {
+          this.crackBus = this.outBus;
+          this.crack(this.nextOut, MC.rand(0.3, 0.9) * (1 - 0.6 * R));
+          this.crackBus = this.stoveBus;
+        }
+        this.nextOut += -Math.log(1 - Math.random()) / 1.8;
+      }
+      for (const c of this.crickets) {
+        while (c.next < until) {
+          if (c.next > now - 0.05 && Math.random() > R) FireScape.prototype.chirp.call(this, c, c.next);
+          c.next += Math.random() < 0.06 ? MC.rand(3, 9) : MC.rand(0.6, 0.9);
+        }
+      }
+      // 달궈진 무쇠가 '틱'
+      if (now > this.nextPing) {
+        this.nextPing = now + MC.rand(8, 22);
+        this.blip(this.snd.ctx.currentTime + 0.05, this.stoveBus, MC.rand(2300, 3100), MC.rand(2200, 2900), 0.12, 0.02);
+      }
+      // 비: 토독토독, 가끔 문가에서 똑
+      if (R > 0.02) {
+        while (this.nextDrop < until) {
+          if (this.nextDrop > now - 0.05) this.drop(this.nextDrop, R);
+          this.nextDrop += -Math.log(1 - Math.random()) / (10 + 50 * R);
+        }
+        while (this.nextDrip < until) {
+          if (this.nextDrip > now - 0.05) this.drip(this.nextDrip);
+          this.nextDrip += MC.rand(0.7, 2.4) / (0.3 + R);
+        }
+      } else {
+        this.nextDrop = until;
+        this.nextDrip = until + 1;
+      }
+    }
+
+    drop(t, R) {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = Math.max(ctx.currentTime + 0.005, s.toCtx(t));
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.white;
+      const bp = s.filter('bandpass', MC.rand(900, 2600), MC.rand(1.2, 2.6));
+      const g = ctx.createGain();
+      const amp = MC.rand(0.03, 0.11) * (0.55 + 0.45 * R);
+      const dur = MC.rand(0.012, 0.035);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(amp, at + 0.001);
+      g.gain.exponentialRampToValueAtTime(0.0003, at + dur);
+      const p = s.pan(MC.rand(-0.9, 0.9));
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(p);
+      p.connect(this.dropBus);
+      src.start(at, Math.random() * 3.5, dur + 0.02);
+      // 천이 울리는 낮은 '톡'
+      if (Math.random() < 0.3) this.blip(at, p, MC.rand(260, 420), MC.rand(170, 250), 0.05, amp * 0.7);
+    }
+
+    drip(t) {
+      const s = this.snd;
+      const at = Math.max(s.ctx.currentTime + 0.005, s.toCtx(t));
+      const p = s.pan(MC.rand(-0.5, 0.1));
+      p.connect(this.dropBus);
+      this.blip(at, p, MC.rand(760, 1050), MC.rand(400, 520), 0.07, 0.05);
+    }
+
+    // 난로에 장작: 무쇠 문이 '철컥', 툭, 그리고 타닥타닥
+    log() {
+      const s = this.snd;
+      const at = s.ctx.currentTime + 0.01;
+      this.blip(at, this.stoveBus, 1900, 1700, 0.09, 0.05, 'triangle');
+      this.blip(at + 0.22, this.stoveBus, 120, 60, 0.3, 0.2);
+      const now = MC.clock();
+      let t = now + 0.4;
+      for (let i = 0; i < 8; i++) {
+        this.crack(t, MC.rand(0.35, 0.85));
+        t += MC.rand(0.05, 0.22);
+      }
+    }
+  }
+  TentScape.layers = [
+    { key: 'stove', label: '난로', value: 1 },
+    { key: 'outside', label: '바깥', value: 0.7 },
+    { key: 'rain', label: '비', value: 0.9 },
+  ];
+
   MC.Sound = Sound;
+  MC.TentScape = TentScape;
   MC.MapScape = MapScape;
   MC.FireScape = FireScape;
   MC.WaterScape = WaterScape;

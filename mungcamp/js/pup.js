@@ -60,7 +60,7 @@
 
   class Pup {
     constructor(opts = {}) {
-      this.outfit = opts.outfit || 'none'; // beanie | scarf | sprout | none
+      this.outfit = opts.outfit || 'none'; // beanie | scarf | sprout | nightcap | none
       this.setLook(opts.coat, opts.hat);
       this.flip = 1; // -1이면 좌우를 뒤집어 그린다 (왼쪽을 보고 앉기)
       this.paintEvery = opts.paintEvery || 0; // 다른 사람 멍이는 조금 드문드문 다시 그린다
@@ -651,6 +651,7 @@
       if (!back) this.paintFace(o, tx);
       if (this.outfit === 'beanie') this.paintBeanie(o, tx);
       else if (this.outfit === 'sprout') this.paintSprout(o, tx);
+      else if (this.outfit === 'nightcap') this.paintNightcap(o, tx, back);
       else if (!back) this.paintTuft(o, tx);
     }
 
@@ -916,6 +917,75 @@
       o.moveTo(px - 4, py - 0.5);
       o.arc(px - 2.5, py - 0.5, 1.5, Math.PI, Math.PI * 1.8);
       o.stroke();
+    }
+
+    // 텐트 안에서 쓰는 잠옷 고깔모자: 끝이 옆으로 축 늘어지고, 끝에 보송한 방울
+    paintNightcap(o, tx, back) {
+      const sway = this.pomX * 0.7;
+      o.save();
+      o.translate(tx * 3, 0);
+      if (back) o.scale(-1, 1);
+      const body = () => {
+        o.beginPath();
+        o.moveTo(-31, -88);
+        o.bezierCurveTo(-31, -114, -13, -135, 9, -135);
+        o.bezierCurveTo(29 + sway * 0.3, -135, 45 + sway, -122, 47 + sway, -101);
+        o.bezierCurveTo(41 + sway, -106, 31, -117, 21, -115);
+        o.bezierCurveTo(27, -105, 31, -97, 31, -88);
+        o.closePath();
+      };
+      body();
+      const grd = o.createLinearGradient(-22, -135, 30, -88);
+      grd.addColorStop(0, this.hat.top);
+      grd.addColorStop(1, this.hat.bot);
+      o.fillStyle = grd;
+      o.fill();
+      // 비스듬한 줄무늬
+      o.save();
+      body();
+      o.clip();
+      o.strokeStyle = 'rgba(255,252,244,0.42)';
+      o.lineWidth = 4.6;
+      for (let i = -3; i < 7; i++) {
+        o.beginPath();
+        o.moveTo(-44 + i * 13, -84);
+        o.lineTo(-12 + i * 13, -142);
+        o.stroke();
+      }
+      o.restore();
+      body();
+      o.lineWidth = 2.4;
+      o.strokeStyle = INK;
+      o.stroke();
+      // 보송한 단
+      o.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const x = -33 + i * (66 / 8);
+        o.arc(x, -88, 4.6, Math.PI, 0);
+      }
+      o.lineTo(33, -82);
+      for (let i = 8; i >= 0; i--) {
+        const x = -33 + i * (66 / 8);
+        o.arc(x, -82, 4.2, 0, Math.PI);
+      }
+      o.closePath();
+      o.fillStyle = '#fff8ee';
+      o.fill();
+      o.lineWidth = 2.2;
+      o.stroke();
+      // 방울
+      const px = 47 + sway;
+      const py = -98;
+      const pg = o.createRadialGradient(px - 2.5, py - 2.5, 1, px, py, 8);
+      pg.addColorStop(0, '#ffffff');
+      pg.addColorStop(1, '#ece0cf');
+      ellipse(o, px, py, 7.6, 7.2);
+      o.fillStyle = pg;
+      o.fill();
+      o.lineWidth = 2.2;
+      o.strokeStyle = INK;
+      o.stroke();
+      o.restore();
     }
 
     paintSprout(o, tx) {

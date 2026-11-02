@@ -139,6 +139,21 @@
       this.onBoop = null;
       this.roomMade = false;
       this.wandered = false;
+      this.alpha = 1;
+      this.portal = null;
+    }
+
+    // 문으로 드나들 때: 막힘과 범위를 무시하고 걸어가며 살며시 사라지거나(나갈 때) 나타난다(들어올 때)
+    portalWalk(from, to, dur, fadeIn, done) {
+      this.target = null;
+      this.path = null;
+      this.toPerch = false;
+      this.perched = false;
+      this.me.X = from.X;
+      this.me.Z = from.Z;
+      this.portal = { from, to, t: 0, dur, fadeIn, done };
+      this.alpha = fadeIn ? 0 : 1;
+      this.placeMe();
     }
 
     // 막 들어왔는데 내 자리에 누가 앉아 있으면, 가까운 빈자리로 살짝 옮겨 앉는다
@@ -192,14 +207,70 @@
     }
 
     go(q, perch) {
-      this.target = q;
+      if (this.perched && !perch) this.hopDown();
+      this.path = this.plan(q);
+      this.target = this.path.shift();
       this.toPerch = !!perch;
       this.stuck = 0;
       this.walkT = 0;
     }
 
+    // 곧장 가는 길을 무언가 막고 있으면, 막은 것을 옆으로 돌아가는 디딤돌을 끼운다 (막힌 것이 여럿이면 두세 개까지)
+    plan(to) {
+      const me = { X: this.me.X, Z: this.me.Z };
+      const path = this.route(me, to, 2);
+      if (!path) return [to];
+      for (const q of path) q.wp = true;
+      return path.concat([to]);
+    }
+
+    route(a, b, depth) {
+      const o = this.blockedBy(a, b);
+      if (!o) return [];
+      if (depth <= 0) return null;
+      const cfg = this.cfg;
+      const far = (p, q) => {
+        const P = cfg.toScreen(p.X, p.Z);
+        const Q = cfg.toScreen(q.X, q.Z);
+        return Math.hypot(P.x - Q.x, P.y - Q.y);
+      };
+      let best = null;
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * Math.PI * 2;
+        for (const pad of [1.3, 1.75]) {
+          const q = this.clampIn({ X: o.x + Math.cos(ang) * o.rx * pad, Z: o.z + Math.sin(ang) * o.rz * pad });
+          if (!this.free(q.X, q.Z)) continue;
+          const r1 = this.route(a, q, depth - 1);
+          if (!r1) continue;
+          const r2 = this.route(q, b, depth - 1);
+          if (!r2) continue;
+          const pts = [a].concat(r1, [q], r2, [b]);
+          let d = 0;
+          for (let k = 1; k < pts.length; k++) d += far(pts[k - 1], pts[k]);
+          if (!best || d < best.d) best = { d, path: r1.concat([q], r2) };
+        }
+      }
+      return best ? best.path : null;
+    }
+
+    blockedBy(a, b) {
+      const B = this.cfg.blockers();
+      for (let i = 1; i < 24; i++) {
+        const t = i / 24;
+        const X = a.X + (b.X - a.X) * t;
+        const Z = a.Z + (b.Z - a.Z) * t;
+        for (const o of B) {
+          const u = (X - o.x) / o.rx;
+          const v = (Z - o.z) / o.rz;
+          if (u * u + v * v < 1) return o;
+        }
+      }
+      return null;
+    }
+
     // ── 걷기 ─────────────────────────────────────────────
     free(X, Z) {
+      if (this.cfg.inside && !this.cfg.inside(X, Z)) return false;
       for (const o of this.cfg.blockers()) {
         const u = (X - o.x) / o.rx;
         const v = (Z - o.z) / o.rz;
@@ -237,6 +308,7 @@
       this.keys.y = y;
       if (x || y) {
         this.target = null;
+        this.path = null;
         this.toPerch = false;
       }
     }
@@ -287,6 +359,10 @@
     }
 
     arrive() {
+      if (this.path && this.path.length) {
+        this.target = this.path.shift();
+        return;
+      }
       this.target = null;
       if (this.toPerch) {
         this.toPerch = false;
@@ -390,9 +466,25 @@
       let vx = 0;
       let vy = 0;
       let moved = false;
-      const keyed = this.keys.x || this.keys.y;
-      if (keyed && this.perched) this.hopDown();
-      if (!this.perched) {
+      const keyed = !this.portal && (this.keys.x || this.keys.y);
+      if (this.portal) {
+        const P = this.portal;
+        P.t += dt;
+        const u = Math.min(1, P.t / P.dur);
+        const a = cfg.toScreen(this.me.X, this.me.Z);
+        this.me.X = MC.lerp(P.from.X, P.to.X, u);
+        this.me.Z = MC.lerp(P.from.Z, P.to.Z, u);
+        const b = cfg.toScreen(this.me.X, this.me.Z);
+        vx = (b.x - a.x) / Math.max(dt, 1e-3);
+        vy = (b.y - a.y) / Math.max(dt, 1e-3);
+        moved = u < 1;
+        this.alpha = P.fadeIn ? Math.min(1, u * 1.6) : Math.max(0, 1 - u * 1.3);
+        if (u >= 1) {
+          this.portal = null;
+          if (P.done) P.done();
+        }
+      } else if (keyed && this.perched) this.hopDown();
+      if (!this.perched && !this.portal && !moved) {
         const sp = cfg.speed();
         const cur = cfg.toScreen(this.me.X, this.me.Z);
         if (keyed) {
@@ -404,7 +496,7 @@
           const dx = tq.x - cur.x;
           const dy = tq.y - cur.y;
           const d = Math.hypot(dx, dy);
-          if (d < 3) this.arrive();
+          if (d < (this.target.wp ? 14 : 3)) this.arrive();
           else {
             const v = Math.min(sp, d * 6);
             vx = (dx / d) * v;
@@ -427,6 +519,7 @@
           this.walkT += dt;
           if (this.stuck > 0.35 || this.walkT > 9) {
             this.target = null;
+            this.path = null;
             this.toPerch = false;
           }
         }
@@ -513,25 +606,41 @@
     }
 
     // 그리기. which(Z, perched)로 앞뒤 층을 나눠 그릴 수 있다
-    draw(g, dpr, which, w) {
-      const list = [];
-      if (!which || which(this.me.Z, this.perched)) list.push({ p: this.pup, a: 1, me: true });
+    // 그릴 것들. 장면이 가구와 섞어 앞뒤를 정렬할 수 있게 {y, draw} 로 내준다.
+    // 올라앉은 멍이는 앉은 자리(침대, 그루터기)보다 앞에 그려지도록 perch.sortY 를 쓴다
+    drawables(dpr, which, w) {
+      const out = [];
+      const P = this.cfg.perch;
+      const key = (p, up) => (up && P && P.sortY ? P.sortY() + p.y * 1e-4 : p.y);
+      const marked = this.visitors.size > 0;
+      const put = (p, a, up, me) => {
+        out.push({
+          y: key(p, up),
+          draw: (g) => {
+            if (a <= 0.01) return;
+            if (a < 1) g.globalAlpha = a;
+            if (me && marked) drawMark(g, p, this.t);
+            p.draw(g, dpr);
+            g.globalAlpha = 1;
+          },
+        });
+      };
+      if (!which || which(this.me.Z, this.perched)) put(this.pup, this.alpha, this.perched, true);
       const shown = this.shown();
       for (const v of this.visitors.values()) {
         if (!shown.has(v)) continue;
         if (which && !which(v.y, !!v.st.q)) continue;
         const p = v.pup;
         if (w && (p.x < -160 * p.k || p.x > w + 160 * p.k)) continue;
-        list.push({ p, a: Math.max(0, Math.min(1, v.fade)) });
+        put(p, Math.max(0, Math.min(1, v.fade)), !!v.st.q, false);
       }
-      list.sort((a, b) => a.p.y - b.p.y);
-      const marked = this.visitors.size > 0;
-      for (const it of list) {
-        if (it.me && marked) drawMark(g, it.p, this.t);
-        if (it.a < 1) g.globalAlpha = it.a;
-        it.p.draw(g, dpr);
-        g.globalAlpha = 1;
-      }
+      return out;
+    }
+
+    draw(g, dpr, which, w) {
+      const list = this.drawables(dpr, which, w);
+      list.sort((a, b) => a.y - b.y);
+      for (const it of list) it.draw(g);
     }
 
     // 장면이 다른 멍이에게도 무언가 해 줄 때 (파도에 폴짝 등)

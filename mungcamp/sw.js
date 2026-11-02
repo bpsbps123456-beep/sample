@@ -1,5 +1,5 @@
 /* 멍캠프 오프라인 캐시. 파일을 바꾸면 CACHE 이름의 숫자를 올린다 */
-const CACHE = 'mungcamp-v4';
+const CACHE = 'mungcamp-v5';
 const ASSETS = [
   './',
   'index.html',
@@ -13,6 +13,7 @@ const ASSETS = [
   'js/scene-fire.js',
   'js/scene-water.js',
   'js/scene-forest.js',
+  'js/scene-tent.js',
   'js/camp-map.js',
   'js/breath.js',
   'js/app.js',

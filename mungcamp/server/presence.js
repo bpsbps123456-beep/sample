@@ -5,7 +5,7 @@
    이름, 글, 기록은 받지도 남기지도 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
 
    - 장소(map, fire, water, forest)마다 방을 나누고, 한 방이 차면 다음 방을 연다
-     (모닥불·바다·숲은 ROOM_CAP=16, 마을은 MAP_CAP=40). 사람이 많아도 모닥불 하나가 붐비지 않는다.
+     (모닥불·바다·숲은 ROOM_CAP=16, 텐트 안은 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
    - 받은 값은 아는 칸만, 숫자는 범위 안으로 다듬고, 너무 잦은 메시지는 버린다.
    - 바뀐 것만 모아서 1초에 TICK_HZ번 보낸다. 장소별 사람 수는 2초마다.
 
@@ -20,9 +20,10 @@ const PORT = +(process.env.PORT || 8787);
 // 마을 지도는 넉넉하게, 모닥불·바다·숲은 오붓하게
 const ROOM_CAP = +(process.env.ROOM_CAP || 16);
 const MAP_CAP = +(process.env.MAP_CAP || 40);
+const TENT_CAP = +(process.env.TENT_CAP || 8);
 const MAX_CLIENTS = +(process.env.MAX_CLIENTS || 20000);
 const TICK_HZ = 8;
-const PLACES = ['map', 'fire', 'water', 'forest'];
+const PLACES = ['map', 'fire', 'water', 'forest', 'tent'];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const MAX_FRAME = 2048;
 
@@ -68,7 +69,7 @@ function joinRoom(c, place) {
   const list = rooms.get(place);
   // 가장 붐비지만 아직 자리가 있는 방: 사람들이 흩어지지 않고 모이도록
   let room = null;
-  const cap = place === 'map' ? MAP_CAP : ROOM_CAP;
+  const cap = place === 'map' ? MAP_CAP : place === 'tent' ? TENT_CAP : ROOM_CAP;
   for (const r of list) if (r.members.size < cap && (!room || r.members.size > room.members.size)) room = r;
   if (!room) {
     room = { id: ++roomSeq, place, members: new Set(), changed: new Map(), left: new Set() };

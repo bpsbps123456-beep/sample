@@ -12,7 +12,7 @@
   const SEND_GAP = 0.12; // 움직이는 동안 1초에 8번쯤 알린다
   const BEAT = 2.5; // 탭끼리는 가만히 있어도 가끔 '여기 있어요'
   const STALE = 9; // 이만큼 소식이 없으면 떠난 것으로 본다 (탭끼리)
-  const PLACES = ['map', 'fire', 'water', 'forest'];
+  const PLACES = ['map', 'fire', 'water', 'forest', 'tent'];
   const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null };
 
   // 처음 온 날 털빛과 모자를 하나 골라 두고 계속 입는다

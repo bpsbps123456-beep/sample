@@ -8,7 +8,7 @@
   const SCENES = {
     fire: {
       place: '모닥불 글램핑',
-      make: () => new MC.FireScene({ calm: MC.reducedMotion }),
+      make: (o) => new MC.FireScene({ calm: MC.reducedMotion, from: o.from }),
       scape: MC.FireScape,
       guidance: '불꽃을 바라봐요',
       actions: [
@@ -32,6 +32,19 @@
       guidance: '빛을 따라가 봐요',
       actions: [{ id: 'breeze', icon: 'i-wind', label: '바람', primary: true }],
       space: 'breeze',
+    },
+    // 모닥불 글램핑의 벨텐트 안
+    tent: {
+      place: '글램핑 텐트',
+      make: (o) => new MC.TentScene({ from: o.from }),
+      scape: MC.TentScape,
+      guidance: '따뜻하게 쉬어요',
+      actions: [
+        { id: 'stove', icon: 'i-log', label: '장작', primary: true },
+        { id: 'lights', icon: 'i-bulb', label: '불빛', toggle: true },
+        { id: 'rain', icon: 'i-rain', label: '비', toggle: true },
+      ],
+      space: 'stove',
     },
   };
 
@@ -167,7 +180,7 @@
     for (const s of MC.CAMP_SPOTS) {
       const e = spotEls[s.id];
       if (!e || !e.count) continue;
-      const n = net.count(s.id);
+      const n = net.count(s.id) + (s.id === 'fire' ? net.count('tent') : 0);
       const on = n > 0;
       if (e.count.hidden === on) e.count.hidden = !on;
       if (on && e.count.lastChild.textContent !== String(n)) e.count.lastChild.textContent = String(n);
@@ -338,6 +351,10 @@
 
   // ── 세션 열고 닫기 ─────────────────────────────────────
   function openSession(name) {
+    // 모닥불과 텐트 사이를 오갈 때는 같은 쉼이 이어진다 (20분 종도 그대로)
+    const prev = state.view === 'session' ? state.scene : null;
+    const glamping = (prev === 'fire' && name === 'tent') || (prev === 'tent' && name === 'fire');
+    const keep = glamping && state.started ? { startAt: state.startAt, timerDone: state.timerDone } : null;
     if (state.view === 'session') {
       if (state.scene === name) return;
       teardown();
@@ -345,7 +362,7 @@
     const def = SCENES[name];
     Object.assign(state, {
       view: 'session', scene: name, def, started: false, timerDone: false,
-      leaving: false, worryShown: false,
+      leaving: false, worryShown: false, switching: false,
     });
     stopCamp();
     home.hidden = true;
@@ -354,7 +371,7 @@
     session.dataset.scene = name;
 
     setCurtain(1, 0);
-    const scene = def.make();
+    const scene = def.make({ from: glamping ? prev : null });
     state.sceneObj = scene;
     state.runner = new MC.Runner(stage, scene, { quality: MC.reducedMotion ? 0.7 : 1, onFrame });
     state.runner.start();
@@ -365,17 +382,25 @@
     buildBreathPanel();
     closePanels();
     $('#endCard').hidden = true;
-    startSession();
+    startSession(keep);
   }
 
-  function startSession() {
+  function startSession(keep) {
     const scene = state.sceneObj;
-    if (state.scene === 'fire') scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
+    if (state.scene === 'fire') {
+      scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
+      scene.onEnterTent = () => switchScene('tent');
+    }
+    if (state.scene === 'tent') {
+      scene.onExit = () => switchScene('fire');
+      scene.onToggle = (id, on) => setPressed(id, on);
+    }
     scene.onCute = (kind) => sound.cute(kind);
     if (scene.crowd) scene.crowd.onBoop = (id) => net.boop(id);
     if (scene.pup) scene.pup.setLook(net.look.c, net.look.h);
     state.started = true;
-    state.startAt = Date.now();
+    state.startAt = keep ? keep.startAt : Date.now();
+    state.timerDone = keep ? keep.timerDone : false;
     clearInterval(state.timerInt);
     state.timerInt = setInterval(checkTime, 1000);
     startSceneAudio();
@@ -400,9 +425,25 @@
       scene.onPoke = () => scape.poke();
     } else if (state.scene === 'water') {
       scene.onRipple = (z, pan) => scape.plop(z, pan);
+    } else if (state.scene === 'tent') {
+      scene.events = () => scape.drain();
+      scene.onLog = () => scape.log();
     } else {
       scene.onGust = () => scape.gust();
     }
+  }
+
+  // 모닥불 ↔ 텐트: 화면과 소리가 살짝 잦아들었다가 다른 쪽에서 피어난다
+  function switchScene(name) {
+    if (state.switching || state.view !== 'session') return;
+    state.switching = true;
+    closePanels();
+    hideSceneAct();
+    setCurtain(1, 0.55);
+    if (state.scape) state.scape.duck(0, 0.6);
+    setTimeout(() => {
+      if (state.view === 'session') location.hash = name;
+    }, 600);
   }
 
   function teardown() {
@@ -435,7 +476,7 @@
     session.hidden = true;
     home.hidden = false;
     document.body.classList.remove('in-session');
-    camp.placeAt(state.lastSpot || from);
+    camp.placeAt(state.lastSpot || (from === 'tent' ? 'fire' : from));
     renderThumbs();
     startCamp();
   }
@@ -447,7 +488,12 @@
   }
 
   // 나갈 때는 화면과 소리가 함께 천천히 잦아든다
-  function leave() {
+  function leave(toMap) {
+    // 텐트 안에서 뒤로 가면 모닥불 앞으로 나간다
+    if (toMap !== true && state.scene === 'tent') {
+      switchScene('fire');
+      return;
+    }
     if (state.leaving) return;
     state.leaving = true;
     closePanels();
@@ -474,6 +520,7 @@
       net.tick();
       updateTogether();
     }
+    placeSceneAct(sc);
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
       const st = sc.status();
@@ -543,6 +590,8 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'dock-btn' + (a.primary ? ' is-primary' : '');
+      b.dataset.act = a.id;
+      if (a.toggle) b.setAttribute('aria-pressed', 'false');
       b.innerHTML = `<svg class="ico" aria-hidden="true"><use href="#${a.icon}"/></svg><span>${a.label}</span>`;
       b.addEventListener('click', () => doAction(a.id));
       box.appendChild(b);
@@ -558,6 +607,36 @@
       if (!sc.worry) togglePanel('worry');
     } else if (id === 'ripple') sc.rippleAt();
     else if (id === 'breeze') sc.breeze();
+    else if (id === 'stove') {
+      if (!sc.addLog()) toast('난로가 따뜻해요');
+    } else if (id === 'lights') setPressed('lights', sc.toggleLights());
+    else if (id === 'rain') setPressed('rain', sc.toggleRain());
+  }
+
+  function setPressed(id, on) {
+    const b = $(`#dockScene [data-act="${id}"]`);
+    if (b) b.setAttribute('aria-pressed', String(!!on));
+  }
+
+  // 장면 속 문 앞에서 뜨는 단추 (모닥불 앞 텐트의 '들어가기')
+  const sceneAct = $('#sceneAct');
+  const sceneActWrap = $('#sceneActWrap');
+  sceneAct.addEventListener('click', () => {
+    const sc = state.sceneObj;
+    if (sc && sc.usePortal) sc.usePortal();
+  });
+  function hideSceneAct() {
+    if (!sceneActWrap.hidden) sceneActWrap.hidden = true;
+  }
+  function placeSceneAct(sc) {
+    const hint = !state.switching && sc.portalHint ? sc.portalHint() : null;
+    if (!hint) {
+      hideSceneAct();
+      return;
+    }
+    if (sceneAct.textContent !== hint.label) sceneAct.textContent = hint.label;
+    sceneActWrap.style.transform = `translate(${hint.x.toFixed(1)}px, ${hint.y.toFixed(1)}px) translate(-50%, -100%)`;
+    if (sceneActWrap.hidden) sceneActWrap.hidden = false;
   }
 
   function buildSoundPanel(name, def) {
@@ -770,6 +849,13 @@
       e.preventDefault();
       held.add(e.code);
       applyKeys();
+      wake();
+      return;
+    }
+    // 텐트 문 앞에서 Enter: 들어가기
+    if (e.code === 'Enter' && !sceneActWrap.hidden) {
+      e.preventDefault();
+      sceneAct.click();
       return;
     }
     wake();
@@ -836,7 +922,7 @@
   });
 
   $('#stayBtn').addEventListener('click', stay);
-  $('#leaveBtn').addEventListener('click', leave);
+  $('#leaveBtn').addEventListener('click', () => leave(true));
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.started) requestWakeLock();
