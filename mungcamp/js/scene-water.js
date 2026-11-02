@@ -16,6 +16,152 @@
   }
 
   const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+
+  // 가끔 모래 위를 옆걸음으로 지나가는 꼬마 게. 누르면 집게를 흔든다
+  class Crab {
+    constructor() {
+      this.active = false;
+      this.next = MC.rand(10, 25);
+      this.x = -60;
+      this.dir = 1;
+      this.t = 0;
+      this.waveT = 0;
+      this.blinkT = MC.rand(2, 5);
+    }
+
+    place(scene) {
+      this.s = scene.s;
+      this.w = scene.w;
+      this.k = scene.s * 0.85;
+      this.y = scene.sandTop + (scene.h - scene.sandTop) * 0.22;
+    }
+
+    update(dt) {
+      this.t += dt;
+      if (!this.active) {
+        this.next -= dt;
+        if (this.next <= 0) {
+          this.active = true;
+          this.dir = Math.random() < 0.5 ? 1 : -1;
+          this.x = this.dir > 0 ? -40 : this.w + 40;
+        }
+        return;
+      }
+      this.waveT = Math.max(0, this.waveT - dt);
+      this.blinkT -= dt;
+      if (this.blinkT < -0.15) this.blinkT = MC.rand(2, 5);
+      if (this.waveT <= 0) this.x += this.dir * 24 * this.s * dt;
+      if ((this.dir > 0 && this.x > this.w + 50) || (this.dir < 0 && this.x < -50)) {
+        this.active = false;
+        this.next = MC.rand(35, 80);
+      }
+    }
+
+    hit(x, y) {
+      return this.active && Math.abs(x - this.x) < 30 * this.k && Math.abs(y - (this.y - 8 * this.k)) < 24 * this.k;
+    }
+
+    poke() {
+      this.waveT = 1.6;
+    }
+
+    draw(g) {
+      if (!this.active) return;
+      const k = this.k;
+      const walking = this.waveT <= 0;
+      const step = walking ? this.t * 13 : 0;
+      const ink = '#5b2a1c';
+      g.save();
+      g.translate(this.x, this.y - (walking ? Math.abs(Math.sin(step)) * 1.2 * k : 0));
+      g.scale(k, k);
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.beginPath();
+      g.ellipse(0, 2, 18, 3.4, 0, 0, Math.PI * 2);
+      g.fill();
+      // 다리
+      g.strokeStyle = '#b4502f';
+      g.lineWidth = 2.2;
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 3; i++) {
+          const ph = step + i * 1.4 + (side > 0 ? 0.7 : 0);
+          g.beginPath();
+          g.moveTo(side * (6 + i * 2.6), -2);
+          g.quadraticCurveTo(side * (11 + i * 2.6), -6, side * (13 + i * 3) + Math.sin(ph) * 1.6, 2 + Math.cos(ph) * (walking ? 1.2 : 0));
+          g.stroke();
+        }
+      }
+      // 집게 (누르면 번쩍 들고 흔든다)
+      const raise = this.waveT > 0 ? 0.5 + 0.5 * Math.sin(this.t * 10) : 0;
+      for (const side of [-1, 1]) {
+        g.strokeStyle = ink;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(side * 10, -6);
+        g.lineTo(side * 15, -12 - 6 * raise);
+        g.stroke();
+        g.beginPath();
+        g.ellipse(side * 16.5, -15 - 6 * raise, 5, 4.2, side * 0.4, 0, Math.PI * 2);
+        g.fillStyle = '#f46c45';
+        g.fill();
+        g.lineWidth = 1.6;
+        g.stroke();
+        g.beginPath();
+        g.moveTo(side * 16.5, -15 - 6 * raise);
+        g.lineTo(side * 21, -18 - 6 * raise);
+        g.stroke();
+      }
+      // 몸
+      const grd = g.createLinearGradient(0, -14, 0, 3);
+      grd.addColorStop(0, '#ff9b78');
+      grd.addColorStop(1, '#e05634');
+      g.beginPath();
+      g.ellipse(0, -5, 13.5, 8.6, 0, 0, Math.PI * 2);
+      g.fillStyle = grd;
+      g.fill();
+      g.strokeStyle = ink;
+      g.lineWidth = 1.8;
+      g.stroke();
+      // 눈자루와 눈
+      for (const side of [-1, 1]) {
+        g.beginPath();
+        g.moveTo(side * 3.6, -12);
+        g.lineTo(side * 4.6, -17.5);
+        g.stroke();
+        g.beginPath();
+        g.arc(side * 4.8, -19.2, 2.9, 0, Math.PI * 2);
+        g.fillStyle = '#fffaf5';
+        g.fill();
+        g.lineWidth = 1.4;
+        g.stroke();
+        g.fillStyle = '#26160f';
+        if (this.waveT > 0 || this.blinkT < 0) {
+          g.beginPath();
+          g.moveTo(side * 4.8 - 1.8, -18.8);
+          g.quadraticCurveTo(side * 4.8, -21.2, side * 4.8 + 1.8, -18.8);
+          g.stroke();
+        } else {
+          g.beginPath();
+          g.arc(side * 4.8 + this.dir * 0.6, -19, 1.4, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+      // 볼과 입
+      g.fillStyle = 'rgba(255,170,180,0.7)';
+      g.beginPath();
+      g.ellipse(-7.5, -3.5, 2.4, 1.4, 0, 0, Math.PI * 2);
+      g.ellipse(7.5, -3.5, 2.4, 1.4, 0, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = ink;
+      g.lineWidth = 1.3;
+      g.beginPath();
+      g.moveTo(-2, -4.6);
+      g.quadraticCurveTo(0, -2.6, 2, -4.6);
+      g.stroke();
+      g.restore();
+    }
+  }
   const easeInOut = (x) => 0.5 - 0.5 * Math.cos(Math.PI * x);
 
   class WaterScene {
@@ -25,6 +171,16 @@
       this.t = 0;
       this.ripples = [];
       this.onRipple = null;
+      this.onCute = null;
+      this.lastSplash = -1;
+      this.crab = new Crab();
+      // 멍이: 스카프를 두르고 바다를 바라보는 뒷모습
+      this.pup = new MC.Pup({
+        outfit: 'scarf',
+        view: 'back',
+        light: { ambient: 'rgba(22,32,80,0.3)', glow: [205, 218, 255], glowA: 0.2, from: 70 },
+      });
+      this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
       sprites();
     }
 
@@ -39,10 +195,15 @@
       const portrait = w < h * 0.9;
       this.s = MC.clamp(Math.min(w / 520, h / 800), 0.6, 1.4);
       this.hy = Math.round(h * (portrait ? 0.47 : 0.53));
-      this.sandTop = Math.round(h * 0.86);
+      this.sandTop = Math.round(h * (portrait ? 0.8 : 0.86));
       this.moon = { x: w * (portrait ? 0.66 : 0.63), y: this.hy - Math.min(h * 0.2, 170), r: 19 * this.s };
       this.buildBackground();
       this.buildRows();
+      const pup = this.pup;
+      pup.k = this.s * 0.95;
+      pup.x = w * (portrait ? 0.27 : 0.3);
+      pup.y = this.sandTop + (h - this.sandTop) * (portrait ? 0.3 : 0.45);
+      this.crab.place(this);
     }
 
     headland(x) {
@@ -188,6 +349,15 @@
     }
 
     pointerDown(x, y) {
+      if (this.pup.hit(x, y)) {
+        this.pup.poke();
+        return true;
+      }
+      if (this.crab.hit(x, y)) {
+        this.crab.poke();
+        if (this.onCute) this.onCute('crab');
+        return true;
+      }
       if (y < this.hy + 4 || y > this.sandTop - 2) return false;
       const z = (y - this.hy) / (this.sandTop - this.hy);
       this.ripples.push({ x, y, z, age: 0 });
@@ -206,6 +376,27 @@
       this.t += dt;
       for (const r of this.ripples) r.age += dt;
       this.ripples = this.ripples.filter((r) => r.age < 4.5);
+      this.crab.update(dt);
+      this.pup.update(dt, { wind: 0.45 + 0.25 * Math.sin(this.t * 0.31) });
+      // 파도가 발끝까지 오면 멍이가 폴짝
+      const sw = this.swash(MC.clock());
+      if (sw.adv > 0.05 && sw.k !== this.lastSplash && this.sandTop + sw.reach * sw.adv >= this.pup.y - 3 * this.s) {
+        this.lastSplash = sw.k;
+        this.pup.splash();
+      }
+    }
+
+    // 한 파도의 진행 상태. 소리와 같은 시계(MC.clock)를 쓴다
+    swash(now) {
+      const T = MC.WAVE_T;
+      const k = Math.floor(now / T);
+      const p = now / T - k;
+      const amp = MC.waveAmp(k);
+      const reach = Math.min((this.h - this.sandTop) * 0.8 * amp, this.h - this.sandTop - 4);
+      let adv = 0;
+      if (p >= 0.34 && p < 0.52) adv = easeOut((p - 0.34) / 0.18);
+      else if (p >= 0.52 && p < 0.97) adv = 1 - easeInOut((p - 0.52) / 0.45);
+      return { k, p, amp, reach, adv };
     }
 
     draw(g) {
@@ -292,18 +483,15 @@
       }
 
       this.drawShore(g);
+      this.crab.draw(g);
+      this.pup.draw(g, this.dpr);
       g.drawImage(this.vignette, 0, 0, w, h);
     }
 
     // 밀려왔다 물러가는 물가. 소리와 같은 시계(MC.clock)를 쓴다
     drawShore(g) {
-      const { w, h, s, sandTop } = this;
-      const T = MC.WAVE_T;
-      const now = MC.clock();
-      const k = Math.floor(now / T);
-      const p = now / T - k;
-      const amp = MC.waveAmp(k);
-      const reach = Math.min((h - sandTop) * 0.8 * amp, h - sandTop - 4);
+      const { w, s, sandTop } = this;
+      const { k, p, amp, reach, adv } = this.swash(MC.clock());
 
       // 부서지는 흰 파도 띠
       const bb = Math.exp(-Math.pow((p - 0.33) / 0.07, 2)) * amp;
@@ -318,10 +506,6 @@
         }
         g.stroke();
       }
-
-      let adv = 0;
-      if (p >= 0.34 && p < 0.52) adv = easeOut((p - 0.34) / 0.18);
-      else if (p >= 0.52 && p < 0.97) adv = 1 - easeInOut((p - 0.52) / 0.45);
 
       // 물러간 뒤 젖은 모래의 반짝임
       if (p > 0.52) {

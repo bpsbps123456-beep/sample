@@ -17,6 +17,99 @@
   const FOG = [210, 220, 200];
   const LEAF_COLORS = ['#c9b458', '#9fb04a', '#d8a54a', '#83a043'];
 
+  // 팔랑이는 나비. 가끔 멍이의 새싹에 내려앉는다
+  class Butterfly {
+    constructor(wing, edge, scene) {
+      this.wing = wing;
+      this.edge = edge;
+      this.x = MC.rand(0.2, 0.8) * scene.w;
+      this.y = MC.rand(0.3, 0.6) * scene.h;
+      this.vx = 0;
+      this.vy = 0;
+      this.ph = Math.random() * 6;
+      this.mode = 'fly';
+      this.retarget = 0;
+      this.target = { x: this.x, y: this.y };
+      this.restT = 0;
+    }
+
+    update(dt, scene, perch) {
+      const s = scene.s;
+      this.ph += dt * (this.mode === 'rest' ? 2.2 : 15);
+      if (this.mode === 'rest') {
+        this.x = perch.x;
+        this.y = perch.y;
+        this.restT -= dt;
+        if (this.restT <= 0) {
+          this.mode = 'fly';
+          this.retarget = 0;
+          this.vy = -60 * s;
+        }
+        return;
+      }
+      if (this.mode === 'toPerch') this.target = perch;
+      else {
+        this.retarget -= dt;
+        if (this.retarget <= 0) {
+          this.retarget = MC.rand(2, 4);
+          this.target = { x: MC.rand(0.08, 0.92) * scene.w, y: MC.rand(0.22, 0.72) * scene.h };
+        }
+      }
+      const dx = this.target.x - this.x;
+      const dy = this.target.y - this.y;
+      const pull = this.mode === 'toPerch' ? 2.2 : 0.9;
+      this.vx += (dx * pull - this.vx * 1.4 + Math.sin(this.ph * 0.31) * 40 * s) * dt;
+      this.vy += (dy * pull - this.vy * 1.4 + Math.cos(this.ph * 0.23) * 50 * s) * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt + Math.sin(this.ph * 0.5) * 12 * s * dt;
+      if (this.mode === 'toPerch' && Math.hypot(dx, dy) < 5 * s) {
+        this.mode = 'rest';
+        this.restT = MC.rand(4, 7);
+      }
+    }
+
+    draw(g, k) {
+      const flap = this.mode === 'rest' ? 0.55 + 0.35 * Math.abs(Math.cos(this.ph)) : 0.2 + 0.8 * Math.abs(Math.cos(this.ph));
+      g.save();
+      g.translate(this.x, this.y);
+      g.rotate(MC.clamp(this.vx * 0.004, -0.4, 0.4));
+      g.scale(k, k);
+      for (const side of [-1, 1]) {
+        g.save();
+        g.scale(side * flap, 1);
+        g.fillStyle = this.wing;
+        g.strokeStyle = this.edge;
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.ellipse(7, -4.5, 7.4, 5.4, -0.5, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        g.beginPath();
+        g.ellipse(5.4, 3.6, 4.8, 3.8, 0.5, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        g.fillStyle = 'rgba(255,255,255,0.85)';
+        g.beginPath();
+        g.arc(8.6, -5.6, 1.5, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+      g.fillStyle = '#4a3a2c';
+      g.beginPath();
+      g.ellipse(0, 0, 1.6, 6, 0, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = '#4a3a2c';
+      g.lineWidth = 0.9;
+      g.beginPath();
+      g.moveTo(-0.5, -5);
+      g.quadraticCurveTo(-2, -9, -3.4, -10.5);
+      g.moveTo(0.5, -5);
+      g.quadraticCurveTo(2, -9, 3.4, -10.5);
+      g.stroke();
+      g.restore();
+    }
+  }
+
   class ForestScene {
     constructor(opts = {}) {
       this.preview = !!opts.preview;
@@ -25,8 +118,18 @@
       this.gust = 0;
       this.wind = 0.3;
       this.onGust = null;
+      this.onCute = null;
       this.leaves = [];
       this.motes = [];
+      this.flies = [];
+      this.nextPerch = MC.rand(14, 26);
+      this.nextLook = MC.rand(6, 12);
+      // 멍이: 새싹을 달고 그루터기에 앉아 있다
+      this.pup = new MC.Pup({
+        outfit: 'sprout',
+        light: { ambient: null, glow: [255, 244, 214], glowA: 0.14, from: -70 },
+      });
+      this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
       sprites();
     }
 
@@ -50,6 +153,16 @@
       }
       this.leaves = [];
       for (let i = 0; i < 9; i++) this.leaves.push(this.newLeaf(true));
+      const portrait = w < h * 0.9;
+      const st = (this.stump = { x: w * (portrait ? 0.28 : 0.2), top: h * (portrait ? 0.83 : 0.84), w: 86 * this.s, h: 54 * this.s });
+      this.buildStump();
+      const pup = this.pup;
+      pup.k = this.s * 0.95;
+      pup.x = st.x;
+      pup.y = st.top + 3 * this.s;
+      if (!this.flies.length) {
+        this.flies = [new Butterfly('#fff0a6', '#d8b440', this), new Butterfly('#cfe7ff', '#7fa9d8', this)];
+      }
       this.mists = [];
       for (let i = 0; i < 5; i++) this.mists.push({ x: rnd() * w, y: h * (0.55 + rnd() * 0.3), r: (220 + rnd() * 260) * this.s, v: (4 + rnd() * 6) * this.s });
     }
@@ -210,7 +323,139 @@
       };
     }
 
-    pointerDown(x) {
+    // 이끼 낀 그루터기와 빨간 버섯
+    buildStump() {
+      const { dpr, s } = this;
+      const st = this.stump;
+      const W = st.w * 2.2;
+      const H = st.h * 2.2;
+      const c = (this.stumpImg = MC.canvas(W * dpr, H * dpr));
+      const g = c.getContext('2d');
+      g.scale(dpr, dpr);
+      g.translate(W / 2, st.h * 0.55);
+      const rnd = MC.rng(77);
+      const hw = st.w / 2;
+      const ry = 11 * s;
+      const ink = 'rgba(58,38,26,0.75)';
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      // 그림자
+      g.fillStyle = 'rgba(20,30,15,0.35)';
+      g.beginPath();
+      g.ellipse(0, st.h + 4 * s, hw * 1.35, 9 * s, 0, 0, Math.PI * 2);
+      g.fill();
+      // 옆면과 뿌리
+      g.beginPath();
+      g.moveTo(-hw, 0);
+      g.lineTo(-hw * 1.02, st.h * 0.7);
+      g.quadraticCurveTo(-hw * 1.35, st.h * 0.95, -hw * 1.45, st.h + 2 * s);
+      g.lineTo(hw * 1.45, st.h + 2 * s);
+      g.quadraticCurveTo(hw * 1.35, st.h * 0.95, hw * 1.02, st.h * 0.7);
+      g.lineTo(hw, 0);
+      g.closePath();
+      const bark = g.createLinearGradient(-hw, 0, hw, 0);
+      bark.addColorStop(0, '#7d5638');
+      bark.addColorStop(0.45, '#694529');
+      bark.addColorStop(1, '#3f2716');
+      g.fillStyle = bark;
+      g.fill();
+      g.strokeStyle = ink;
+      g.lineWidth = 1.6 * s;
+      g.stroke();
+      g.strokeStyle = 'rgba(35,20,10,0.45)';
+      g.lineWidth = 1.2 * s;
+      for (let i = 0; i < 9; i++) {
+        const x = -hw + 6 * s + rnd() * (st.w - 12 * s);
+        g.beginPath();
+        g.moveTo(x, 4 * s + rnd() * 6 * s);
+        g.lineTo(x + (rnd() - 0.5) * 4 * s, st.h * (0.6 + rnd() * 0.35));
+        g.stroke();
+      }
+      // 나이테가 보이는 윗면
+      g.beginPath();
+      g.ellipse(0, 0, hw, ry, 0, 0, Math.PI * 2);
+      const top = g.createRadialGradient(-6 * s, -3 * s, 2, 0, 0, hw);
+      top.addColorStop(0, '#e2bd88');
+      top.addColorStop(1, '#b98c58');
+      g.fillStyle = top;
+      g.fill();
+      g.strokeStyle = ink;
+      g.stroke();
+      g.strokeStyle = 'rgba(130,88,48,0.5)';
+      g.lineWidth = 1 * s;
+      for (let k = 1; k <= 4; k++) {
+        g.beginPath();
+        g.ellipse(0.5 * s, 0, (hw * k) / 5, (ry * k) / 5, 0, 0, Math.PI * 2);
+        g.stroke();
+      }
+      // 이끼
+      for (let i = 0; i < 16; i++) {
+        const a = rnd() * Math.PI;
+        const x = Math.cos(a) * hw * (0.9 + rnd() * 0.15);
+        const y = Math.sin(a) * ry + rnd() * 10 * s;
+        g.fillStyle = rnd() < 0.5 ? '#7fae5a' : '#5f8f45';
+        g.beginPath();
+        g.ellipse(x, y, (4 + rnd() * 6) * s, (2.4 + rnd() * 3) * s, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 빨간 버섯 둘
+      for (const [mx, sc] of [[hw * 1.18, 1], [hw * 1.55, 0.7]]) {
+        const by = st.h + 2 * s;
+        const r = 9 * s * sc;
+        g.fillStyle = '#f6ecd8';
+        g.strokeStyle = ink;
+        g.lineWidth = 1.4 * s;
+        MC.roundRect(g, mx - r * 0.38, by - r * 1.5, r * 0.76, r * 1.5, r * 0.3);
+        g.fill();
+        g.stroke();
+        g.beginPath();
+        g.moveTo(mx - r * 1.2, by - r * 1.3);
+        g.quadraticCurveTo(mx - r * 1.1, by - r * 2.6, mx, by - r * 2.7);
+        g.quadraticCurveTo(mx + r * 1.1, by - r * 2.6, mx + r * 1.2, by - r * 1.3);
+        g.quadraticCurveTo(mx, by - r * 1.05, mx - r * 1.2, by - r * 1.3);
+        g.closePath();
+        const cap = g.createLinearGradient(0, by - r * 2.7, 0, by - r * 1.2);
+        cap.addColorStop(0, '#f2694a');
+        cap.addColorStop(1, '#cf4529');
+        g.fillStyle = cap;
+        g.fill();
+        g.stroke();
+        g.fillStyle = '#fff8ee';
+        for (const [dx, dy, rr] of [[-0.5, -2.2, 0.22], [0.35, -2.3, 0.18], [0.05, -1.75, 0.16], [-0.8, -1.6, 0.13], [0.75, -1.7, 0.14]]) {
+          g.beginPath();
+          g.arc(mx + dx * r, by + dy * r, rr * r, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+      // 작은 들꽃
+      for (const [fx, fh] of [[-hw * 1.6, 16], [-hw * 1.25, 11], [hw * 0.2, 9]]) {
+        const by = st.h + 2 * s;
+        g.strokeStyle = '#4f7f3c';
+        g.lineWidth = 1.3 * s;
+        g.beginPath();
+        g.moveTo(fx, by);
+        g.quadraticCurveTo(fx + 2 * s, by - fh * s * 0.5, fx, by - fh * s);
+        g.stroke();
+        g.fillStyle = '#ffffff';
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          g.beginPath();
+          g.ellipse(fx + Math.cos(a) * 2.6 * s, by - fh * s + Math.sin(a) * 2.6 * s, 2 * s, 1.3 * s, a, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.fillStyle = '#ffd256';
+        g.beginPath();
+        g.arc(fx, by - fh * s, 1.5 * s, 0, Math.PI * 2);
+        g.fill();
+      }
+      this.stumpBox = { W, H, ox: W / 2, oy: st.h * 0.55 };
+    }
+
+    pointerDown(x, y) {
+      if (this.pup.hit(x, y)) {
+        this.pup.poke();
+        return true;
+      }
       this.gust = Math.min(1.2, this.gust + 0.75);
       for (let i = 0; i < 5; i++) {
         const l = this.newLeaf(false);
@@ -260,6 +505,35 @@
         m.x += m.v * (1 + this.gust) * dt;
         if (m.x - m.r > w) m.x = -m.r;
       }
+
+      // 멍이는 두리번두리번, 나비가 가까이 오면 눈으로 따라간다
+      const pup = this.pup;
+      this.nextLook -= dt;
+      if (this.nextLook <= 0) {
+        this.nextLook = MC.rand(7, 14);
+        pup.baseTurn = MC.rand(-0.45, 0.45);
+      }
+      const head = pup.world(0, -72);
+      const perch = pup.world(6 + pup.turn * 3, -118 + pup.headDrop);
+      this.nextPerch -= dt;
+      if (this.nextPerch <= 0 && this.flies.every((f) => f.mode === 'fly')) {
+        this.nextPerch = MC.rand(25, 45);
+        this.flies[(Math.random() * this.flies.length) | 0].mode = 'toPerch';
+      }
+      let look = null;
+      let best = 170 * s;
+      for (const f of this.flies) {
+        f.update(dt, this, perch);
+        const d = Math.hypot(f.x - head.x, f.y - head.y);
+        if (f.mode === 'rest') {
+          look = { x: 0, y: -1 };
+          pup.perkT = Math.max(pup.perkT, 0.3);
+        } else if (d < best) {
+          best = d;
+          look = { x: MC.clamp((f.x - head.x) / (90 * s), -1, 1), y: MC.clamp((f.y - head.y) / (70 * s), -1, 1) };
+        }
+      }
+      pup.update(dt, { wind: this.wind * 0.6, look });
     }
 
     drawFern(g, f) {
@@ -367,6 +641,12 @@
         g.fill();
         g.restore();
       }
+
+      // 그루터기 위의 멍이, 그리고 나비
+      const sb = this.stumpBox;
+      g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
+      this.pup.draw(g, this.dpr);
+      for (const f of this.flies) f.draw(g, this.s * 1.05);
 
       for (const f of this.ferns) this.drawFern(g, f);
     }

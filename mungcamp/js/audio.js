@@ -165,6 +165,42 @@
       }
     }
 
+    // 멍이와 친구들의 작은 소리: 톡(누름), 냠(먹기), 뽁(새 마시멜로), 폴짝, 게 집게
+    cute(kind) {
+      if (!this.ctx) return;
+      const ctx = this.ctx;
+      const tone = (f0, f1, dur, amp, delay = 0, type = 'sine') => {
+        const at = ctx.currentTime + 0.01 + delay;
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.setValueAtTime(f0, at);
+        o.frequency.exponentialRampToValueAtTime(f1, at + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(amp, at + Math.min(0.02, dur * 0.3));
+        g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+        o.connect(g);
+        g.connect(this.master);
+        g.connect(this.verbIn);
+        o.start(at);
+        o.stop(at + dur + 0.02);
+      };
+      if (kind === 'boop') {
+        tone(560, 840, 0.13, 0.05);
+        tone(1120, 1680, 0.09, 0.012);
+      } else if (kind === 'nom') {
+        tone(330, 240, 0.09, 0.045, 0, 'triangle');
+      } else if (kind === 'pop') {
+        tone(720, 1300, 0.07, 0.035);
+      } else if (kind === 'hop') {
+        tone(440, 880, 0.14, 0.035);
+        tone(660, 1180, 0.12, 0.025, 0.1);
+      } else if (kind === 'crab') {
+        tone(2100, 1800, 0.03, 0.018);
+        tone(2300, 1900, 0.03, 0.018, 0.09);
+      }
+    }
+
     // 호흡 안내음: 들숨은 조금 높게, 날숨은 조금 낮게
     cue(kind) {
       if (!this.ctx) return;

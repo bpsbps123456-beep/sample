@@ -29,6 +29,19 @@
     <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5l-7 7 7 7"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="pup-face" viewBox="0 0 120 104">
+      <path d="M60 14C83 14 96 27 96 45C96 64 81 72 60 72C39 72 24 64 24 45C24 27 37 14 60 14Z" fill="#fff3e3" stroke="#5b3d2c" stroke-width="2.6"/>
+      <path d="M36 25C22 24 15 43 19 58C22 67 33 68 36 58C39 47 41 34 36 25Z" fill="#dc9a5c" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
+      <path d="M84 25C98 24 105 43 101 58C98 67 87 68 84 58C81 47 79 34 84 25Z" fill="#dc9a5c" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
+      <ellipse cx="40" cy="55" rx="6.5" ry="3.8" fill="#ff7e8c" opacity="0.45"/>
+      <ellipse cx="80" cy="55" rx="6.5" ry="3.8" fill="#ff7e8c" opacity="0.45"/>
+      <ellipse cx="60" cy="53.5" rx="11.5" ry="8" fill="#fffdf9"/>
+      <path d="M56 49.4Q60 47.2 64 49.4Q63.3 52.2 60.9 53Q60 53.5 59.1 53Q56.7 52.2 56 49.4Z" fill="#3a261d"/>
+      <path d="M60 53.6V55.2M60 55.2Q59 57.4 56.2 56M60 55.2Q61 57.4 63.8 56" fill="none" stroke="#3a261d" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M33 26C33 4 87 4 87 26Z" fill="#e4664b" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
+      <rect x="30" y="20" width="60" height="11" rx="5.5" fill="#e4664b" stroke="#5b3d2c" stroke-width="2.6"/>
+      <circle cx="60" cy="7.5" r="7" fill="#fbf1e4" stroke="#5b3d2c" stroke-width="2.4"/>
+    </symbol>
     <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 2M9.5 3h5"/></symbol>
   </svg>
 
@@ -39,7 +52,6 @@
         <h1>멍 때리고 가요.</h1>
         <div class="hero-actions">
           <a class="btn btn-ember" href="#fire">모닥불 앞에 앉기</a>
-          <a class="btn btn-ghost" href="#seats">다른 자리</a>
         </div>
       </div>
     </header>
@@ -47,19 +59,19 @@
     <main>
       <section class="band seats" id="seats" aria-labelledby="seats-title">
         <div class="wrap">
-          <h2 id="seats-title">어디에 앉을까요?</h2>
+          <h2 id="seats-title">다른 곳도 가볼까요?</h2>
           <div class="seat-grid">
             <a class="seat seat-fire" href="#fire">
               <canvas class="seat-thumb" data-scene="fire" aria-hidden="true"></canvas>
-              <div class="seat-body"><p class="seat-kicker">불멍</p><h3>모닥불 글램핑</h3></div>
+              <div class="seat-body"><h3>모닥불 글램핑</h3></div>
             </a>
             <a class="seat seat-water" href="#water">
               <canvas class="seat-thumb" data-scene="water" aria-hidden="true"></canvas>
-              <div class="seat-body"><p class="seat-kicker">물멍</p><h3>달빛 바다</h3></div>
+              <div class="seat-body"><h3>달빛 바다</h3></div>
             </a>
             <a class="seat seat-forest" href="#forest">
               <canvas class="seat-thumb" data-scene="forest" aria-hidden="true"></canvas>
-              <div class="seat-body"><p class="seat-kicker">숲멍</p><h3>편백 숲</h3></div>
+              <div class="seat-body"><h3>편백 숲</h3></div>
             </a>
           </div>
         </div>
@@ -133,6 +145,13 @@
 
     <div class="modal" id="startCard" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="start-title">
+        <svg class="pup-face" viewBox="0 0 120 104" aria-hidden="true">
+          <use href="#pup-face"/>
+          <ellipse cx="47.5" cy="43" rx="4.2" ry="5.2" fill="#2a1a13"/>
+          <ellipse cx="72.5" cy="43" rx="4.2" ry="5.2" fill="#2a1a13"/>
+          <circle cx="49" cy="41" r="1.7" fill="#fff"/>
+          <circle cx="74" cy="41" r="1.7" fill="#fff"/>
+        </svg>
         <h2 id="start-title"></h2>
         <div class="seg" id="durationOptions" role="radiogroup" aria-label="머무는 시간"></div>
         <button class="btn btn-ember btn-block" id="startBtn" type="button">앉기</button>
@@ -142,6 +161,10 @@
 
     <div class="modal" id="endCard" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="end-title">
+        <svg class="pup-face" viewBox="0 0 120 104" aria-hidden="true">
+          <use href="#pup-face"/>
+          <path d="M43 45Q47.5 38.5 52 45M68 45Q72.5 38.5 77 45" fill="none" stroke="#2a1a13" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>
         <h2 id="end-title">잘 쉬었어요</h2>
         <div class="modal-buttons">
           <button class="btn btn-ghost" id="stayBtn" type="button">조금 더</button>
@@ -153,6 +176,8 @@
 
   <script src="js/util.js" defer></script>
   <script src="js/audio.js" defer></script>
+  <script src="js/fire-gl.js" defer></script>
+  <script src="js/pup.js" defer></script>
   <script src="js/scene-fire.js" defer></script>
   <script src="js/scene-water.js" defer></script>
   <script src="js/scene-forest.js" defer></script>

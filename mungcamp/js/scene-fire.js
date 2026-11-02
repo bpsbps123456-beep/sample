@@ -80,73 +80,159 @@
         g.fillRect(PAD + rnd() * LOG_L, PAD + y, 5 + rnd() * 16, 1 + rnd() * 1.6);
       }
     } else {
-      g.strokeStyle = 'rgba(18,10,5,0.55)';
-      g.lineWidth = 1.2;
-      for (let i = 0; i < 14; i++) {
-        const y = PAD + rnd() * LOG_R * 2;
+      // 껍질의 세로 골: 어두운 틈과 그 위의 밝은 능선
+      for (let i = 0; i < 52; i++) {
+        const x0 = PAD + rnd() * LOG_L;
+        const len = 12 + rnd() * 38;
+        const y = PAD + 2 + rnd() * (LOG_R * 2 - 4);
+        const slope = (rnd() - 0.5) * 3;
+        g.strokeStyle = `rgba(12,7,3,${0.35 + rnd() * 0.35})`;
+        g.lineWidth = 0.8 + rnd() * 1.5;
         g.beginPath();
-        g.moveTo(PAD, y);
-        for (let x = 0; x <= LOG_L; x += 20) g.lineTo(PAD + x, y + (rnd() - 0.5) * 3);
+        g.moveTo(x0, y);
+        g.quadraticCurveTo(x0 + len / 2, y + slope + (rnd() - 0.5) * 2, x0 + len, y + slope * 2);
+        g.stroke();
+        g.strokeStyle = `rgba(160,118,84,${0.1 + rnd() * 0.16})`;
+        g.lineWidth = 0.8;
+        g.beginPath();
+        g.moveTo(x0, y - 1.4);
+        g.quadraticCurveTo(x0 + len / 2, y - 1.4 + slope, x0 + len, y - 1.4 + slope * 2);
+        g.stroke();
+      }
+      // 옹이
+      for (let i = 0; i < 2; i++) {
+        const kx = PAD + 40 + rnd() * (LOG_L - 110);
+        const ky = PAD + 9 + rnd() * (LOG_R * 2 - 18);
+        g.fillStyle = 'rgba(26,15,8,0.75)';
+        g.beginPath();
+        g.ellipse(kx, ky, 5, 3.2, 0, 0, Math.PI * 2);
+        g.fill();
+        g.strokeStyle = 'rgba(130,92,60,0.5)';
+        g.lineWidth = 0.9;
+        g.beginPath();
+        g.ellipse(kx, ky, 8, 4.8, 0, 0, Math.PI * 2);
         g.stroke();
       }
     }
     g.restore();
-    // 잘린 단면과 나이테
+    // 잘린 단면: 껍질 테두리, 나이테, 마르며 갈라진 틈
     const ex = PAD + LOG_L - LOG_R * 0.55;
     const ey = PAD + LOG_R;
-    g.fillStyle = birch ? '#ead2a2' : '#b98a55';
+    g.fillStyle = birch ? '#efe7d4' : '#2e1d12';
     g.beginPath();
-    g.ellipse(ex, ey, LOG_R * 0.55, LOG_R * 0.95, 0, 0, Math.PI * 2);
+    g.ellipse(ex, ey, LOG_R * 0.6, LOG_R * 0.99, 0, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = birch ? 'rgba(150,110,60,0.45)' : 'rgba(110,70,35,0.6)';
+    const face = g.createRadialGradient(ex - 2, ey - 4, 1, ex, ey, LOG_R * 0.9);
+    face.addColorStop(0, birch ? '#f6e3b8' : '#d7a873');
+    face.addColorStop(1, birch ? '#dcbf8a' : '#9c6b3e');
+    g.fillStyle = face;
+    g.beginPath();
+    g.ellipse(ex, ey, LOG_R * 0.5, LOG_R * 0.87, 0, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = birch ? 'rgba(150,110,60,0.42)' : 'rgba(96,58,28,0.55)';
+    g.lineWidth = 0.9;
+    for (let k = 1; k <= 5; k++) {
+      const j = 1 + (rnd() - 0.5) * 0.08;
+      g.beginPath();
+      g.ellipse(ex + (rnd() - 0.5) * 0.8, ey, ((LOG_R * 0.5 * k) / 6) * j, ((LOG_R * 0.87 * k) / 6) / j, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.strokeStyle = birch ? 'rgba(120,80,40,0.45)' : 'rgba(50,28,12,0.65)';
     g.lineWidth = 1;
-    for (let k = 1; k <= 3; k++) {
+    for (let i = 0; i < 3; i++) {
+      const a = rnd() * Math.PI * 2;
       g.beginPath();
-      g.ellipse(ex, ey, (LOG_R * 0.55 * k) / 4, (LOG_R * 0.95 * k) / 4, 0, 0, Math.PI * 2);
+      g.moveTo(ex, ey);
+      g.lineTo(ex + Math.cos(a) * LOG_R * 0.45, ey + Math.sin(a) * LOG_R * 0.8);
       g.stroke();
     }
     return c;
   }
 
-  function makeChar(rnd) {
-    const c = MC.canvas(LOG_L + PAD * 2, LOG_R * 2 + PAD * 2);
-    const g = c.getContext('2d');
-    g.fillStyle = '#120a07';
+  // 숯이 된 장작: 거북등처럼 갈라진 표면과 하얀 재, 그리고 같은 틈에서 빛나는 불씨
+  function makeCharSet(rnd) {
+    const W = LOG_L + PAD * 2;
+    const H = LOG_R * 2 + PAD * 2;
+    const cracks = [];
+    // 결을 따라 길게 갈라진 틈 (중간중간 끊긴다)
+    for (let i = 0; i < 2; i++) {
+      let y = PAD + 8 + rnd() * (LOG_R * 2 - 16);
+      let x = PAD + rnd() * 30;
+      while (x < PAD + LOG_L - 10) {
+        const pts = [];
+        const len = 30 + rnd() * 70;
+        for (let u = 0; u <= len; u += 7 + rnd() * 6) {
+          y += (rnd() - 0.5) * 3;
+          pts.push([x + u, y]);
+        }
+        cracks.push(pts);
+        x += len + 10 + rnd() * 30;
+      }
+    }
+    // 결을 가로지르는 짧은 틈: 굵기의 일부만 갈라진다
+    for (let i = 0; i < 13; i++) {
+      const x = PAD + 10 + rnd() * (LOG_L - 30);
+      const y0 = PAD + rnd() * LOG_R * 0.9;
+      const y1 = y0 + LOG_R * (0.5 + rnd() * 0.9);
+      const pts = [];
+      let cx = x;
+      for (let y = y0; y <= y1; y += 4 + rnd() * 4) {
+        cx += (rnd() - 0.5) * 3.5 + 0.6;
+        pts.push([cx, y]);
+      }
+      cracks.push(pts);
+    }
+    const line = (g, pts) => {
+      g.beginPath();
+      g.moveTo(pts[0][0], pts[0][1]);
+      for (const [x, y] of pts) g.lineTo(x, y);
+      g.stroke();
+    };
+
+    const char = MC.canvas(W, H);
+    const g = char.getContext('2d');
+    const body = g.createLinearGradient(0, PAD, 0, PAD + LOG_R * 2);
+    body.addColorStop(0, '#2a1d17');
+    body.addColorStop(0.5, '#140b07');
+    body.addColorStop(1, '#070302');
+    g.fillStyle = body;
     logShape(g);
     g.fill();
     g.save();
     logShape(g);
     g.clip();
-    g.fillStyle = 'rgba(70,60,56,0.5)';
-    for (let i = 0; i < 40; i++) g.fillRect(PAD + rnd() * LOG_L, PAD + rnd() * LOG_R * 2, 6 + rnd() * 10, 3 + rnd() * 4);
-    g.restore();
-    return c;
-  }
-
-  function makeCracks(rnd) {
-    const c = MC.canvas(LOG_L + PAD * 2, LOG_R * 2 + PAD * 2);
-    const g = c.getContext('2d');
-    g.save();
-    logShape(g);
-    g.clip();
-    g.strokeStyle = 'rgba(255,120,40,1)';
     g.lineCap = 'round';
-    for (let i = 0; i < 12; i++) {
-      let x = PAD + rnd() * LOG_L;
-      let y = PAD + 4 + rnd() * (LOG_R * 2 - 8);
-      g.lineWidth = 1 + rnd() * 2.2;
+    g.strokeStyle = 'rgba(0,0,0,0.75)';
+    g.lineWidth = 1.6;
+    for (const pts of cracks) line(g, pts);
+    // 하얀 재
+    for (let i = 0; i < 24; i++) {
+      g.fillStyle = `rgba(${170 + rnd() * 40},${165 + rnd() * 40},${160 + rnd() * 40},${0.12 + rnd() * 0.22})`;
       g.beginPath();
-      g.moveTo(x, y);
-      const n = 3 + ((rnd() * 4) | 0);
-      for (let k = 0; k < n; k++) {
-        x += 6 + rnd() * 14;
-        y += (rnd() - 0.5) * 8;
-        g.lineTo(x, y);
-      }
-      g.stroke();
+      g.ellipse(PAD + rnd() * LOG_L, PAD + rnd() * LOG_R * 1.2, 3 + rnd() * 9, 1.5 + rnd() * 3, 0, 0, Math.PI * 2);
+      g.fill();
     }
     g.restore();
-    return c;
+
+    const glow = MC.canvas(W, H);
+    const k = glow.getContext('2d');
+    k.save();
+    logShape(k);
+    k.clip();
+    k.lineCap = 'round';
+    k.lineJoin = 'round';
+    // 균열의 일부 구간에서만 불씨가 빛난다
+    const lit = [];
+    for (const pts of cracks) {
+      for (let i = 1; i < pts.length; i++) if (rnd() < 0.5) lit.push([pts[i - 1], pts[i]]);
+    }
+    for (const [lw, col] of [[5, 'rgba(255,70,10,0.28)'], [2.2, 'rgba(255,118,34,0.8)'], [0.9, 'rgba(255,205,120,1)']]) {
+      k.strokeStyle = col;
+      k.lineWidth = lw;
+      for (const seg of lit) line(k, seg);
+    }
+    k.restore();
+    return { char, cracks: glow };
   }
 
   // 걱정을 적은 자작나무 장작. 글자 픽셀 위치는 불티로 바뀔 자리다
@@ -217,8 +303,32 @@
         oak: [makeLog('oak', rnd), makeLog('oak', rnd)],
         birch: [makeLog('birch', rnd)],
       };
-      this.charSprites = [makeChar(rnd), makeChar(rnd)];
-      this.crackSprites = [makeCracks(rnd), makeCracks(rnd)];
+      const c1 = makeCharSet(rnd);
+      const c2 = makeCharSet(rnd);
+      this.charSprites = [c1.char, c2.char];
+      this.crackSprites = [c1.cracks, c2.cracks];
+      this.seed = Math.random() * 50;
+      this.useGL = null;
+      this.comfortAt = 0;
+      this.onCute = null;
+      // 숯불 덩어리: 하나하나 숨쉬듯 달아올랐다 식는다
+      this.coals = [];
+      for (let i = 0; i < 36; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = Math.sqrt(rnd());
+        const pts = [];
+        for (let k = 0; k < 6; k++) pts.push(0.68 + rnd() * 0.45);
+        this.coals.push({ x: Math.cos(a) * r * 82, y: 7 + Math.sin(a) * r * 13, r: 4 + rnd() * 6.5, pts, rot: rnd() * 6.28, seed: rnd() * 40, hot: 0.35 + rnd() * 0.65 });
+      }
+      this.coals.sort((p, q) => p.y - q.y);
+      // 멍이: 비니를 쓰고 마시멜로를 굽는다
+      this.pup = new MC.Pup({
+        outfit: 'beanie',
+        stick: true,
+        turn: 0.42,
+        light: { ambient: 'rgba(16,14,38,0.3)', glow: [255, 150, 72], glowA: 0.4, from: 70 },
+      });
+      this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
       // 처음 놓인 장작: 원뿔(티피) 모양으로 기대 세움
       const teepee = [
         [-104, 6, 12, -80],
@@ -303,6 +413,11 @@
       this.buildBackground();
       this.buildTent();
       this.buildLights();
+      const pup = this.pup;
+      pup.k = s * 1.2;
+      pup.x = this.cx - (this.portrait ? 158 : 196) * s;
+      pup.y = this.by + 47 * s;
+      pup.stickTip = { x: this.cx - 62 * s, y: this.by - 60 * s };
     }
 
     buildBackground() {
@@ -609,6 +724,10 @@
     }
 
     pointerDown(x, y) {
+      if (!this.worry && this.pup.hit(x, y)) {
+        this.pup.poke();
+        return true;
+      }
       if (this.hitWorry(x, y)) {
         const wy = this.worry;
         wy.phase = 'drag';
@@ -666,6 +785,12 @@
       this.burst(1.3);
       for (let i = 0; i < 18 * this.quality; i++) this.spawnSpark(1.6);
       if (this.onLand) this.onLand(!!f.worry);
+      if (f.worry) {
+        this.pup.watchUp(3.2);
+        this.comfortAt = this.t + 3.4;
+      } else {
+        this.pup.cheer();
+      }
       if (f.worry) {
         // 글자 하나하나가 불씨가 되었다가 불티로 날아오른다
         const pts = f.worry.made.pts;
@@ -730,6 +855,24 @@
     burst(strength) {
       const n = Math.round((3 + 12 * strength) * this.quality);
       for (let i = 0; i < n; i++) this.spawnSpark(0.7 + strength);
+      // 센 '탁'에는 불똥 몇 개가 포물선을 그리며 튀었다 떨어진다
+      if (strength > 0.75) {
+        const s = this.s;
+        const m = 1 + ((Math.random() * 3) | 0);
+        for (let i = 0; i < m; i++) {
+          this.sparks.push({
+            x: this.cx + MC.gauss() * 24 * s,
+            y: this.by - MC.rand(25, 60) * s,
+            vx: (Math.random() < 0.5 ? -1 : 1) * MC.rand(40, 130) * s,
+            vy: -MC.rand(150, 260) * s,
+            f: 0,
+            max: MC.rand(0.7, 1.2),
+            size: MC.rand(1.4, 2.4) * s + 0.6,
+            seed: Math.random() * 100,
+            fall: true,
+          });
+        }
+      }
     }
 
     update(dt) {
@@ -755,9 +898,12 @@
       this.flare = Math.max(0, this.flare - dt * 0.18);
       const E = (this.E = Math.min(1.3, this.intensity() + this.flare * 0.45));
       const q = this.quality;
+      if (this.useGL === null) this.useGL = !!(MC.FireGL && MC.FireGL.available());
 
-      this.acc.flame += dt * (90 + 300 * E) * q;
-      while (this.acc.flame >= 1) { this.acc.flame -= 1; this.spawnFlame(E); }
+      if (!this.useGL) {
+        this.acc.flame += dt * (90 + 300 * E) * q;
+        while (this.acc.flame >= 1) { this.acc.flame -= 1; this.spawnFlame(E); }
+      }
       this.acc.spark += dt * (1.5 + 6 * E) * q;
       while (this.acc.spark >= 1) { this.acc.spark -= 1; this.spawnSpark(0.6); }
       this.acc.smoke += dt * 2.5 * (0.3 + E) * q;
@@ -807,10 +953,16 @@
           this.sparks.pop();
           continue;
         }
-        p.vx += MC.fbm(t * 3 + p.seed) * 40 * s * dt;
-        p.vy -= 10 * s * dt;
-        p.vx *= 1 - 0.6 * dt;
-        p.vy *= 1 - 0.25 * dt;
+        if (p.fall) {
+          p.vy += 420 * s * dt;
+          p.vx *= 1 - 0.4 * dt;
+          if (p.y > this.by + 34 * s && p.vy > 0) p.f = Math.max(p.f, 0.92);
+        } else {
+          p.vx += MC.fbm(t * 3 + p.seed) * 40 * s * dt;
+          p.vy -= 10 * s * dt;
+          p.vx *= 1 - 0.6 * dt;
+          p.vy *= 1 - 0.25 * dt;
+        }
         p.x += p.vx * dt;
         p.y += p.vy * dt;
       }
@@ -849,6 +1001,12 @@
         }
       }
       if (this.worry && this.worry.phase !== 'fly') this.worry.t += dt;
+
+      this.pup.update(dt, { E, cold: !this.preview && E < 0.22 });
+      if (this.comfortAt && t >= this.comfortAt) {
+        this.comfortAt = 0;
+        this.pup.comfort();
+      }
 
       if (!this.calm && !this.preview) {
         this.nextShoot -= dt;
@@ -890,11 +1048,11 @@
 
     drawCracks(g, l, flick) {
       const char = MC.clamp(1 - l.fuel / l.fuel0, 0, 1);
-      const glow = (0.25 + 0.75 * Math.min(1, this.E)) * MC.smooth(0.04, 0.4, char) * (0.8 + 0.2 * MC.fbm(this.t * 1.4 + l.seed)) * flick;
+      const glow = 0.8 * (0.25 + 0.75 * Math.min(1, this.E)) * MC.smooth(0.04, 0.4, char) * (0.8 + 0.2 * MC.fbm(this.t * 1.4 + l.seed)) * flick;
       if (glow < 0.02) return;
       const p = this.world(l);
       g.globalAlpha = Math.min(1, glow);
-      this.drawLog(g, this.crackSprites[(l.v + 1) % 2], p.x, p.y, l.a, this.s * LOG_SCALE);
+      this.drawLog(g, this.crackSprites[l.v % 2], p.x, p.y, l.a, this.s * LOG_SCALE);
       g.globalAlpha = 1;
     }
 
@@ -930,6 +1088,109 @@
       grd.addColorStop(1, `rgb(${(c * 0.45) | 0},${(c * 0.45) | 0},${(c * 0.5) | 0})`);
       g.fillStyle = grd;
       g.fill();
+      g.restore();
+    }
+
+    // 숯불: 어두운 덩어리 속이 숨쉬듯 달아오른다
+    drawCoals(g, E, flick) {
+      const s = this.s;
+      const S = SPR;
+      const warm = Math.min(1, E + 0.15);
+      for (const c of this.coals) {
+        const heat = MC.clamp(c.hot * (0.3 + 0.7 * warm) * (0.72 + 0.28 * MC.fbm(this.t * 0.6 + c.seed)), 0, 1);
+        const x = this.cx + c.x * s;
+        const y = this.by + c.y * s;
+        const r = c.r * s;
+        g.beginPath();
+        for (let k = 0; k <= c.pts.length; k++) {
+          const a = c.rot + (k / c.pts.length) * Math.PI * 2;
+          const rr = r * c.pts[k % c.pts.length];
+          const px = x + Math.cos(a) * rr;
+          const py = y + Math.sin(a) * rr * 0.62;
+          if (k === 0) g.moveTo(px, py);
+          else g.lineTo(px, py);
+        }
+        g.closePath();
+        const col = MC.mix([22, 11, 7], [210, 64, 14], heat * 0.85);
+        const top = MC.mix(col, [255, 160, 64], heat * 0.4);
+        const grd = g.createLinearGradient(x, y - r * 0.6, x, y + r * 0.6);
+        grd.addColorStop(0, MC.rgba(top));
+        grd.addColorStop(1, MC.rgba(MC.mix(col, [10, 5, 3], 0.5)));
+        g.fillStyle = grd;
+        g.fill();
+      }
+      g.globalCompositeOperation = 'lighter';
+      for (const c of this.coals) {
+        const heat = c.hot * (0.3 + 0.7 * warm) * (0.72 + 0.28 * MC.fbm(this.t * 0.6 + c.seed));
+        if (heat < 0.2) continue;
+        const r = c.r * s * 3.2;
+        g.globalAlpha = Math.min(1, heat * 0.16);
+        g.drawImage(S.coal, this.cx + c.x * s - r, this.by + c.y * s - r * 0.7, r * 2, r * 1.4);
+      }
+      g.globalAlpha = Math.min(1, 0.32 * (0.35 + E) * flick);
+      g.drawImage(S.coal, this.cx - 100 * s, this.by - 20 * s, 200 * s, 44 * s);
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+    }
+
+    // 셰이더 불꽃과 그 빛무리. 그릴 수 없으면 false
+    drawFlamesGL(g, E, flick) {
+      if (!this.useGL) return false;
+      const s = this.s;
+      const W = 300 * s;
+      const H = 430 * s;
+      const scale = Math.min(this.dpr || 1, 1.25) * (this.quality >= 0.8 ? 1 : 0.7) * MC.FireGL.scale;
+      const c = MC.FireGL.render(W * scale, H * scale, this.t, E * (0.94 + 0.06 * flick), this.seed);
+      if (!c) {
+        this.useGL = false;
+        return false;
+      }
+      const x = this.cx - W / 2;
+      const y = this.by + 8 * s - H;
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = 1;
+      g.drawImage(c, x, y, W, H);
+      // 작게 줄였다 크게 펴서 불꽃 모양 그대로의 부드러운 빛무리를 얹는다
+      const bw = 40;
+      const bh = Math.round((40 * H) / W);
+      if (!this.bloom || this.bloom.width !== bw || this.bloom.height !== bh) {
+        this.bloom = MC.canvas(bw, bh);
+        this.bloomG = this.bloom.getContext('2d');
+      }
+      this.bloomG.clearRect(0, 0, bw, bh);
+      this.bloomG.drawImage(c, 0, 0, bw, bh);
+      g.globalAlpha = 0.45;
+      g.drawImage(this.bloom, x - W * 0.12, y - H * 0.04, W * 1.24, H * 1.1);
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+      return true;
+    }
+
+    // 불 위의 공기가 열기로 일렁인다
+    shimmer(g) {
+      const E = Math.min(1, this.E);
+      if (E < 0.25 || this.quality < 0.6 || this.calm) return;
+      const { s, cx, by } = this;
+      const dpr = g.getTransform ? g.getTransform().a : this.dpr;
+      const x0 = Math.max(0, Math.round((cx - 150 * s) * dpr));
+      const y0 = Math.max(0, Math.round((by - 600 * s) * dpr));
+      const w0 = Math.max(1, Math.min(g.canvas.width - x0, Math.round(300 * s * dpr)));
+      const h0 = Math.max(1, Math.round(430 * s * dpr));
+      if (!this.heat || this.heat.width !== w0 || this.heat.height !== h0) {
+        this.heat = MC.canvas(w0, h0);
+        this.heatG = this.heat.getContext('2d');
+      }
+      this.heatG.clearRect(0, 0, w0, h0);
+      this.heatG.drawImage(g.canvas, x0, y0, w0, h0, 0, 0, w0, h0);
+      g.save();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      const strip = Math.max(2, Math.round(2 * dpr));
+      for (let y = 0; y < h0; y += strip) {
+        const k = y / h0;
+        const amp = (0.3 + 1.7 * k * k) * E * dpr * s * 1.15;
+        const dx = (Math.sin(y * 0.11 / dpr + this.t * 6.2) + 0.6 * Math.sin(y * 0.047 / dpr - this.t * 3.7)) * amp;
+        g.drawImage(this.heat, 0, y, w0, strip, x0 + dx, y0 + y, w0, strip);
+      }
       g.restore();
     }
 
@@ -1024,14 +1285,60 @@
       }
       g.globalAlpha = 1;
 
-      // 돌, 장작, 불
+      this.shimmer(g);
+
+      // 돌, 숯, 장작, 불
       const lit = 0.32 * Math.min(1, E) * flick;
       for (const st of this.stones) if (!st.front) this.drawStone(g, st, lit * 0.7);
+      this.drawCoals(g, E, flick);
       for (const l of this.logs) if (!l.front) this.drawPitLog(g, l);
 
+      if (!this.drawFlamesGL(g, E, flick)) this.drawFlamesSoft(g, E, flick);
+
+      for (const l of this.logs) if (l.front) this.drawPitLog(g, l);
       g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = Math.min(1, 0.55 * (0.45 + E) * flick);
-      g.drawImage(S.coal, cx - 100 * s, by - 20 * s, 200 * s, 44 * s);
+      for (const l of this.logs) this.drawCracks(g, l, flick);
+      g.globalCompositeOperation = 'source-over';
+      for (const st of this.stones) if (st.front) this.drawStone(g, st, lit);
+
+      this.pup.light.glowA = 0.42 * Math.min(1, E) * flick;
+      this.pup.draw(g, this.dpr);
+
+      // 불티(꼬리를 끄는 빛)와 글자 불씨
+      g.globalCompositeOperation = 'lighter';
+      g.lineCap = 'round';
+      for (const p of this.sparks) {
+        const a = Math.pow(1 - p.f, 1.3) * (0.75 + 0.25 * Math.sin(t * 4 + p.seed));
+        if (a < 0.02) continue;
+        const hot = 1 - p.f;
+        g.globalAlpha = a;
+        g.strokeStyle = hot > 0.6 ? '#ffe3a0' : hot > 0.3 ? '#ffae55' : '#ff7a2e';
+        g.lineWidth = p.size * 0.85;
+        g.beginPath();
+        g.moveTo(p.x, p.y);
+        g.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035);
+        g.stroke();
+        const sz = p.size * 2.6;
+        g.drawImage(S.spark, p.x - sz, p.y - sz, sz * 2, sz * 2);
+      }
+      for (const p of this.embers) {
+        const a = p.delay > 0 ? 0.42 + 0.18 * Math.sin(t * 2.5 + p.seed) : Math.pow(1 - p.f, 1.4) * 0.9;
+        const sz = (p.delay > 0 ? 2.2 : 2.4) * s + 0.6;
+        g.globalAlpha = a;
+        g.drawImage(p.delay > 0 ? S.text : S.spark, p.x - sz, p.y - sz, sz * 2, sz * 2);
+      }
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+
+      this.drawFlying(g);
+      g.drawImage(this.vignette, 0, 0, w, h);
+    }
+
+    // WebGL이 없을 때의 입자 불꽃
+    drawFlamesSoft(g, E, flick) {
+      const S = SPR;
+      const { s, cx, by, t } = this;
+      g.globalCompositeOperation = 'lighter';
       // 불꽃의 몸통: 높이가 제각각 일렁이는 큰 혀 다섯 개
       const Ec = Math.min(1.2, E);
       for (let i = 0; i < 5; i++) {
@@ -1058,31 +1365,11 @@
       g.drawImage(S.hot, cx - 70 * s, by - 70 * s, 140 * s, 90 * s);
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
+    }
 
-      for (const l of this.logs) if (l.front) this.drawPitLog(g, l);
-      g.globalCompositeOperation = 'lighter';
-      for (const l of this.logs) this.drawCracks(g, l, flick);
-      g.globalCompositeOperation = 'source-over';
-      for (const st of this.stones) if (st.front) this.drawStone(g, st, lit);
-
-      // 불티와 글자 불씨
-      g.globalCompositeOperation = 'lighter';
-      for (const p of this.sparks) {
-        const a = Math.pow(1 - p.f, 1.5) * (0.7 + 0.3 * Math.sin(t * 4 + p.seed));
-        if (a < 0.02) continue;
-        const sz = p.size * 3;
-        g.globalAlpha = a;
-        g.drawImage(S.spark, p.x - sz, p.y - sz, sz * 2, sz * 2);
-      }
-      for (const p of this.embers) {
-        const a = p.delay > 0 ? 0.42 + 0.18 * Math.sin(t * 2.5 + p.seed) : Math.pow(1 - p.f, 1.4) * 0.9;
-        const sz = (p.delay > 0 ? 2.2 : 2.4) * s + 0.6;
-        g.globalAlpha = a;
-        g.drawImage(p.delay > 0 ? S.text : S.spark, p.x - sz, p.y - sz, sz * 2, sz * 2);
-      }
-      g.globalAlpha = 1;
-      g.globalCompositeOperation = 'source-over';
-
+    drawFlying(g) {
+      const S = SPR;
+      const s = this.s;
       // 날아가는 장작
       for (const f of this.flying) {
         const e = f.t < 0.5 ? 2 * f.t * f.t : 1 - Math.pow(-2 * f.t + 2, 2) / 2;
@@ -1105,8 +1392,6 @@
         g.globalCompositeOperation = 'source-over';
         this.drawLog(g, wy.made.sprite, wy.x, wy.y + bob, 0, k);
       }
-
-      g.drawImage(this.vignette, 0, 0, w, h);
     }
   }
 

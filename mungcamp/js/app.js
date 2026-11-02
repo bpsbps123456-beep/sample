@@ -56,7 +56,6 @@
     duration: MC.store.get('duration', 20),
     timerDone: false,
     leaving: false,
-    lowHinted: false,
     worryShown: false,
     wakeLock: null,
     hiddenAt: 0,
@@ -161,7 +160,7 @@
     const def = SCENES[name];
     Object.assign(state, {
       view: 'session', scene: name, def, started: false, timerDone: false,
-      leaving: false, lowHinted: false, worryShown: false,
+      leaving: false, worryShown: false,
     });
     stopHero();
     home.hidden = true;
@@ -209,6 +208,7 @@
       }
     }
     if (state.scene === 'fire') scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
+    scene.onCute = (kind) => sound.cute(kind);
     state.started = true;
     state.startAt = Date.now();
     clearInterval(state.timerInt);
@@ -285,11 +285,6 @@
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
       const st = sc.status();
-      if (st.fuel < 9 && !state.lowHinted) {
-        state.lowHinted = true;
-        toast('장작을 넣어 볼까요?');
-      }
-      if (st.fuel > 25) state.lowHinted = false;
       if (st.waiting !== state.worryShown) {
         state.worryShown = st.waiting;
         $('#worryHint').hidden = !st.waiting;
