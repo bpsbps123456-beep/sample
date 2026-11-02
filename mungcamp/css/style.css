@@ -99,58 +99,102 @@ a { color: inherit; }
 }
 .link-btn:hover { color: var(--ink); }
 
-/* ── 첫 화면 ─────────────────────────── */
-.hero {
+/* ── 첫 화면: 걸어 다니는 캠프 마을 ── */
+.camp {
   position: relative;
-  min-height: clamp(560px, 88svh, 840px);
-  display: flex;
-  align-items: flex-end;
+  height: 100svh;
+  min-height: 520px;
   overflow: hidden;
-  isolation: isolate;
+  background: #264a78;
 }
-.hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -2; }
-.hero::after {
-  content: "";
+.camp-canvas {
   position: absolute;
   inset: 0;
-  z-index: -1;
-  background:
-    linear-gradient(90deg, rgba(8, 9, 18, 0.86) 0%, rgba(8, 9, 18, 0.42) 42%, rgba(8, 9, 18, 0) 66%),
-    linear-gradient(0deg, var(--night) 0%, rgba(12, 14, 26, 0) 24%);
-}
-.hero-inner {
   width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding-block: 120px clamp(56px, 10vh, 104px);
-  padding-left: max(20px, env(safe-area-inset-left, 0px));
-  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  height: 100%;
+  display: block;
+  touch-action: pan-y;
+  cursor: pointer;
+  outline: none;
 }
-.hero-inner > * { max-width: 32rem; }
-.hero-inner h1 + .hero-actions { margin-top: 1.6rem; }
-.hero h1 {
-  font-family: var(--font-display);
-  font-size: var(--step-4);
-  font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: 0;
+.camp-canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--ember); }
+.camp-title {
+  position: absolute;
+  left: 0;
+  top: 0;
   margin: 0;
-  max-width: none;
+  padding-top: calc(clamp(18px, 5vh, 48px) + env(safe-area-inset-top, 0px));
+  padding-left: max(22px, env(safe-area-inset-left, 0px));
+  font-family: var(--font-display);
+  font-size: clamp(3.6rem, 9vw, 6.6rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 2px 22px rgba(8, 10, 30, 0.75), 0 0 48px rgba(255, 170, 110, 0.18);
   white-space: nowrap;
-  text-shadow: 0 0 48px rgba(255, 170, 110, 0.18);
-  text-wrap: balance;
+  pointer-events: none;
 }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-
-@media (max-width: 760px) {
-  .hero { align-items: flex-start; min-height: clamp(620px, 92svh, 860px); }
-  .hero::after {
-    background:
-      linear-gradient(180deg, rgba(8, 9, 18, 0.88) 0%, rgba(8, 9, 18, 0.55) 38%, rgba(8, 9, 18, 0) 58%),
-      linear-gradient(0deg, var(--night) 0%, rgba(12, 14, 26, 0) 16%);
-  }
-  .hero-inner { padding-block: 72px 40px; }
+.camp-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 3px 20px 1px;
+  font-size: var(--step-0);
+  color: var(--ink);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
 }
+.camp-hint.is-off { opacity: 0; }
+.camp-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  will-change: transform;
+}
+.spot[data-tone="ember"] { --tone: var(--ember); }
+.spot[data-tone="sea"] { --tone: var(--sea); }
+.spot[data-tone="moss"] { --tone: var(--moss); }
+.spot[data-tone="paper"] { --tone: #f3dfb6; }
+.spot-name {
+  margin: 0;
+  padding: 1px 14px 0;
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  line-height: 1.25;
+  color: var(--tone);
+  background: rgba(12, 14, 32, 0.55);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.spot-act {
+  pointer-events: auto;
+  padding: 3px 24px 1px;
+  font: inherit;
+  font-size: var(--step-1);
+  line-height: 1.25;
+  color: var(--on-ember);
+  background: var(--tone);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  animation: pop 0.35s ease both;
+}
+.spot-act:hover { filter: brightness(1.08); }
+@keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* ── 공통 섹션 ───────────────────────── */
 .band { padding-block: clamp(56px, 8vw, 96px) clamp(72px, 10vw, 128px); }
@@ -238,7 +282,6 @@ a { color: inherit; }
 }
 .chip:hover { border-color: var(--ink-dim); }
 .chip-icon { padding: 8px 11px; }
-#timerText { display: inline-block; min-width: 2.4em; text-align: center; }
 .chip .ico { width: 18px; height: 18px; }
 .top-right { margin-left: auto; display: flex; gap: 8px; flex: none; }
 
@@ -475,8 +518,6 @@ a { color: inherit; }
 .modal-card h2 { margin: 0 0 18px; font-family: var(--font-display); font-size: var(--step-3); font-weight: 700; line-height: 1; text-wrap: balance; }
 .pup-face { display: block; width: 124px; height: auto; margin: -8px auto 4px; animation: bob 4s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-.modal-card .seg { justify-content: center; flex-wrap: nowrap; }
-.modal-card .seg button { flex: 1 1 0; min-width: 0; padding-inline: 4px; }
 .modal-card .btn-block { margin-top: 24px; }
 .modal-actions { display: flex; justify-content: center; gap: 20px; margin-top: 10px; }
 .modal-buttons { display: flex; justify-content: center; gap: 10px; }
@@ -489,5 +530,5 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .seat, .ui, .toast, .guidance { transition: none; }
-  .modal, .pup-face { animation: none; }
+  .modal, .pup-face, .spot-act { animation: none; }
 }

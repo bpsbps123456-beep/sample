@@ -95,6 +95,8 @@
       this.stickTip = null;
       this.stickDrop = 0;
       this.tip = { x: 120, y: -95 };
+      this.walk = 0;
+      this.walkPhase = 0;
       this.cv = null;
     }
 
@@ -215,8 +217,18 @@
         }
       }
 
+      // 걷기
+      const walking = !!env.walking;
+      this.walk += ((walking ? 1 : 0) - this.walk) * Math.min(1, dt * 8);
+      this.walkPhase += dt * 11 * this.walk;
+      if (walking) {
+        this.glanceT = 0;
+        this.lastPoke = now;
+        if (this.sleeping) this.setMood('idle', 0);
+      }
+
       // 가끔 이쪽을 돌아본다
-      if (this.mood === 'idle') {
+      if (this.mood === 'idle' && !walking) {
         this.nextGlance -= dt;
         if (this.nextGlance <= 0) {
           this.glanceT = MC.rand(2.2, 3.6);
@@ -413,8 +425,10 @@
       o.fill();
       const shake = this.mood === 'cold' ? Math.sin(this.t * 43) * 0.7 : 0;
       const spinX = this.spin ? Math.max(0.06, Math.abs(Math.cos((Math.PI * this.spin.t) / this.spin.dur))) : 1;
+      const bob = -Math.abs(Math.sin(this.walkPhase)) * 3 * this.walk;
       o.save();
-      o.translate(shake, this.hop);
+      o.translate(shake, this.hop + bob);
+      o.rotate(Math.sin(this.walkPhase) * 0.04 * this.walk);
       o.scale(spinX, 1);
       if (this.view === 'back') this.paintBack(o, b);
       else this.paintFront(o, b);
@@ -434,6 +448,17 @@
     }
 
     paintBack(o, b) {
+      if (this.walk > 0.05) {
+        const step = Math.sin(this.walkPhase) * 2.4 * this.walk;
+        for (const [x, dy] of [[-11, step], [11, -step]]) {
+          ellipse(o, x, -2 + dy, 7.5, 5);
+          o.fillStyle = '#fffaf1';
+          o.fill();
+          o.lineWidth = 2.2;
+          o.strokeStyle = INK;
+          o.stroke();
+        }
+      }
       o.save();
       o.scale(1 + 0.012 * b, 1 + 0.024 * b);
       this.paintBody(o, true);
@@ -485,7 +510,8 @@
 
     paintPaws(o) {
       const holding = this.stick;
-      const paws = holding ? [[-4, -29, 0.35], [8.5, -32, -0.25]] : [[-10, -3, 0], [10, -3, 0]];
+      const step = Math.sin(this.walkPhase) * 2.2 * this.walk;
+      const paws = holding ? [[-4, -29, 0.35], [8.5, -32, -0.25]] : [[-10, -3 + step, 0], [10, -3 - step, 0]];
       for (const [x, y, rot] of paws) {
         ellipse(o, x, y, 8, 5.8, rot);
         o.fillStyle = '#fffaf1';

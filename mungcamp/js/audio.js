@@ -26,7 +26,7 @@
       // 귀를 찌르는 고음을 살짝 덜어 내고, 갑자기 커지는 소리는 부드럽게 눌러 준다
       const warm = ctx.createBiquadFilter();
       warm.type = 'lowpass';
-      warm.frequency.value = 8000;
+      warm.frequency.value = 10500;
       warm.Q.value = 0.5;
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -20;
@@ -165,6 +165,37 @@
       }
     }
 
+    moktak() {
+      if (!this.ctx) return;
+      const ctx = this.ctx;
+      const at = ctx.currentTime + 0.01;
+      for (const [f, amp, dec] of [[560, 0.24, 0.2], [1290, 0.07, 0.07], [2210, 0.03, 0.04]]) {
+        const o = ctx.createOscillator();
+        o.frequency.setValueAtTime(f, at);
+        o.frequency.exponentialRampToValueAtTime(f * 0.94, at + dec);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(amp, at + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0005, at + dec);
+        o.connect(g);
+        g.connect(this.master);
+        g.connect(this.verbIn);
+        o.start(at);
+        o.stop(at + dec + 0.05);
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise.white;
+      const bp = this.filter('bandpass', 2600, 1.2);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.12, at + 0.0005);
+      g.gain.exponentialRampToValueAtTime(0.0005, at + 0.012);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.master);
+      src.start(at, Math.random() * 3, 0.03);
+    }
+
     // 멍이와 친구들의 작은 소리: 톡(누름), 냠(먹기), 뽁(새 마시멜로), 폴짝, 게 집게
     cute(kind) {
       if (!this.ctx) return;
@@ -261,6 +292,27 @@
       this.out.gain.setTargetAtTime(to, this.snd.ctx.currentTime, seconds / 3);
     }
 
+    // 가까이 갈수록 커지고 멀어지면 잦아든다 (0..1)
+    presence(v) {
+      const now = this.snd.ctx.currentTime;
+      if (!this.presenced) {
+        this.out.gain.cancelScheduledValues(now);
+        this.out.gain.setValueAtTime(this.out.gain.value, now);
+        this.presenced = true;
+      }
+      this.out.gain.setTargetAtTime(v, now, 0.5);
+    }
+
+    // 아주 느린 무작위 신호로 소리의 크기를 일렁이게 한다
+    modulate(param, rate, depth) {
+      const s = this.snd;
+      const lp = s.filter('lowpass', rate, 0.5);
+      const g = s.gain(depth);
+      lp.connect(g);
+      g.connect(param);
+      this.sources.push(s.loop(s.noise.brown, lp));
+    }
+
     end(fade = 2.5) {
       clearInterval(this.timer);
       const now = this.snd.ctx.currentTime;
@@ -352,14 +404,18 @@
     constructor(snd) {
       super(snd, FireScape.layers);
       const s = snd;
-      this.roar = this.noiseLayer('brown', [['lowpass', 320, 0.6]], 0.18, this.layers.fire);
-      this.hiss = this.noiseLayer('pink', [['bandpass', 3200, 0.7]], 0.004, this.layers.fire);
+      // 불길의 낮은 숨: 느리게 일렁이는 웅웅거림
+      this.roar = this.noiseLayer('brown', [['lowpass', 300, 0.6]], 0.15, this.layers.fire);
+      this.modulate(this.roar.gain.gain, 1.2, 0.07);
+      // 지글지글: 빠르게 흔들리는 옅은 고음
+      this.hiss = this.noiseLayer('pink', [['bandpass', 3000, 0.8]], 0.006, this.layers.fire);
+      this.modulate(this.hiss.gain.gain, 16, 0.02);
       this.wind = this.noiseLayer('pink', [['bandpass', 380, 0.5]], 0.05, this.layers.wind);
       this.crackBus = s.gain(1);
-      const soft = s.filter('lowpass', 4200, 0.5);
+      const soft = s.filter('lowpass', 9500, 0.5);
       this.crackBus.connect(soft);
       soft.connect(this.layers.fire);
-      const send = s.gain(0.18);
+      const send = s.gain(0.16);
       this.crackBus.connect(send);
       send.connect(s.verbIn);
       // 풀벌레는 멀리서 들리도록: 직접음은 작게, 울림은 크게
@@ -370,7 +426,9 @@
       csend.connect(s.verbIn);
       this.intensity = 0.7;
       const now = MC.clock();
-      this.nextCrack = now + 0.3;
+      this.nextCluster = now + 0.25;
+      this.nextTick = now + 0.1;
+      this.nextPop = now + MC.rand(2, 5);
       this.crickets = [
         { next: now + 1.2, f: 4280, pan: -0.55 },
         { next: now + 2.1, f: 4760, pan: 0.6 },
@@ -383,23 +441,40 @@
       const now = this.snd.ctx.currentTime;
       const I = Math.min(1.2, p.intensity);
       this.intensity = I;
-      this.roar.gain.gain.setTargetAtTime(0.05 + 0.26 * I, now, 0.6);
-      this.roar.filters[0].frequency.setTargetAtTime(180 + 420 * I, now, 0.6);
-      this.hiss.gain.gain.setTargetAtTime(0.001 + 0.005 * I, now, 0.6);
+      this.roar.gain.gain.setTargetAtTime(0.07 + 0.2 * I, now, 0.6);
+      this.roar.filters[0].frequency.setTargetAtTime(170 + 360 * I, now, 0.6);
+      this.hiss.gain.gain.setTargetAtTime(0.002 + 0.006 * I, now, 0.6);
     }
 
     schedule() {
       const now = MC.clock();
       const until = now + 1.3;
-      const rate = 0.8 + 5.5 * this.intensity;
-      while (this.nextCrack < until) {
-        const t = this.nextCrack;
-        if (t > now - 0.05) {
-          const strength = Math.pow(Math.random(), 2.2);
-          this.crack(t, strength);
-          if (strength > 0.5) this.visual.push({ t, strength });
+      const I = this.intensity;
+      // 타닥타닥: 바삭한 소리가 두세 개에서 대여섯 개씩 묶여 온다
+      while (this.nextCluster < until) {
+        const t0 = this.nextCluster;
+        if (t0 > now - 0.05) {
+          const n = 2 + Math.floor(Math.random() * 3.5 * (0.6 + 0.5 * I));
+          const loud = Math.pow(Math.random(), 1.5);
+          let t = t0;
+          for (let i = 0; i < n; i++) {
+            const st = loud * MC.rand(0.5, 1);
+            this.crack(t, st);
+            t += MC.rand(0.03, 0.14);
+          }
+          if (loud > 0.6) this.visual.push({ t: t0, strength: loud * 0.8 });
         }
-        this.nextCrack += -Math.log(1 - Math.random()) / rate;
+        this.nextCluster += -Math.log(1 - Math.random()) / (0.45 + 2 * I);
+      }
+      // 사이사이 아주 작은 딱딱이가 잔잔히 깔린다
+      while (this.nextTick < until) {
+        if (this.nextTick > now - 0.05) this.tick(this.nextTick);
+        this.nextTick += -Math.log(1 - Math.random()) / (4 + 9 * I);
+      }
+      // 가끔 크게 '탁!'
+      while (this.nextPop < until) {
+        if (this.nextPop > now - 0.05) this.pop(this.nextPop);
+        this.nextPop += MC.rand(5, 14) / (0.4 + I);
       }
       for (const c of this.crickets) {
         while (c.next < until) {
@@ -421,29 +496,84 @@
       return out;
     }
 
+    // 바삭한 '딱': 아주 짧은 잡음 터짐 + 나무가 울리는 짧은 '톡'
     crack(t, strength) {
       const s = this.snd;
       const ctx = s.ctx;
-      const at = Math.max(ctx.currentTime, s.toCtx(t));
-      const n = 1 + Math.floor(Math.random() * 3 * (0.5 + strength));
-      for (let i = 0; i < n; i++) {
-        const st = at + i * MC.rand(0.004, 0.03);
-        const src = ctx.createBufferSource();
-        src.buffer = s.noise.white;
-        const bp = s.filter('bandpass', MC.rand(700, 3400) * (strength > 0.7 ? 0.65 : 1), MC.rand(0.8, 2.4));
-        const g = ctx.createGain();
-        const p = s.pan(MC.rand(-0.45, 0.45));
-        const peak = (0.12 + 0.5 * strength) * MC.rand(0.5, 1);
-        const dur = MC.rand(0.008, 0.035) * (1 + strength * 1.5);
-        g.gain.setValueAtTime(0.0001, st);
-        g.gain.exponentialRampToValueAtTime(peak, st + 0.003);
-        g.gain.exponentialRampToValueAtTime(0.0001, st + dur);
-        src.connect(bp);
-        bp.connect(g);
-        g.connect(p);
-        p.connect(this.crackBus);
-        src.start(st, Math.random() * 3.5, dur + 0.02);
+      const at = Math.max(ctx.currentTime + 0.005, s.toCtx(t));
+      const p = s.pan(MC.rand(-0.6, 0.6));
+      p.connect(this.crackBus);
+      const peak = 0.13 + 0.68 * strength;
+      const dur = MC.rand(0.006, 0.02) * (0.8 + strength);
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.white;
+      const bp = s.filter('bandpass', MC.rand(1600, 4800), MC.rand(0.9, 1.8));
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(peak, at + 0.0006);
+      g.gain.exponentialRampToValueAtTime(0.0008, at + dur);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(p);
+      src.start(at, Math.random() * 3.5, dur + 0.03);
+      if (Math.random() < 0.55) {
+        const f = MC.rand(700, 1900);
+        const o = ctx.createOscillator();
+        o.frequency.setValueAtTime(f, at);
+        o.frequency.exponentialRampToValueAtTime(f * 0.8, at + 0.04);
+        const og = ctx.createGain();
+        og.gain.setValueAtTime(0, at);
+        og.gain.linearRampToValueAtTime(peak * 0.18, at + 0.001);
+        og.gain.exponentialRampToValueAtTime(0.0005, at + MC.rand(0.02, 0.045));
+        o.connect(og);
+        og.connect(p);
+        o.start(at);
+        o.stop(at + 0.06);
       }
+    }
+
+    // 지글지글 사이의 아주 작은 딱
+    tick(t) {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = Math.max(ctx.currentTime + 0.005, s.toCtx(t));
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.white;
+      const hp = s.filter('highpass', 2800, 0.7);
+      const g = ctx.createGain();
+      const p = s.pan(MC.rand(-0.7, 0.7));
+      const dur = MC.rand(0.002, 0.005);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(MC.rand(0.03, 0.085), at + 0.0004);
+      g.gain.exponentialRampToValueAtTime(0.0005, at + dur);
+      src.connect(hp);
+      hp.connect(g);
+      g.connect(p);
+      p.connect(this.crackBus);
+      src.start(at, Math.random() * 3.5, dur + 0.02);
+    }
+
+    // 크게 '탁!': 낮은 울림과 함께, 뒤따라 작은 소리 몇 개
+    pop(t) {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = Math.max(ctx.currentTime + 0.005, s.toCtx(t));
+      const p = s.pan(MC.rand(-0.4, 0.4));
+      p.connect(this.crackBus);
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.white;
+      const bp = s.filter('bandpass', MC.rand(900, 1600), 1.1);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.75, at + 0.0008);
+      g.gain.exponentialRampToValueAtTime(0.001, at + MC.rand(0.03, 0.05));
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(p);
+      src.start(at, Math.random() * 3.5, 0.08);
+      this.blip(at, p, 150, 70, 0.08, 0.16);
+      for (let i = 0; i < 3; i++) this.crack(t + 0.04 + i * MC.rand(0.03, 0.09), MC.rand(0.25, 0.6));
+      this.visual.push({ t, strength: 1 });
     }
 
     chirp(c, t) {
@@ -490,7 +620,11 @@
       g.connect(this.layers.fire);
       src.start(at, Math.random() * 1.0, 2.8);
       const now = MC.clock();
-      for (let i = 0; i < 6; i++) this.crack(now + 0.15 + i * MC.rand(0.08, 0.3), MC.rand(0.3, 0.8));
+      let t = now + 0.18;
+      for (let i = 0; i < 9; i++) {
+        this.crack(t, MC.rand(0.35, 0.9));
+        t += MC.rand(0.04, 0.22);
+      }
     }
 
     poke() {
@@ -725,7 +859,72 @@
     { key: 'wind', label: '바람', value: 0.6 },
   ];
 
+  class MapScape extends Scape {
+    constructor(snd) {
+      super(snd, MapScape.layers);
+      this.wind = this.noiseLayer('pink', [['bandpass', 520, 0.45]], 0.035, this.layers.night);
+      this.modulate(this.wind.gain.gain, 0.3, 0.025);
+      this.bus = snd.gain(0.5);
+      this.bus.connect(this.layers.night);
+      this.cricketBus = this.bus; // 풀벌레는 불멍과 같은 방식으로 운다
+      const send = snd.gain(0.8);
+      this.bus.connect(send);
+      send.connect(snd.verbIn);
+      const now = MC.clock();
+      this.crickets = [
+        { next: now + 0.8, f: 4380, pan: -0.6 },
+        { next: now + 1.7, f: 4900, pan: 0.5 },
+      ];
+      this.nextChime = now + 1.5;
+      this.pavilion = 0;
+    }
+
+    setParams(p) {
+      this.pavilion = p.pavilion || 0;
+    }
+
+    schedule() {
+      const s = this.snd;
+      const now = MC.clock();
+      const until = now + 1.3;
+      for (const c of this.crickets) {
+        while (c.next < until) {
+          if (c.next > now - 0.05) FireScape.prototype.chirp.call(this, c, c.next);
+          c.next += Math.random() < 0.06 ? MC.rand(3, 9) : MC.rand(0.6, 0.9);
+        }
+      }
+      // 정자 처마의 풍경: 가까울수록 자주, 또렷하게
+      if (now > this.nextChime) {
+        this.nextChime = now + MC.rand(2.5, 6) / (0.4 + this.pavilion);
+        if (Math.random() < 0.25 + 0.75 * this.pavilion) {
+          const notes = [1046.5, 1174.7, 1318.5, 1568, 1760];
+          const at = s.ctx.currentTime + 0.05;
+          const n = 1 + ((Math.random() * 3) | 0);
+          for (let i = 0; i < n; i++) {
+            const f = notes[(Math.random() * notes.length) | 0];
+            const amp = (0.008 + 0.03 * this.pavilion) * MC.rand(0.6, 1);
+            for (const [ratio, a, dec] of [[1, 1, 2.6], [2.76, 0.25, 1.1]]) {
+              const o = s.ctx.createOscillator();
+              o.frequency.value = f * ratio;
+              const g = s.ctx.createGain();
+              const st = at + i * MC.rand(0.12, 0.3);
+              g.gain.setValueAtTime(0.0001, st);
+              g.gain.exponentialRampToValueAtTime(amp * a, st + 0.01);
+              g.gain.exponentialRampToValueAtTime(0.0001, st + dec);
+              o.connect(g);
+              g.connect(this.bus);
+              o.start(st);
+              o.stop(st + dec + 0.05);
+            }
+          }
+        }
+      }
+    }
+  }
+  MapScape.layers = [{ key: 'night', label: '밤', value: 1 }];
+
   MC.Sound = Sound;
+  MC.MapScape = MapScape;
   MC.FireScape = FireScape;
   MC.WaterScape = WaterScape;
   MC.ForestScape = ForestScape;

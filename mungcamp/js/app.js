@@ -1,4 +1,4 @@
-/* 멍캠프 — 화면 흐름: 자리 고르기 → 멍 → 돌아오기 */
+/* 멍캠프 — 화면 흐름: 캠프 마을을 걷다가 → 마음에 드는 자리에 앉아 멍 → 다시 마을로 */
 (function (MC) {
   'use strict';
 
@@ -35,13 +35,8 @@
     },
   };
 
-  const DURATIONS = [
-    { v: 5, label: '5분' },
-    { v: 10, label: '10분' },
-    { v: 20, label: '20분' },
-    { v: 30, label: '30분' },
-    { v: 0, label: '계속' },
-  ];
+  // 따로 고르지 않아도 20분쯤 머물면 종이 한 번 울린다
+  const SESSION_MIN = 20;
 
   const state = {
     view: 'home',
@@ -53,15 +48,17 @@
     levels: {},
     started: false,
     startAt: 0,
-    duration: MC.store.get('duration', 20),
     timerDone: false,
     leaving: false,
     worryShown: false,
     wakeLock: null,
     hiddenAt: 0,
     moved: 0,
+    lastSpot: null,
+    campAudio: null,
+    campVisible: true,
+    walked: MC.store.get('walked', false),
   };
-  if (!DURATIONS.some((d) => d.v === state.duration)) state.duration = 20;
 
   const sound = new MC.Sound();
   const home = $('#home');
@@ -73,11 +70,6 @@
 
   const finePointer = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
   const focusSoft = (el) => { if (finePointer) setTimeout(() => el.focus({ preventScroll: true }), 50); };
-
-  const fmt = (sec) => {
-    sec = Math.max(0, Math.round(sec));
-    return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
-  };
   const elapsedSec = () => (state.started ? (Date.now() - state.startAt) / 1000 : 0);
 
   // 장면 위에 덮인 어둠의 농도. 0이면 환하고 1이면 캄캄하다
@@ -113,24 +105,159 @@
     }
   }
 
-  // ── 첫 화면 ───────────────────────────────────────────
-  let hero = null;
-  let heroVisible = true;
-  function startHero() {
-    if (!hero) {
-      hero = new MC.Runner($('#heroCanvas'), new MC.FireScene({ preview: true, focusX: 0.72, calm: MC.reducedMotion }), { quality: 0.75, maxPixels: 1.6e6 });
+  // ── 소리 깨우기 ───────────────────────────────────────
+  // 브라우저는 사용자가 누른 순간에만 소리를 켜게 한다. 누를 때마다 소리를 깨워 둔다
+  function unlockAudio() {
+    const ctx = sound.ensure();
+    if (!ctx) return;
+    if (!state.audioHooked) {
+      state.audioHooked = true;
+      ctx.addEventListener('statechange', () => { if (ctx.state === 'running') audioReady(); });
     }
-    if (heroVisible && state.view === 'home') hero.start();
+    if (ctx.state === 'running') audioReady();
   }
-  function stopHero() {
-    if (hero) hero.stop();
+  function audioReady() {
+    if (state.view === 'session' && state.started) startSceneAudio();
+    else if (state.view === 'home') startCampAudio();
   }
+  for (const type of ['pointerdown', 'pointerup', 'touchend', 'keydown', 'click']) {
+    window.addEventListener(type, unlockAudio, { capture: true, passive: true });
+  }
+  const audioRunning = () => !!(sound.ctx && sound.ctx.state === 'running');
+
+  // ── 캠프 마을 ─────────────────────────────────────────
+  const camp = new MC.CampMap();
+  const campCanvas = $('#campCanvas');
+  const campRunner = new MC.Runner(campCanvas, camp, { quality: 1, maxPixels: 2.4e6, onFrame: onCampFrame });
+  camp.onCute = (kind) => sound.cute(kind);
+  camp.onMoktak = () => sound.moktak();
+
+  const spotEls = {};
+  for (const s of MC.CAMP_SPOTS) {
+    const el = document.createElement('div');
+    el.className = 'spot';
+    el.dataset.tone = s.tone;
+    const name = document.createElement('p');
+    name.className = 'spot-name';
+    name.textContent = s.label;
+    const act = document.createElement('button');
+    act.type = 'button';
+    act.className = 'spot-act';
+    act.textContent = s.act;
+    act.hidden = true;
+    act.addEventListener('click', () => activateSpot(s));
+    el.append(name, act);
+    $('#campLayer').appendChild(el);
+    spotEls[s.id] = { el, act };
+  }
+
+  const hint = $('#campHint');
+  hint.textContent = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? '가고 싶은 곳을 톡' : '방향키로 걸어요';
+  if (state.walked) hint.classList.add('is-off');
+
+  function onCampFrame() {
+    // 자리 이름과 '앉기' 단추를 지도 위 제자리에
+    for (const s of MC.CAMP_SPOTS) {
+      const { el, act } = spotEls[s.id];
+      const p = camp.toScreen(s.ax, s.ay);
+      const off = p.x < -120 || p.x > camp.w + 120 || p.y < -60 || p.y > camp.h + 160;
+      el.style.visibility = off ? 'hidden' : 'visible';
+      el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+      const near = camp.near === s;
+      if (act.hidden === near) act.hidden = !near;
+    }
+    if (camp.moving && !state.walked) {
+      state.walked = true;
+      MC.store.set('walked', true);
+      hint.classList.add('is-off');
+    }
+    // 걷는 곳에 따라 소리가 섞인다
+    const a = state.campAudio;
+    const now = MC.clock();
+    if (a && now - a.last > 0.3) {
+      a.last = now;
+      const pr = camp.presence();
+      a.fire.presence(0.06 + 0.94 * pr.fire);
+      a.water.presence(0.06 + 0.94 * pr.water);
+      a.forest.presence(0.04 + 0.96 * pr.forest);
+      a.map.setParams({ pavilion: pr.pavilion });
+    }
+  }
+
+  function startCampAudio() {
+    if (state.campAudio || !audioRunning() || state.view !== 'home') return;
+    const fire = new MC.FireScape(sound);
+    const water = new MC.WaterScape(sound);
+    const forest = new MC.ForestScape(sound);
+    const map = new MC.MapScape(sound);
+    fire.begin({ fire: 1, crickets: 0, wind: 0.2 }, 2);
+    water.begin({ waves: 1, wind: 0.2 }, 2);
+    forest.begin({ stream: 0.8, birds: 0.35, wind: 0.5 }, 2);
+    map.begin({ night: 1 }, 3);
+    for (const sc of [fire, water, forest]) sc.presence(0);
+    fire.setParams({ intensity: 0.8 });
+    camp.fireEvents = () => fire.drain();
+    state.campAudio = { fire, water, forest, map, last: 0 };
+  }
+
+  function stopCampAudio() {
+    const a = state.campAudio;
+    if (!a) return;
+    for (const k of ['fire', 'water', 'forest', 'map']) a[k].end(0.8);
+    camp.fireEvents = null;
+    state.campAudio = null;
+  }
+
+  function startCamp() {
+    if (state.view !== 'home') return;
+    if (state.campVisible) campRunner.start();
+    startCampAudio();
+  }
+
+  function stopCamp() {
+    campRunner.stop();
+    camp.setKeys(0, 0);
+    stopCampAudio();
+  }
+
   if ('IntersectionObserver' in window) {
     new IntersectionObserver((entries) => {
-      heroVisible = entries[0].isIntersecting;
-      if (heroVisible) startHero();
-      else stopHero();
-    }).observe($('.hero'));
+      state.campVisible = entries[0].isIntersecting;
+      if (state.view !== 'home') return;
+      if (state.campVisible) campRunner.start();
+      else campRunner.stop();
+    }).observe($('#camp'));
+  }
+
+  function activateSpot(s) {
+    if (s.id === 'moktak') {
+      camp.hitMoktak();
+      return;
+    }
+    enterScene(s.id);
+  }
+
+  function enterScene(id) {
+    state.lastSpot = id;
+    location.hash = id;
+  }
+
+  campCanvas.addEventListener('click', (e) => {
+    const r = campCanvas.getBoundingClientRect();
+    camp.tap(e.clientX - r.left, e.clientY - r.top);
+  });
+
+  // 방향키·WASD로 걷기
+  const held = new Set();
+  const KEYMAP = { ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
+  function applyKeys() {
+    let x = 0;
+    let y = 0;
+    for (const code of held) {
+      x += KEYMAP[code][0];
+      y += KEYMAP[code][1];
+    }
+    camp.setKeys(x, y);
   }
 
   function renderThumbs() {
@@ -162,7 +289,7 @@
       view: 'session', scene: name, def, started: false, timerDone: false,
       leaving: false, worryShown: false,
     });
-    stopHero();
+    stopCamp();
     home.hidden = true;
     session.hidden = false;
     document.body.classList.add('in-session');
@@ -178,46 +305,44 @@
     buildDock(def);
     buildSoundPanel(name, def);
     buildBreathPanel();
-    renderSeg('#durationOptions', DURATIONS, state.duration, setDuration);
-    renderSeg('#timerOptions', DURATIONS, state.duration, setDuration);
-    $('#start-title').textContent = def.place;
-    ui.classList.add('is-hidden');
     closePanels();
     $('#endCard').hidden = true;
-    $('#startCard').hidden = false;
-    updateTimer();
-    focusSoft($('#startBtn'));
+    startSession();
   }
 
   function startSession() {
-    $('#startCard').hidden = true;
-    const def = state.def;
     const scene = state.sceneObj;
-    const ctx = sound.ensure();
-    if (ctx) {
-      const scape = (state.scape = new def.scape(sound));
-      scape.begin(state.levels);
-      if (state.scene === 'fire') {
-        scene.events = () => scape.drain();
-        scene.onLand = (isWorry) => scape.thud(isWorry);
-        scene.onPoke = () => scape.poke();
-      } else if (state.scene === 'water') {
-        scene.onRipple = (z, pan) => scape.plop(z, pan);
-      } else {
-        scene.onGust = () => scape.gust();
-      }
-    }
     if (state.scene === 'fire') scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
     scene.onCute = (kind) => sound.cute(kind);
     state.started = true;
     state.startAt = Date.now();
     clearInterval(state.timerInt);
-    state.timerInt = setInterval(updateTimer, 500);
-    updateTimer();
+    state.timerInt = setInterval(checkTime, 1000);
+    startSceneAudio();
     requestWakeLock();
     ui.classList.remove('is-hidden');
-    showGuidance(def.guidance);
+    showGuidance(state.def.guidance);
     armIdle();
+    // 주소로 바로 들어와 아직 소리를 켤 수 없으면 한 번만 알려 준다
+    setTimeout(() => {
+      if (state.view === 'session' && state.started && !state.scape) toast('화면을 누르면 소리가 나요');
+    }, 900);
+  }
+
+  function startSceneAudio() {
+    if (state.scape || !audioRunning() || !state.started) return;
+    const scene = state.sceneObj;
+    const scape = (state.scape = new state.def.scape(sound));
+    scape.begin(state.levels);
+    if (state.scene === 'fire') {
+      scene.events = () => scape.drain();
+      scene.onLand = (isWorry) => scape.thud(isWorry);
+      scene.onPoke = () => scape.poke();
+    } else if (state.scene === 'water') {
+      scene.onRipple = (z, pan) => scape.plop(z, pan);
+    } else {
+      scene.onGust = () => scape.gust();
+    }
   }
 
   function teardown() {
@@ -237,26 +362,27 @@
     releaseWakeLock();
     if (document.fullscreenElement || document.webkitFullscreenElement) toggleFullscreen();
     closePanels();
-    $('#startCard').hidden = true;
     $('#endCard').hidden = true;
     state.started = false;
   }
 
   function closeSession() {
     if (state.view !== 'session') return;
+    const from = state.scene;
     teardown();
     state.view = 'home';
     session.hidden = true;
     home.hidden = false;
     document.body.classList.remove('in-session');
+    camp.placeAt(state.lastSpot || from);
     renderThumbs();
-    startHero();
+    startCamp();
   }
 
   function goHome() {
-    try { history.replaceState(null, '', '#seats'); } catch (e) { /* 막혀 있으면 그대로 */ }
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* 막혀 있으면 그대로 */ }
     closeSession();
-    $('#seats').scrollIntoView({ block: 'start', behavior: 'instant' });
+    window.scrollTo(0, 0);
   }
 
   // 나갈 때는 화면과 소리가 함께 천천히 잦아든다
@@ -264,7 +390,6 @@
     if (state.leaving) return;
     state.leaving = true;
     closePanels();
-    $('#startCard').hidden = true;
     $('#endCard').hidden = true;
     ui.classList.add('is-hidden');
     setCurtain(1, 0.9);
@@ -296,42 +421,16 @@
     }
   }
 
-  function updateTimer() {
-    const el = $('#timerText');
-    if (!state.started) {
-      el.textContent = state.duration ? fmt(state.duration * 60) : fmt(0);
-      return;
-    }
-    const sec = elapsedSec();
-    if (state.duration && !state.timerDone) {
-      const rem = state.duration * 60 - sec;
-      if (rem <= 0) {
-        finishTimer();
-        return;
-      }
-      el.textContent = fmt(rem);
-    } else {
-      el.textContent = fmt(sec);
-    }
+  function checkTime() {
+    if (state.started && !state.timerDone && elapsedSec() >= SESSION_MIN * 60) finishTimer();
   }
 
-  function setDuration(min) {
-    state.duration = min;
-    MC.store.set('duration', min);
-    for (const sel of ['#durationOptions', '#timerOptions']) {
-      $$(`${sel} button`).forEach((b, i) => b.setAttribute('aria-checked', String(DURATIONS[i].v === min)));
-    }
-    if (state.timerDone && (!min || min * 60 > elapsedSec())) stay();
-    updateTimer();
-  }
-
-  // 시간이 다 되면 종이 한 번 울리고, 소리와 빛이 서서히 잦아든다
+  // 20분쯤 지나면 종이 한 번 울리고, 소리와 빛이 서서히 잦아든다
   function finishTimer() {
     state.timerDone = true;
     sound.chime();
     if (state.scape) state.scape.duck(0.35, 18);
     setCurtain(0.4, 18);
-    updateTimer();
     clearTimeout(state.endTimer);
     state.endTimer = setTimeout(() => {
       if (state.view !== 'session' || !state.timerDone) return;
@@ -344,13 +443,12 @@
     }, 6000);
   }
 
+  // 더 머물면 다시는 묻지 않는다
   function stay() {
-    state.timerDone = false;
     clearTimeout(state.endTimer);
     $('#endCard').hidden = true;
     if (state.scape) state.scape.duck(1, 3);
     setCurtain(0, 3);
-    if (!state.duration || state.duration * 60 <= elapsedSec()) state.timerDone = true;
     armIdle();
   }
 
@@ -462,7 +560,7 @@
   }
 
   const anyPanelOpen = () => $$('.panel').some((p) => !p.hidden);
-  const modalOpen = () => !$('#startCard').hidden || !$('#endCard').hidden;
+  const modalOpen = () => !$('#endCard').hidden;
 
   function openPanel(name) {
     for (const p of $$('.panel')) p.hidden = p.id !== `panel-${name}`;
@@ -480,7 +578,7 @@
 
   // 가만히 두면 조작부가 사라진다
   function wake() {
-    if (state.leaving) return;
+    if (state.leaving || state.view !== 'session') return;
     ui.classList.remove('is-hidden');
     session.classList.remove('is-idle');
     armIdle();
@@ -579,9 +677,22 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (state.view !== 'session') return;
     const t = e.target;
-    if (t && t.matches && t.matches('input[type="text"], textarea')) {
+    const typing = t && t.matches && t.matches('input[type="text"], textarea');
+    if (state.view === 'home') {
+      if (typing || !state.campVisible) return;
+      if (KEYMAP[e.code]) {
+        e.preventDefault();
+        held.add(e.code);
+        applyKeys();
+      } else if ((e.code === 'Enter' || e.code === 'Space') && camp.near && !(t && t.closest && t.closest('button, a'))) {
+        e.preventDefault();
+        activateSpot(camp.near);
+      }
+      return;
+    }
+    if (state.view !== 'session') return;
+    if (typing) {
       if (e.key === 'Escape') closePanels();
       return;
     }
@@ -612,9 +723,15 @@
       default:
     }
   });
+  document.addEventListener('keyup', (e) => {
+    if (held.delete(e.code)) applyKeys();
+  });
+  window.addEventListener('blur', () => {
+    held.clear();
+    applyKeys();
+  });
 
   $('#exitBtn').addEventListener('click', leave);
-  $('#timerChip').addEventListener('click', () => togglePanel('timer'));
   $('#fsBtn').hidden = !fsOK;
   $('#fsBtn').addEventListener('click', toggleFullscreen);
   $('#hideBtn').addEventListener('click', hideUI);
@@ -644,8 +761,6 @@
     if (state.sceneObj && state.sceneObj.throwWorry) state.sceneObj.throwWorry();
   });
 
-  $('#startBtn').addEventListener('click', startSession);
-  $('#startBack').addEventListener('click', leave);
   $('#stayBtn').addEventListener('click', stay);
   $('#leaveBtn').addEventListener('click', leave);
 
@@ -662,7 +777,7 @@
 
   // 시작
   route();
-  if (state.view === 'home') startHero();
+  if (state.view === 'home') startCamp();
   const afterFonts = () => renderThumbs();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(afterFonts, afterFonts);
   else setTimeout(afterFonts, 100);
@@ -676,5 +791,5 @@
     }
   } catch (e) { /* 등록할 수 없는 환경 */ }
 
-  MC.app = { state, sound, openSession, startSession, doAction, toggleBreath, finishTimer };
+  MC.app = { state, sound, camp, openSession, enterScene, doAction, toggleBreath, finishTimer };
 })(window.MC = window.MC || {});
