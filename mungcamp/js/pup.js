@@ -5,12 +5,26 @@
   'use strict';
 
   const INK = '#5b3d2c';
-  const FUR_HI = '#fffbf4';
-  const FUR = '#fff3e3';
-  const FUR_LO = '#ecd4b6';
-  const EAR_HI = '#e8ab70';
-  const EAR_LO = '#bd7b43';
+  // 털빛: 0번이 멍이. 함께 온 사람마다 하나씩 골라 입는다
+  const COATS = [
+    { hi: '#fffbf4', fur: '#fff3e3', lo: '#ecd4b6', earHi: '#e8ab70', earLo: '#bd7b43' },
+    { hi: '#ffffff', fur: '#fbf8f6', lo: '#e3dad7', earHi: '#f6e2d9', earLo: '#d6b3a6' },
+    { hi: '#fff1d8', fur: '#ffe1b0', lo: '#e9bd81', earHi: '#ea9b50', earLo: '#b8692c' },
+    { hi: '#f6e6d6', fur: '#ebcdae', lo: '#d1a982', earHi: '#9c653c', earLo: '#734421' },
+    { hi: '#f7f8fb', fur: '#e9ebf2', lo: '#c8ccd9', earHi: '#a9aebf', earLo: '#7f8598' },
+    { hi: '#fffbf4', fur: '#fff3e3', lo: '#ecd4b6', earHi: '#62565c', earLo: '#3b3137' },
+  ];
+  // 모자와 목도리 빛깔. 0번이 멍이(빨간 비니, 파란 목도리)
+  const HATS = [
+    { top: '#f27c5e', bot: '#d0533a', band: '#e4664b', line: 'rgba(120,30,18,0.28)', scarf: '#6f9fe2' },
+    { top: '#86b8f2', bot: '#5089d8', band: '#689be2', line: 'rgba(20,50,110,0.28)', scarf: '#689be2' },
+    { top: '#a2da91', bot: '#62b057', band: '#7cc46f', line: 'rgba(30,80,30,0.28)', scarf: '#7cc46f' },
+    { top: '#ffdb7c', bot: '#eeb33c', band: '#f6c556', line: 'rgba(120,80,10,0.3)', scarf: '#f2bd4d' },
+    { top: '#c7a7f0', bot: '#9775d8', band: '#ab89e3', line: 'rgba(60,30,110,0.28)', scarf: '#ab89e3' },
+    { top: '#ffb6ca', bot: '#f082a1', band: '#f799b4', line: 'rgba(130,30,60,0.28)', scarf: '#f58fae' },
+  ];
   const EYE = '#2a1a13';
+  let MALLOW_GLOW = null;
   const NOSE = '#3a261d';
 
   const TOAST = [
@@ -47,6 +61,10 @@
   class Pup {
     constructor(opts = {}) {
       this.outfit = opts.outfit || 'none'; // beanie | scarf | sprout | none
+      this.setLook(opts.coat, opts.hat);
+      this.flip = 1; // -1이면 좌우를 뒤집어 그린다 (왼쪽을 보고 앉기)
+      this.paintEvery = opts.paintEvery || 0; // 다른 사람 멍이는 조금 드문드문 다시 그린다
+      this.paintedAt = -9;
       this.view = opts.view || 'front';
       this.restView = this.view;
       this.stick = !!opts.stick;
@@ -102,6 +120,36 @@
 
     emit(kind) {
       if (this.onEvent) this.onEvent(kind);
+    }
+
+    setLook(coat, hat) {
+      this.coatId = COATS[coat] ? coat | 0 : 0;
+      this.hatId = HATS[hat] ? hat | 0 : 0;
+      this.coat = COATS[this.coatId];
+      this.hat = HATS[this.hatId];
+      this.paintedAt = -9;
+    }
+
+    // 모닥불 곁에 앉으면 꼬치를 꺼내고, 일어서면 넣는다
+    setStick(on) {
+      on = !!on;
+      if (on === this.stick) return;
+      this.stick = on;
+      const m = this.mallow;
+      if (on) {
+        if (m.phase !== 'roast') {
+          m.phase = 'roast';
+          m.toast = 0.1;
+          m.t = 0;
+        }
+        m.pop = 1;
+      } else {
+        if (m.phase !== 'roast') {
+          m.phase = 'roast';
+          m.toast = 0.1;
+        }
+        if (this.mood === 'eating') this.setMood('idle', 0);
+      }
     }
 
     setMood(m, dur) {
@@ -170,13 +218,14 @@
     }
 
     addHearts(n) {
+      this.heartBursts = (this.heartBursts || 0) + 1; // 함께 있는 사람들에게도 하트가 보이게
       for (let i = 0; i < n; i++) {
         this.hearts.push({ t: -i * 0.18, max: 1.9, x: MC.rand(-16, 16), y: -104, v: MC.rand(0, 10), ph: Math.random() * 6, s: MC.rand(1.1, 1.5) });
       }
     }
 
     hit(x, y) {
-      const lx = (x - this.x) / this.k;
+      const lx = ((x - this.x) / this.k) * this.flip;
       const ly = (y - this.y) / this.k;
       const head = ((lx / 42) ** 2 + ((ly + 72) / 36) ** 2) <= 1;
       const body = lx > -32 && lx < 32 && ly > -54 && ly < 6;
@@ -390,28 +439,39 @@
       return { x0: -78, y0: -140, x1: this.stick ? 240 : 78, y1: 14 };
     }
 
-    draw(g, dpr) {
+    draw(g, dpr, bodyOnly) {
       const B = this.bounds();
       const k = this.k;
       const sc = k * Math.min(dpr || 1, 2);
       const cw = Math.max(1, Math.ceil((B.x1 - B.x0) * sc));
       const ch = Math.max(1, Math.ceil((B.y1 - B.y0) * sc));
+      let fresh = false;
       if (!this.cv || this.cv.width !== cw || this.cv.height !== ch) {
         this.cv = MC.canvas(cw, ch);
         this.cg = this.cv.getContext('2d');
+        fresh = true;
       }
-      const o = this.cg;
-      o.setTransform(1, 0, 0, 1, 0, 0);
-      o.globalCompositeOperation = 'source-over';
-      o.globalAlpha = 1;
-      o.clearRect(0, 0, cw, ch);
-      o.setTransform(sc, 0, 0, sc, -B.x0 * sc, -B.y0 * sc);
-      o.lineJoin = 'round';
-      o.lineCap = 'round';
-      this.paint(o);
-      this.applyLight(o, B);
+      if (fresh || !this.paintEvery || this.t - this.paintedAt >= this.paintEvery || this.t < this.paintedAt) {
+        this.paintedAt = this.t;
+        const o = this.cg;
+        o.setTransform(1, 0, 0, 1, 0, 0);
+        o.globalCompositeOperation = 'source-over';
+        o.globalAlpha = 1;
+        o.clearRect(0, 0, cw, ch);
+        o.setTransform(sc, 0, 0, sc, -B.x0 * sc, -B.y0 * sc);
+        o.lineJoin = 'round';
+        o.lineCap = 'round';
+        this.paint(o);
+        this.applyLight(o, B);
+      }
+      if (this.flip < 0) {
+        g.save();
+        g.translate(this.x * 2, 0);
+        g.scale(-1, 1);
+      }
       g.drawImage(this.cv, this.x + B.x0 * k, this.y + B.y0 * k, (B.x1 - B.x0) * k, (B.y1 - B.y0) * k);
-      this.drawExtras(g);
+      if (this.flip < 0) g.restore();
+      if (!bodyOnly) this.drawExtras(g);
     }
 
     breath() {
@@ -481,9 +541,9 @@
     paintBody(o, back) {
       this.bodyPath(o);
       const grd = o.createRadialGradient(-8, -34, 3, -2, -24, 42);
-      grd.addColorStop(0, back ? FUR : FUR_HI);
-      grd.addColorStop(0.55, FUR);
-      grd.addColorStop(1, FUR_LO);
+      grd.addColorStop(0, back ? this.coat.fur : this.coat.hi);
+      grd.addColorStop(0.55, this.coat.fur);
+      grd.addColorStop(1, this.coat.lo);
       o.fillStyle = grd;
       o.fill();
       o.lineWidth = 2.4;
@@ -547,7 +607,7 @@
       o.strokeStyle = INK;
       o.lineWidth = 12;
       o.stroke();
-      o.strokeStyle = FUR;
+      o.strokeStyle = this.coat.fur;
       o.lineWidth = 7.6;
       o.stroke();
       o.restore();
@@ -578,9 +638,9 @@
       const tx = back ? 0 : this.turn;
       this.headPath(o);
       const grd = o.createRadialGradient(-10 + tx * 8, -86, 3, tx * 4, -70, 46);
-      grd.addColorStop(0, back ? FUR : FUR_HI);
-      grd.addColorStop(0.55, FUR);
-      grd.addColorStop(1, FUR_LO);
+      grd.addColorStop(0, back ? this.coat.fur : this.coat.hi);
+      grd.addColorStop(0.55, this.coat.fur);
+      grd.addColorStop(1, this.coat.lo);
       o.fillStyle = grd;
       o.fill();
       o.lineWidth = 2.4;
@@ -607,8 +667,8 @@
       o.bezierCurveTo(5, 20, 7, 7, 2, -2);
       o.closePath();
       const grd = o.createLinearGradient(-16, 0, 4, 36);
-      grd.addColorStop(0, EAR_HI);
-      grd.addColorStop(1, EAR_LO);
+      grd.addColorStop(0, this.coat.earHi);
+      grd.addColorStop(1, this.coat.earLo);
       o.fillStyle = grd;
       o.fill();
       o.lineWidth = 2.4;
@@ -787,7 +847,7 @@
       o.quadraticCurveTo(off - 4.5, -108.5, off + 3.5, -109.5);
       o.quadraticCurveTo(off - 0.5, -104.5, off + 2.5, -99.4);
       o.closePath();
-      o.fillStyle = FUR;
+      o.fillStyle = this.coat.fur;
       o.fill();
       o.lineWidth = 2;
       o.strokeStyle = INK;
@@ -802,13 +862,13 @@
       o.bezierCurveTo(-30 + off, -113, 30 + off, -113, 31 + off, -86);
       o.closePath();
       const grd = o.createLinearGradient(0, -112, 0, -86);
-      grd.addColorStop(0, '#f27c5e');
-      grd.addColorStop(1, '#d0533a');
+      grd.addColorStop(0, this.hat.top);
+      grd.addColorStop(1, this.hat.bot);
       o.fillStyle = grd;
       o.fill();
       o.save();
       o.clip();
-      o.strokeStyle = 'rgba(120,30,18,0.28)';
+      o.strokeStyle = this.hat.line;
       o.lineWidth = 1.3;
       for (let x = -27; x <= 27; x += 6) {
         o.beginPath();
@@ -825,11 +885,11 @@
       o.stroke();
       // 접힌 단
       MC.roundRect(o, -33.5 + off, -92.5, 67, 11.5, 5.5);
-      o.fillStyle = '#e4664b';
+      o.fillStyle = this.hat.band;
       o.fill();
       o.strokeStyle = INK;
       o.stroke();
-      o.strokeStyle = 'rgba(110,28,16,0.3)';
+      o.strokeStyle = this.hat.line;
       o.lineWidth = 1.2;
       o.beginPath();
       for (let x = -29; x <= 29; x += 4.6) {
@@ -895,7 +955,7 @@
       o.lineTo(21, -40);
       o.quadraticCurveTo(0, -32, -21, -40);
       o.closePath();
-      o.fillStyle = '#6f9fe2';
+      o.fillStyle = this.hat.scarf;
       o.fill();
       o.save();
       o.clip();
@@ -920,7 +980,7 @@
         for (const [x, y] of pts) o.lineTo(x, y - 3.5);
         for (let i = pts.length - 1; i >= 0; i--) o.lineTo(pts[i][0], pts[i][1] + 3.5);
         o.closePath();
-        o.fillStyle = '#6f9fe2';
+        o.fillStyle = this.hat.scarf;
         o.fill();
         o.lineWidth = 2;
         o.strokeStyle = INK;
@@ -931,7 +991,7 @@
     stickLocalTip() {
       if (!this.stickTip) return { x: 120, y: -95 };
       return {
-        x: (this.stickTip.x - this.x) / this.k,
+        x: ((this.stickTip.x - this.x) / this.k) * this.flip,
         y: (this.stickTip.y - this.y) / this.k + this.stickDrop * 26,
       };
     }
@@ -1008,7 +1068,7 @@
     }
 
     world(lx, ly) {
-      return { x: this.x + lx * this.k, y: this.y + (ly + this.hop) * this.k };
+      return { x: this.x + lx * this.k * this.flip, y: this.y + (ly + this.hop) * this.k };
     }
 
     drawExtras(g) {
@@ -1033,15 +1093,12 @@
       // 꼬치 끝 마시멜로가 불빛을 받아 은은히 빛난다
       if (this.stick && m.phase === 'roast' && this.light && this.light.glowA > 0.05) {
         const p = this.world(this.tip.x, this.tip.y);
+        if (!MALLOW_GLOW) MALLOW_GLOW = MC.glow([255, 190, 110], 64, 0.2);
         g.save();
         g.globalCompositeOperation = 'lighter';
-        g.globalAlpha = Math.min(0.5, this.light.glowA * (0.4 + m.toast));
+        g.globalAlpha = Math.min(0.5, this.light.glowA * (0.4 + m.toast)) * 0.9;
         const r = 16 * k;
-        const grd = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-        grd.addColorStop(0, 'rgba(255,190,110,0.9)');
-        grd.addColorStop(1, 'rgba(255,190,110,0)');
-        g.fillStyle = grd;
-        g.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+        g.drawImage(MALLOW_GLOW, p.x - r, p.y - r, r * 2, r * 2);
         g.restore();
       }
       // 하트
@@ -1125,5 +1182,7 @@
     }
   }
 
+  Pup.COATS = COATS.length;
+  Pup.HATS = HATS.length;
   MC.Pup = Pup;
 })(window.MC = window.MC || {});

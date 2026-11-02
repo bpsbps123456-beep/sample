@@ -132,6 +132,48 @@
   camp.onCute = (kind) => sound.cute(kind);
   camp.onMoktak = () => sound.moktak();
 
+  // ── 함께 ─────────────────────────────────────────────
+  // 같은 곳에 있는 다른 사람들의 멍이가 보인다. 이름도 글도 오가지 않는다
+  const net = new MC.Net();
+  net.start();
+  setInterval(() => net.tick(), 1000);
+  // 누군가 내 멍이에게 하트를 보내면 내 멍이가 폴짝
+  net.onBoop = () => {
+    const sc = state.view === 'session' ? state.sceneObj : null;
+    (sc && sc.pup ? sc.pup : camp.pup).poke();
+  };
+  camp.onBoop = (id) => net.boop(id);
+  // 내 멍이도 내 털빛과 모자를 입는다
+  camp.pup.setLook(net.look.c, net.look.h);
+  const together = { camp: $('#campTogether'), session: $('#sessionTogether'), at: 0 };
+  function showTogether(el, n) {
+    const on = n >= 2;
+    if (el.hidden === on) el.hidden = !on;
+    if (on) {
+      const b = el.querySelector('b');
+      if (b.textContent !== String(n)) b.textContent = String(n);
+    }
+  }
+  // 마을 지도 위 자리 이름 옆에, 그 안에 몇 명이 앉아 있는지
+  function updateTogether() {
+    const now = MC.clock();
+    if (now - together.at < 0.5) return;
+    together.at = now;
+    if (state.view === 'session') {
+      showTogether(together.session, net.count(state.scene));
+      return;
+    }
+    showTogether(together.camp, net.count('map'));
+    for (const s of MC.CAMP_SPOTS) {
+      const e = spotEls[s.id];
+      if (!e || !e.count) continue;
+      const n = net.count(s.id);
+      const on = n > 0;
+      if (e.count.hidden === on) e.count.hidden = !on;
+      if (on && e.count.lastChild.textContent !== String(n)) e.count.lastChild.textContent = String(n);
+    }
+  }
+
   const spotEls = {};
   for (const s of MC.CAMP_SPOTS) {
     const el = document.createElement('div');
@@ -140,6 +182,14 @@
     const name = document.createElement('p');
     name.className = 'spot-name';
     name.textContent = s.label;
+    let count = null;
+    if (s.id !== 'moktak') {
+      count = document.createElement('span');
+      count.className = 'spot-count';
+      count.hidden = true;
+      count.innerHTML = '<svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><b></b>';
+      name.appendChild(count);
+    }
     const act = document.createElement('button');
     act.type = 'button';
     act.className = 'spot-act';
@@ -148,7 +198,7 @@
     act.addEventListener('click', () => activateSpot(s));
     el.append(name, act);
     $('#campLayer').appendChild(el);
-    spotEls[s.id] = { el, act };
+    spotEls[s.id] = { el, act, count };
   }
 
   const hint = $('#campHint');
@@ -171,6 +221,11 @@
       MC.store.set('walked', true);
       hint.classList.add('is-off');
     }
+    // 함께 있는 사람들에게 내 자리를 알리고, 그들의 멍이를 데려온다
+    net.set(camp.netState());
+    camp.syncVisitors(net.list('map'));
+    net.tick();
+    updateTogether();
     // 걷는 곳에 따라 소리가 섞인다
     const a = state.campAudio;
     const now = MC.clock();
@@ -257,7 +312,10 @@
       x += KEYMAP[code][0];
       y += KEYMAP[code][1];
     }
-    camp.setKeys(x, y);
+    if (state.view === 'session') {
+      const sc = state.sceneObj;
+      if (sc && sc.crowd) sc.crowd.setKeys(x, y);
+    } else camp.setKeys(x, y);
   }
 
   function renderThumbs() {
@@ -314,6 +372,8 @@
     const scene = state.sceneObj;
     if (state.scene === 'fire') scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
     scene.onCute = (kind) => sound.cute(kind);
+    if (scene.crowd) scene.crowd.onBoop = (id) => net.boop(id);
+    if (scene.pup) scene.pup.setLook(net.look.c, net.look.h);
     state.started = true;
     state.startAt = Date.now();
     clearInterval(state.timerInt);
@@ -346,6 +406,7 @@
   }
 
   function teardown() {
+    held.clear();
     if (state.runner) state.runner.stop();
     if (state.scape) state.scape.end();
     state.runner = null;
@@ -407,6 +468,12 @@
   function onFrame() {
     const sc = state.sceneObj;
     if (!sc) return;
+    if (sc.crowd) {
+      net.set(sc.crowd.state());
+      sc.crowd.sync(net.list(state.scene));
+      net.tick();
+      updateTogether();
+    }
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
       const st = sc.status();
@@ -698,6 +765,13 @@
     }
     if (modalOpen() || !state.started) return;
     if ((e.key === ' ' || e.key === 'Enter') && t && t.closest && t.closest('button')) return;
+    // 방향키·WASD로 장면 안에서도 걷는다
+    if (KEYMAP[e.code]) {
+      e.preventDefault();
+      held.add(e.code);
+      applyKeys();
+      return;
+    }
     wake();
     switch (e.code) {
       case 'Space':
@@ -791,5 +865,5 @@
     }
   } catch (e) { /* 등록할 수 없는 환경 */ }
 
-  MC.app = { state, sound, camp, openSession, enterScene, doAction, toggleBreath, finishTimer };
+  MC.app = { state, sound, camp, net, openSession, enterScene, doAction, toggleBreath, finishTimer };
 })(window.MC = window.MC || {});

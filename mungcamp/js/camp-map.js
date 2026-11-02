@@ -107,6 +107,9 @@
       this.sparks = [];
       this.pup = new MC.Pup({ outfit: 'beanie', light: { ambient: null, glow: [255, 170, 90], glowA: 0, from: 70 } });
       this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
+      // 함께 걷는 다른 사람들의 멍이
+      this.visitors = new Map();
+      this.onBoop = null;
       this.pup.x = FIRE.x - 70;
       this.pup.y = FIRE.y + 70;
       this.cam = { x: this.pup.x, y: this.pup.y - 40 };
@@ -191,6 +194,64 @@
           this.lanterns.push({ x, y, c: LANTERN_COLORS[this.lanterns.length % LANTERN_COLORS.length], ph: rnd() * 6 });
         }
       });
+      // 부딪히는 것들: 나무와 덤불은 줄기 밑동, 연등은 기둥, 큰 물건은 바닥 자리. 위아래로 납작한 타원
+      this.blockers = [
+        { x: FIRE.x, y: FIRE.y, r: 52, sy: 1.6 },
+        { x: TENT.x, y: TENT.y - 14, r: 62, sy: 1.6 },
+        { x: PAVILION.x, y: PAVILION.y - 26, r: 84, sy: 1.6 },
+        { x: STUMP.x, y: STUMP.y - 6, r: 30, sy: 1.6 },
+      ];
+      for (const tr of this.trees) {
+        const r = tr.kind === 'cypress' ? 15 : tr.kind === 'round' ? 17 : 22;
+        this.blockers.push({ x: tr.x, y: tr.y - 2, r, sy: 1.8 });
+      }
+      for (const ln of this.lanterns) this.blockers.push({ x: ln.x, y: ln.y, r: 8, sy: 1.6 });
+    }
+
+    // 부딪히면 바깥으로 밀어 낸다. grow로 조금 넉넉하게 밀 수도 있다
+    collide(p, grow = 1) {
+      for (let pass = 0; pass < 2; pass++) {
+        for (const b of this.blockers) {
+          const r = b.r * grow;
+          const dx = p.x - b.x;
+          if (dx > r || dx < -r) continue;
+          const dy = (p.y - b.y) * b.sy;
+          const d = Math.hypot(dx, dy);
+          if (d >= r) continue;
+          if (d < 0.01) {
+            p.y = b.y + r / b.sy;
+            continue;
+          }
+          p.x = b.x + (dx / d) * r;
+          p.y = b.y + ((dy / d) * r) / b.sy;
+        }
+      }
+    }
+
+    // 톡 눌러 갈 때: 앞을 가로막는 것이 있으면 옆으로 비켜 돌아간다
+    steer(dx, dy) {
+      const p = this.pup;
+      let ax = 0;
+      let ay = 0;
+      for (const b of this.blockers) {
+        let ux = dx;
+        let uy = dy * b.sy;
+        const ul = Math.hypot(ux, uy) || 1;
+        ux /= ul;
+        uy /= ul;
+        const ox = b.x - p.x;
+        const oy = (b.y - p.y) * b.sy;
+        const ahead = ox * ux + oy * uy;
+        if (ahead <= 0 || ahead > 80) continue;
+        const lat = -ox * uy + oy * ux;
+        const clear = b.r + 14;
+        if (Math.abs(lat) >= clear) continue;
+        const w = (1 - Math.abs(lat) / clear) * (1 - ahead / 80);
+        const side = lat > 0 ? 1 : -1;
+        ax += uy * side * w;
+        ay += (-ux * side * w) / b.sy;
+      }
+      return [ax, ay];
     }
 
     // ── 크기와 미리 그려 두는 것들 ─────────────────────────
@@ -738,12 +799,28 @@
         this.pup.poke();
         return 'pup';
       }
+      // 다른 사람의 멍이를 톡 하면 하트를 보낸다
+      let hit = null;
+      for (const v of this.visitors.values()) {
+        if (!v.leaving && v.fade > 0.3 && v.pup.hit(p.x, p.y) && (!hit || v.pup.y > hit.pup.y)) hit = v;
+      }
+      if (hit) {
+        hit.pup.addHearts(2);
+        hit.pup.hopV = -40;
+        if (this.onBoop) this.onBoop(hit.id);
+        if (this.onCute) this.onCute('boop');
+        return 'boop';
+      }
       const mk = this.moktakPos();
       if (this.near && this.near.id === 'moktak' && Math.hypot(p.x - mk.x, p.y - (mk.y - 10)) < 30) {
         this.hitMoktak();
         return 'moktak';
       }
-      this.target = { x: p.x, y: p.y };
+      const tgt = { x: p.x, y: p.y };
+      this.collide(tgt, 1.3);
+      this.target = tgt;
+      this.lastDist = Infinity;
+      this.stuck = 0;
       return 'walk';
     }
 
@@ -776,6 +853,26 @@
       this.clampCam();
     }
 
+    // 함께 있는 사람들
+    syncVisitors(list) {
+      MC.syncVisitors(this.visitors, list, { outfit: 'beanie', light: { ambient: null, glow: [255, 170, 90], glowA: 0, from: 70 } });
+    }
+
+    netState() {
+      const p = this.pup;
+      return {
+        p: 'map',
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        w: this.moving ? 1 : 0,
+        b: p.restView === 'back' ? 1 : 0,
+        t: Math.round(p.baseTurn * 100) / 100,
+        f: 1,
+        z: p.sleeping ? 1 : 0,
+        hp: p.heartBursts || 0,
+      };
+    }
+
     // 소리 섞기: 가까울수록 1
     presence() {
       const p = this.pup;
@@ -806,8 +903,23 @@
         if (d < 6) this.target = null;
         else {
           const sp = Math.min(speed, d * 6);
-          vx = (dx / d) * sp;
-          vy = (dy / d) * sp;
+          let ux = dx / d;
+          let uy = dy / d;
+          const [ax, ay] = this.steer(ux, uy);
+          ux += ax * 1.8;
+          uy += ay * 1.8;
+          const ul = Math.hypot(ux, uy) || 1;
+          vx = (ux / ul) * sp;
+          vy = (uy / ul) * sp;
+          // 한동안 가까워지지 않으면 막힌 것: 그 자리에 선다
+          this.stuck = (this.lastDist || Infinity) - d < 20 * dt ? (this.stuck || 0) + dt : 0;
+          this.lastDist = d;
+          if (this.stuck > 0.6) {
+            this.target = null;
+            this.stuck = 0;
+            vx = 0;
+            vy = 0;
+          }
         }
       }
       this.moving = Math.hypot(vx, vy) > 5;
@@ -820,16 +932,8 @@
         } else if (this.walkable(nx, pup.y)) pup.x = nx;
         else if (this.walkable(pup.x, ny)) pup.y = ny;
         else this.target = null;
-        // 큰 것들은 비켜 간다
-        for (const [ox, oy, r] of [[FIRE.x, FIRE.y, 52], [TENT.x, TENT.y - 14, 62], [PAVILION.x, PAVILION.y - 26, 84], [STUMP.x, STUMP.y - 6, 30]]) {
-          const dx = pup.x - ox;
-          const dy = (pup.y - oy) * 1.6;
-          const d = Math.hypot(dx, dy);
-          if (d < r && d > 0.01) {
-            pup.x = ox + (dx / d) * r;
-            pup.y = oy + ((dy / d) * r) / 1.6;
-          }
-        }
+        // 나무, 연등, 텐트, 모닥불, 정자에는 부딪힌다
+        this.collide(pup);
         // 가는 쪽을 바라본다
         if (Math.abs(vx) > Math.abs(vy) * 0.75) {
           pup.view = 'front';
@@ -850,6 +954,17 @@
       pup.light.from = pup.x < FIRE.x ? 70 : -70;
       pup.k = 0.68;
       pup.update(dt, { walking: this.moving, E: 0.8 });
+      for (const v of this.visitors.values()) {
+        v.update(dt, { E: 0.8, walkEps: 2, jump: 700 });
+        const p = v.pup;
+        p.x = v.x;
+        p.y = v.y;
+        p.k = 0.68;
+        const d = Math.hypot(p.x - FIRE.x, p.y - FIRE.y);
+        p.light.glowA = 0.45 * Math.pow(MC.clamp(1 - (d - 60) / 700, 0, 1), 1.5);
+        p.light.from = p.x < FIRE.x ? 70 : -70;
+      }
+      MC.dropFaded(this.visitors);
 
       // 카메라는 멍이를 부드럽게 따라간다
       this.cam.x += (pup.x + vx * 0.25 - this.cam.x) * Math.min(1, dt * 3.2);
@@ -969,9 +1084,29 @@
       put(sp.stump, STUMP.x, STUMP.y);
       items.push({ y: PAVILION.y + 0.5, d: () => this.drawMoktak(g) });
       items.push({ y: PAVILION.y + 0.6, d: () => this.drawChime(g) });
-      items.push({ y: this.pup.y, d: () => this.pup.draw(g, z * (this.dpr || 1)) });
+      const left = vx0 - 120;
+      const right = vx0 + w / z + 120;
+      for (const v of this.visitors.values()) {
+        const p = v.pup;
+        if (p.y < top || p.y > bottom + 160 || p.x < left || p.x > right) continue;
+        items.push({ y: p.y, d: () => {
+          const a = MC.clamp(v.fade, 0, 1);
+          if (a < 1) g.globalAlpha = a;
+          p.draw(g, z * (this.dpr || 1));
+          g.globalAlpha = 1;
+        } });
+      }
+      items.push({ y: this.pup.y, d: () => {
+        if (this.visitors.size) MC.drawYouMark(g, this.pup, t);
+        this.pup.draw(g, z * (this.dpr || 1));
+      } });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.d();
+      if (this.hiddenBehind()) {
+        g.globalAlpha = 0.45;
+        this.pup.draw(g, z * (this.dpr || 1), true);
+        g.globalAlpha = 1;
+      }
 
       // 해 질 녘의 푸른 어스름
       g.restore();
@@ -1030,6 +1165,21 @@
       }
       g.globalAlpha = 1;
       g.restore();
+    }
+
+    // 멍이 앞(아래쪽)에 선 나무·텐트·정자가 멍이를 덮고 있는지
+    hiddenBehind() {
+      const p = this.pup;
+      const hx = p.x;
+      const hy = p.y - 45;
+      const covers = (s, x, y, inset) => hx > x - s.ax + inset && hx < x - s.ax + s.w - inset && hy > y - s.ay + inset && hy < y - 8;
+      for (const tr of this.trees) {
+        if (tr.y <= p.y || tr.y - p.y > 180 || tr.kind === 'bush') continue;
+        if (covers(this.sp[tr.kind][tr.v], tr.x, tr.y, 14)) return true;
+      }
+      if (TENT.y > p.y && covers(this.sp.tent, TENT.x, TENT.y, 24)) return true;
+      if (PAVILION.y > p.y && covers(this.sp.pavilion, PAVILION.x, PAVILION.y, 26)) return true;
+      return false;
     }
 
     drawFire(g, fl) {

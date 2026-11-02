@@ -272,6 +272,13 @@
   }
 
   // ── 장면 ───────────────────────────────────────────────
+  // 불구덩이와 그 바로 앞(앉으면 불을 가리는 곳)을 하나의 둥근 자리로 막는다
+  const FIRE_BLOCKERS = [{ x: 0, z: 38, rx: 154, rz: 76 }];
+  const FIRE_SEATS = [
+    [-186, 47], [186, 47], [-250, -8], [250, -8], [-110, -66], [110, -66], [0, -86],
+    [-218, 112], [218, 112], [-322, 62], [322, 62], [-336, -58], [336, -58],
+  ].map(([X, Z]) => ({ X, Z }));
+
   class FireScene {
     constructor(opts = {}) {
       this.preview = !!opts.preview;
@@ -329,6 +336,36 @@
         light: { ambient: 'rgba(16,14,38,0.3)', glow: [255, 150, 72], glowA: 0.4, from: 70 },
       });
       this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
+      // 함께 걷기: 바닥을 톡 하거나 방향키로 모닥불 둘레를 걷고, 멈추면 그 자리에 맞게 앉는다
+      if (!this.preview && MC.Crowd) {
+        this.crowd = new MC.Crowd(this.pup, {
+          place: 'fire',
+          outfit: 'beanie',
+          light: { ambient: 'rgba(16,14,38,0.3)', glow: [255, 150, 72], glowA: 0.4, from: 70 },
+          start: { X: -186, Z: 47 },
+          toScreen: (X, Z) => ({ x: this.cx + X * this.s, y: this.by + Z * this.s, k: this.s * 1.2 * MC.clamp((1 + Z / 300) / (1 + 47 / 300), 0.55, 1.3) }),
+          toCanon: (x, y) => ({ X: (x - this.cx) / this.s, Z: (y - this.by) / this.s }),
+          bounds: () => ({
+            x0: Math.max(-380, -this.cx / this.s + 52),
+            x1: Math.min(380, (this.w - this.cx) / this.s - 52),
+            z0: -92,
+            z1: Math.min(118, (this.h - this.by) / this.s - 24),
+          }),
+          // 불구덩이, 그리고 불을 가리지 않도록 불 바로 앞
+          blockers: () => FIRE_BLOCKERS,
+          floor: (x, y) => y > this.ground + 8 * this.s,
+          speed: () => 150 * this.s,
+          pose: (X, Z) => this.seatPose(X, Z),
+          // 여럿이 오면 불을 빙 둘러 앉는다
+          seats: () => FIRE_SEATS,
+          lightFor: (p, X, Z, a) => {
+            const d = Math.hypot(X, (Z - 14) * 1.7);
+            p.light.glowA = a * MC.clamp(1.45 - d / 420, 0.25, 1);
+            p.light.from = 70 * (X < 0 ? 1 : -1) * (p.flip < 0 ? -1 : 1);
+          },
+          env: () => ({ E: this.E }),
+        });
+      }
       // 처음 놓인 장작: 원뿔(티피) 모양으로 기대 세움
       const teepee = [
         [-104, 6, 12, -80],
@@ -418,6 +455,27 @@
       pup.x = this.cx - (this.portrait ? 158 : 196) * s;
       pup.y = this.by + 47 * s;
       pup.stickTip = { x: this.cx - 62 * s, y: this.by - 60 * s };
+      if (this.crowd) this.crowd.layout();
+    }
+
+    // 멈춰 선 자리에 맞게 앉는다
+    seatPose(X, Z) {
+      const side = X < 0 ? -1 : 1;
+      const ax = Math.abs(X);
+      // 불 앞: 불을 바라보는 뒷모습
+      if (Z >= 92) return { view: 'back', turn: 0, flip: 1, stick: false };
+      // 불 너머: 이쪽을 보고 앉는다
+      if (Z <= -48 || (ax < 110 && Z < 14)) return { view: 'front', turn: MC.clamp(-X / 240, -0.55, 0.55), flip: 1, stick: false };
+      // 불 옆: 불 쪽을 보고 마시멜로를 굽는다
+      if (ax < 330) {
+        const s = this.s;
+        const k = s * 1.2 * MC.clamp((1 + Z / 300) / (1 + 47 / 300), 0.55, 1.3);
+        const x = this.cx + X * s;
+        const y = this.by + Z * s;
+        const L = MC.clamp(((ax - 62) * s) / k, 70, 168);
+        return { view: 'front', turn: 0.42, flip: -side, stick: true, tip: { x: x - side * L * k, y: y - 89 * k } };
+      }
+      return { view: 'front', turn: 0.5, flip: -side, stick: false };
     }
 
     buildBackground() {
@@ -734,12 +792,19 @@
         wy.grab = { dx: wy.x - x, dy: wy.y - y, y0: wy.y };
         return true;
       }
+      // 함께 앉은 다른 멍이에게 하트
+      if (this.crowd && this.crowd.boopAt(x, y)) {
+        if (this.onCute) this.onCute('boop');
+        return true;
+      }
       // 불 가까이를 톡 건드리면 불티가 날린다
       if (Math.abs(x - this.cx) < 140 * this.s && y > this.by - 260 * this.s && y < this.by + 40 * this.s) {
         this.burst(0.9);
         if (this.onPoke) this.onPoke();
         return true;
       }
+      // 바닥을 톡: 그쪽으로 걸어간다
+      if (this.crowd && this.crowd.walkTo(x, y)) return true;
       return false;
     }
 
@@ -1002,7 +1067,8 @@
       }
       if (this.worry && this.worry.phase !== 'fly') this.worry.t += dt;
 
-      this.pup.update(dt, { E, cold: !this.preview && E < 0.22 });
+      if (this.crowd) this.crowd.update(dt);
+      this.pup.update(dt, { E, cold: !this.preview && E < 0.22, walking: !!(this.crowd && this.crowd.moving) });
       if (this.comfortAt && t >= this.comfortAt) {
         this.comfortAt = 0;
         this.pup.comfort();
@@ -1287,6 +1353,12 @@
 
       this.shimmer(g);
 
+      // 불 너머에 앉은 멍이들
+      if (this.crowd) {
+        this.crowd.lights(0.42 * Math.min(1, E) * flick);
+        this.crowd.draw(g, this.dpr, (Z) => Z < 14, w);
+      }
+
       // 돌, 숯, 장작, 불
       const lit = 0.32 * Math.min(1, E) * flick;
       for (const st of this.stones) if (!st.front) this.drawStone(g, st, lit * 0.7);
@@ -1301,8 +1373,11 @@
       g.globalCompositeOperation = 'source-over';
       for (const st of this.stones) if (st.front) this.drawStone(g, st, lit);
 
-      this.pup.light.glowA = 0.42 * Math.min(1, E) * flick;
-      this.pup.draw(g, this.dpr);
+      if (this.crowd) this.crowd.draw(g, this.dpr, (Z) => Z >= 14, w);
+      else {
+        this.pup.light.glowA = 0.42 * Math.min(1, E) * flick;
+        this.pup.draw(g, this.dpr);
+      }
 
       // 불티(꼬리를 끄는 빛)와 글자 불씨
       g.globalCompositeOperation = 'lighter';

@@ -110,6 +110,11 @@
     }
   }
 
+  // 그루터기에 누가 있으면 숲 바닥에 흩어져 앉는다
+  const FOREST_SEATS = [
+    [400, 520], [540, 380], [680, 560], [820, 420], [300, 760], [470, 800], [640, 820], [900, 640],
+  ].map(([X, Z]) => ({ X, Z }));
+
   class ForestScene {
     constructor(opts = {}) {
       this.preview = !!opts.preview;
@@ -130,7 +135,69 @@
         light: { ambient: null, glow: [255, 244, 214], glowA: 0.14, from: -70 },
       });
       this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
+      // 함께 걷기: 숲 바닥을 걷고, 그루터기를 톡 하면 다시 올라앉는다
+      if (!this.preview && MC.Crowd) {
+        const sc = this;
+        this.crowd = new MC.Crowd(this.pup, {
+          place: 'forest',
+          outfit: 'sprout',
+          light: { ambient: null, glow: [255, 244, 214], glowA: 0.14, from: -70 },
+          start: { X: 300, Z: 400 },
+          toScreen: (X, Z) => {
+            const b = this.band();
+            return { x: (X / 1000) * this.w, y: b.top + (Z / 1000) * (b.bot - b.top), k: this.s * 0.95 * (0.9 + (0.22 * Z) / 1000) };
+          },
+          toCanon: (x, y) => {
+            const b = this.band();
+            return { X: (x / this.w) * 1000, Z: ((y - b.top) / (b.bot - b.top)) * 1000 };
+          },
+          bounds: () => {
+            const m = Math.min(200, ((44 * this.s) / this.w) * 1000);
+            return { x0: m, x1: 1000 - m, z0: 0, z1: 1000 };
+          },
+          blockers: () => [this.stumpBlock()],
+          floor: (x, y) => y > this.band().top - 8 * this.s,
+          speed: () => 130 * this.s,
+          pose: () => ({ view: 'front', turn: this.pup.flip < 0 ? -0.3 : 0.3, flip: 1, stick: false }),
+          seats: () => FOREST_SEATS,
+          env: () => ({ wind: this.wind * 0.6, walkEps: 4 }),
+          perch: {
+            get X() {
+              return (sc.stump.x / sc.w) * 1000;
+            },
+            get Z() {
+              const b = sc.band();
+              return ((sc.stump.top + sc.stump.h + 16 * sc.s - b.top) / (b.bot - b.top)) * 1000;
+            },
+            // 여럿이 앉으면 조금씩 비켜 앉는다
+            seat: (id) => ({
+              x: sc.stump.x + (id ? (MC.hash(id.length * 7.3 + id.charCodeAt(id.length - 1)) - 0.5) * sc.stump.w * 0.5 : 0),
+              y: sc.stump.top + 3 * sc.s,
+              k: sc.s * 0.95,
+            }),
+            hit: (x, y) => Math.abs(x - sc.stump.x) < sc.stump.w * 0.7 && y > sc.stump.top - 16 * sc.s && y < sc.stump.top + sc.stump.h + 4 * sc.s,
+          },
+        });
+      }
       sprites();
+    }
+
+    // 걸을 수 있는 숲 바닥 띠
+    band() {
+      return { top: this.h * 0.865, bot: this.h - 8 * this.s };
+    }
+
+    // 그루터기 밑동: 걸어서 지나갈 수 없다
+    stumpBlock() {
+      const b = this.band();
+      const H = b.bot - b.top;
+      const st = this.stump;
+      return {
+        x: (st.x / this.w) * 1000,
+        z: ((st.top + st.h - 6 * this.s - b.top) / H) * 1000,
+        rx: ((st.w * 0.68) / this.w) * 1000,
+        rz: ((18 * this.s) / H) * 1000,
+      };
     }
 
     audioParams() {
@@ -160,6 +227,7 @@
       pup.k = this.s * 0.95;
       pup.x = st.x;
       pup.y = st.top + 3 * this.s;
+      if (this.crowd) this.crowd.layout();
       if (!this.flies.length) {
         this.flies = [new Butterfly('#fff0a6', '#d8b440', this), new Butterfly('#cfe7ff', '#7fa9d8', this)];
       }
@@ -456,6 +524,14 @@
         this.pup.poke();
         return true;
       }
+      if (this.crowd) {
+        // 함께 앉은 다른 멍이에게 하트, 숲 바닥이나 그루터기를 톡 하면 걸어간다
+        if (this.crowd.boopAt(x, y)) {
+          if (this.onCute) this.onCute('boop');
+          return true;
+        }
+        if (this.crowd.walkTo(x, y)) return true;
+      }
       this.gust = Math.min(1.2, this.gust + 0.75);
       for (let i = 0; i < 5; i++) {
         const l = this.newLeaf(false);
@@ -509,7 +585,8 @@
       // 멍이는 두리번두리번, 나비가 가까이 오면 눈으로 따라간다
       const pup = this.pup;
       this.nextLook -= dt;
-      if (this.nextLook <= 0) {
+      if (this.crowd) this.crowd.update(dt);
+      if (this.nextLook <= 0 && !(this.crowd && this.crowd.moving)) {
         this.nextLook = MC.rand(7, 14);
         pup.baseTurn = MC.rand(-0.45, 0.45);
       }
@@ -533,7 +610,7 @@
           look = { x: MC.clamp((f.x - head.x) / (90 * s), -1, 1), y: MC.clamp((f.y - head.y) / (70 * s), -1, 1) };
         }
       }
-      pup.update(dt, { wind: this.wind * 0.6, look });
+      pup.update(dt, { wind: this.wind * 0.6, look, walking: !!(this.crowd && this.crowd.moving) });
     }
 
     drawFern(g, f) {
@@ -644,8 +721,16 @@
 
       // 그루터기 위의 멍이, 그리고 나비
       const sb = this.stumpBox;
-      g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
-      this.pup.draw(g, this.dpr);
+      if (this.crowd) {
+        // 그루터기 뒤로 지나가는 멍이, 그루터기, 그 위와 앞의 멍이
+        const zb = this.stumpBlock().z;
+        this.crowd.draw(g, this.dpr, (Z, up) => !up && Z < zb, w);
+        g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
+        this.crowd.draw(g, this.dpr, (Z, up) => up || Z >= zb, w);
+      } else {
+        g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
+        this.pup.draw(g, this.dpr);
+      }
       for (const f of this.flies) f.draw(g, this.s * 1.05);
 
       for (const f of this.ferns) this.drawFern(g, f);

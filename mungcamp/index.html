@@ -6,6 +6,7 @@
   <title>멍캠프</title>
   <meta name="description" content="불멍, 물멍, 숲멍. 모닥불과 달빛 바다, 편백 숲 앞에서 잠깐 멍 때리고 가는 작은 힐링 캠프.">
   <meta name="theme-color" content="#0c0e1a">
+  <meta name="mc-presence" content="">
   <meta property="og:type" content="website">
   <meta property="og:title" content="멍캠프">
   <meta property="og:description" content="잠깐, 멍 때리고 가요. 모닥불, 달빛 바다, 편백 숲.">
@@ -49,6 +50,7 @@
       <canvas class="camp-canvas" id="campCanvas" tabindex="0" aria-label="캠프 마을. 방향키나 클릭으로 멍이를 걷게 해요"></canvas>
       <div class="camp-layer" id="campLayer" aria-hidden="false"></div>
       <h1 class="camp-title">멍 때리고 가요.</h1>
+      <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>함께 <b></b></span></p>
       <p class="camp-hint" id="campHint"></p>
     </header>
 
@@ -82,6 +84,7 @@
       <div class="topbar">
         <button class="chip chip-icon" id="exitBtn" type="button" aria-label="나가기"><svg class="ico"><use href="#i-back"/></svg></button>
         <div class="top-right">
+          <p class="together" id="sessionTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>함께 <b></b></span></p>
           <button class="chip chip-icon" id="fsBtn" type="button" aria-label="전체 화면"><svg class="ico"><use href="#i-full"/></svg></button>
         </div>
       </div>
@@ -153,6 +156,8 @@
   <script src="js/audio.js" defer></script>
   <script src="js/fire-gl.js" defer></script>
   <script src="js/pup.js" defer></script>
+  <script src="js/net.js" defer></script>
+  <script src="js/crowd.js" defer></script>
   <script src="js/scene-fire.js" defer></script>
   <script src="js/scene-water.js" defer></script>
   <script src="js/scene-forest.js" defer></script>

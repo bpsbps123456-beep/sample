@@ -164,6 +164,12 @@
   }
   const easeInOut = (x) => 0.5 - 0.5 * Math.cos(Math.PI * x);
 
+  // 여럿이 오면 물가를 따라 나란히
+  const WATER_SEATS = [
+    [290, 340], [450, 420], [610, 330], [770, 430], [150, 450], [900, 350],
+    [370, 720], [530, 780], [690, 720], [850, 780], [210, 780],
+  ].map(([X, Z]) => ({ X, Z }));
+
   class WaterScene {
     constructor(opts = {}) {
       this.preview = !!opts.preview;
@@ -181,7 +187,39 @@
         light: { ambient: 'rgba(22,32,80,0.3)', glow: [205, 218, 255], glowA: 0.2, from: 70 },
       });
       this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
+      // 함께 걷기: 모래밭을 걷다가 멈추면 바다를 바라보고 앉는다
+      if (!this.preview && MC.Crowd) {
+        this.crowd = new MC.Crowd(this.pup, {
+          place: 'water',
+          outfit: 'scarf',
+          light: { ambient: 'rgba(22,32,80,0.3)', glow: [205, 218, 255], glowA: 0.2, from: 70 },
+          start: { X: 290, Z: 340 },
+          toScreen: (X, Z) => {
+            const b = this.band();
+            return { x: (X / 1000) * this.w, y: b.top + (Z / 1000) * (b.bot - b.top), k: this.s * 0.95 * (0.9 + (0.22 * Z) / 1000) };
+          },
+          toCanon: (x, y) => {
+            const b = this.band();
+            return { X: (x / this.w) * 1000, Z: ((y - b.top) / (b.bot - b.top)) * 1000 };
+          },
+          bounds: () => {
+            const m = Math.min(200, ((44 * this.s) / this.w) * 1000);
+            return { x0: m, x1: 1000 - m, z0: 0, z1: 1000 };
+          },
+          blockers: () => [],
+          floor: (x, y) => y > this.sandTop + 2,
+          speed: () => 140 * this.s,
+          pose: () => ({ view: 'back', turn: 0, flip: 1, stick: false }),
+          seats: () => WATER_SEATS,
+          env: () => ({ wind: 0.45 + 0.25 * Math.sin(this.t * 0.31), walkEps: 4 }),
+        });
+      }
       sprites();
+    }
+
+    // 걸을 수 있는 모래밭 띠
+    band() {
+      return { top: this.sandTop + 14 * this.s, bot: this.h - 10 * this.s };
     }
 
     audioParams() {
@@ -203,6 +241,7 @@
       pup.k = this.s * 0.95;
       pup.x = w * (portrait ? 0.27 : 0.3);
       pup.y = this.sandTop + (h - this.sandTop) * (portrait ? 0.3 : 0.45);
+      if (this.crowd) this.crowd.layout();
       this.crab.place(this);
     }
 
@@ -358,7 +397,14 @@
         if (this.onCute) this.onCute('crab');
         return true;
       }
-      if (y < this.hy + 4 || y > this.sandTop - 2) return false;
+      // 함께 앉은 다른 멍이에게 하트
+      if (this.crowd && this.crowd.boopAt(x, y)) {
+        if (this.onCute) this.onCute('boop');
+        return true;
+      }
+      // 모래밭을 톡: 그쪽으로 걸어간다
+      if (y > this.sandTop - 2) return !!(this.crowd && this.crowd.walkTo(x, y));
+      if (y < this.hy + 4) return false;
       const z = (y - this.hy) / (this.sandTop - this.hy);
       this.ripples.push({ x, y, z, age: 0 });
       if (this.ripples.length > 12) this.ripples.shift();
@@ -377,12 +423,19 @@
       for (const r of this.ripples) r.age += dt;
       this.ripples = this.ripples.filter((r) => r.age < 4.5);
       this.crab.update(dt);
-      this.pup.update(dt, { wind: 0.45 + 0.25 * Math.sin(this.t * 0.31) });
-      // 파도가 발끝까지 오면 멍이가 폴짝
+      if (this.crowd) this.crowd.update(dt);
+      this.pup.update(dt, { wind: 0.45 + 0.25 * Math.sin(this.t * 0.31), walking: !!(this.crowd && this.crowd.moving) });
+      // 파도가 발끝까지 오면 멍이가 폴짝 (함께 앉은 멍이들도)
       const sw = this.swash(MC.clock());
-      if (sw.adv > 0.05 && sw.k !== this.lastSplash && this.sandTop + sw.reach * sw.adv >= this.pup.y - 3 * this.s) {
-        this.lastSplash = sw.k;
-        this.pup.splash();
+      if (sw.adv > 0.05) {
+        const reach = this.sandTop + sw.reach * sw.adv;
+        const wet = (p, who) => {
+          if (who.lastSplash === sw.k || reach < p.y - 3 * this.s) return;
+          who.lastSplash = sw.k;
+          p.splash();
+        };
+        if (this.crowd) this.crowd.each((p, me, v) => wet(p, me ? this : v));
+        else wet(this.pup, this);
       }
     }
 
@@ -484,7 +537,8 @@
 
       this.drawShore(g);
       this.crab.draw(g);
-      this.pup.draw(g, this.dpr);
+      if (this.crowd) this.crowd.draw(g, this.dpr, null, w);
+      else this.pup.draw(g, this.dpr);
       g.drawImage(this.vignette, 0, 0, w, h);
     }
 
