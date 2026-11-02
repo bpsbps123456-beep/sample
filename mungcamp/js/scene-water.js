@@ -10,6 +10,7 @@
       column: MC.glow([255, 240, 205], 128, 0.3),
       lamp: MC.glow([255, 236, 190], 64, 0.15),
       star: MC.glow([226, 232, 255], 16, 0.22),
+      glint: MC.glow([255, 244, 214], 32, 0.25),
     };
     return SPR;
   }
@@ -75,7 +76,7 @@
         g.fill();
       }
       this.twinkles = [];
-      for (let i = 0; i < 18; i++) this.twinkles.push({ x: rnd() * w, y: rnd() * hy * 0.55, r: 1.4 + rnd() * 2, ph: rnd() * 6.28, sp: 0.3 + rnd() });
+      for (let i = 0; i < 18; i++) this.twinkles.push({ x: rnd() * w, y: rnd() * hy * 0.55, r: 0.8 + rnd() * 1.1, ph: rnd() * 6.28, sp: 0.3 + rnd() });
 
       // 수평선 가까이 얇게 깔린 구름
       g.globalCompositeOperation = 'lighter';
@@ -166,7 +167,7 @@
         const glints = [];
         const gN = Math.round(2 + z * 9);
         for (let k = 0; k < gN; k++) {
-          glints.push({ o: MC.clamp((rnd() + rnd() + rnd() - 1.5) * 0.9, -1.3, 1.3), sp: 1.5 + rnd() * 2.5, ph: rnd() * 6.28, len: 0.5 + rnd() });
+          glints.push({ o: MC.clamp((rnd() + rnd() + rnd() - 1.5) * 0.9, -1.3, 1.3), sp: 0.6 + rnd() * 1.2, ph: rnd() * 6.28, len: 0.5 + rnd() });
         }
         this.rows.push({
           z,
@@ -215,11 +216,11 @@
       g.globalCompositeOperation = 'lighter';
       for (const st of this.twinkles) {
         g.globalAlpha = 0.25 + 0.4 * (0.5 + 0.5 * Math.sin(t * st.sp + st.ph));
-        g.drawImage(SPR.star, st.x - st.r * 2, st.y - st.r * 2, st.r * 4, st.r * 4);
+        g.drawImage(SPR.star, st.x - st.r * 2.5, st.y - st.r * 2.5, st.r * 5, st.r * 5);
       }
-      // 등대: 6초마다 한 번 반짝
-      const lp = (t % 6) - 0.5;
-      const flash = Math.exp(-(lp * lp) / 0.03);
+      // 등대: 9초마다 은은하게 차올랐다 사라진다
+      const lp = (t % 9) - 1.2;
+      const flash = 0.7 * Math.exp(-(lp * lp) / 0.35);
       const L = this.lamp;
       g.globalAlpha = 0.5 + 0.5 * flash;
       g.drawImage(SPR.lamp, L.x - (6 + 26 * flash) * s, L.y - (3 + 5 * flash) * s, (12 + 52 * flash) * s, (6 + 10 * flash) * s);
@@ -261,14 +262,16 @@
         for (const gl of r.glints) {
           const b = Math.sin(t * gl.sp + gl.ph);
           if (b <= 0.15) continue;
-          const a = Math.pow((b - 0.15) / 0.85, 3) * (0.35 + 0.6 * r.z);
+          const a = Math.pow((b - 0.15) / 0.85, 2) * (0.25 + 0.45 * r.z);
           const x = m.x + gl.o * spread + Math.sin(t * 0.3 + gl.ph) * 4 * s;
           const y = this.waveY(r, x);
-          const len = (2 + 16 * r.z) * gl.len * s;
-          g.fillStyle = `rgba(255,244,214,${a})`;
-          g.fillRect(x - len / 2, y - 0.6 - r.z, len, 1 + 1.4 * r.z);
+          const len = (4 + 22 * r.z) * gl.len * s;
+          const th = (2 + 3 * r.z) * s;
+          g.globalAlpha = a;
+          g.drawImage(SPR.glint, x - len / 2, y - th / 2, len, th);
         }
       }
+      g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
 
       // 물수제비 같은 동심원

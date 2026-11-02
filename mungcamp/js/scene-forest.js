@@ -201,9 +201,9 @@
       return {
         x: Math.random() * this.w,
         y: anywhere ? Math.random() * this.h : -20,
-        vy: MC.rand(16, 32) * this.s,
+        vy: MC.rand(12, 24) * this.s,
         rot: Math.random() * 6.28,
-        vr: MC.rand(-2, 2),
+        vr: MC.rand(-1.1, 1.1),
         ph: Math.random() * 6.28,
         size: MC.rand(4, 7) * this.s,
         color: LEAF_COLORS[(Math.random() * LEAF_COLORS.length) | 0],
@@ -238,12 +238,10 @@
       const n = Math.round(this.motes.length * MC.clamp(this.quality, 0.4, 1));
       for (let i = 0; i < n; i++) {
         const m = this.motes[i];
-        m.vx += (Math.random() - 0.5) * 6 * dt + this.gust * 3 * dt;
-        m.vy += (Math.random() - 0.5) * 6 * dt;
-        m.vx *= 1 - 0.3 * dt;
-        m.vy *= 1 - 0.3 * dt;
-        m.x += (m.vx + 3) * s * dt;
-        m.y += m.vy * s * dt;
+        const vx = 3 + MC.fbm(this.t * 0.18 + m.ph) * 4 + this.gust * 8;
+        const vy = MC.fbm(this.t * 0.15 + m.ph * 1.7) * 3;
+        m.x += vx * s * dt;
+        m.y += vy * s * dt;
         if (m.x > w + 5) m.x = -5;
         if (m.x < -5) m.x = w + 5;
         if (m.y > h * 0.95) m.y = 0;
@@ -342,7 +340,7 @@
           const half = (MC.lerp(b.w0, b.w1, along / b.len) / 2) * 1.1;
           if (across < half) inBeam = Math.max(inBeam, (1 - across / half) * this.beamAlpha(b) * 5);
         }
-        const a = 0.06 + Math.min(1, inBeam) * 0.85 * (0.6 + 0.4 * Math.sin(t * 1.3 + m.ph));
+        const a = 0.06 + Math.min(1, inBeam) * 0.8 * (0.7 + 0.3 * Math.sin(t * 0.7 + m.ph));
         const r = m.r * 2.4 * s;
         g.globalAlpha = a;
         g.drawImage(SPR.mote, m.x - r, m.y - r, r * 2, r * 2);

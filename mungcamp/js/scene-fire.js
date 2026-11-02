@@ -853,7 +853,7 @@
       if (!this.calm && !this.preview) {
         this.nextShoot -= dt;
         if (this.nextShoot <= 0) {
-          this.nextShoot = MC.rand(35, 90);
+          this.nextShoot = MC.rand(70, 160);
           const dir = Math.random() < 0.5 ? -1 : 1;
           this.shoot = { x: MC.rand(0.2, 0.8) * this.w, y: MC.rand(0.05, 0.3) * this.ground, vx: dir * 780, vy: 300, t: 0, dur: 0.7 };
         }
@@ -890,7 +890,7 @@
 
     drawCracks(g, l, flick) {
       const char = MC.clamp(1 - l.fuel / l.fuel0, 0, 1);
-      const glow = (0.25 + 0.75 * Math.min(1, this.E)) * MC.smooth(0.04, 0.4, char) * (0.75 + 0.25 * MC.fbm(this.t * 3 + l.seed)) * flick;
+      const glow = (0.25 + 0.75 * Math.min(1, this.E)) * MC.smooth(0.04, 0.4, char) * (0.8 + 0.2 * MC.fbm(this.t * 1.4 + l.seed)) * flick;
       if (glow < 0.02) return;
       const p = this.world(l);
       g.globalAlpha = Math.min(1, glow);
@@ -938,7 +938,8 @@
       const { w, h, s, cx, by, t } = this;
       if (!this.bg) return;
       const E = this.E;
-      const flick = 0.88 + 0.12 * MC.fbm(t * 4.1);
+      const tide = 0.5 + 0.5 * Math.sin((2 * Math.PI * MC.clock()) / MC.WAVE_T);
+      const flick = (0.9 + 0.1 * MC.fbm(t * 2.2)) * (0.95 + 0.05 * tide);
       g.drawImage(this.bg, 0, 0, w, h);
 
       // 반짝이는 별과 별똥별
@@ -1067,14 +1068,14 @@
       // 불티와 글자 불씨
       g.globalCompositeOperation = 'lighter';
       for (const p of this.sparks) {
-        const a = Math.pow(1 - p.f, 1.5) * (0.55 + 0.45 * Math.sin(t * 18 + p.seed));
+        const a = Math.pow(1 - p.f, 1.5) * (0.7 + 0.3 * Math.sin(t * 4 + p.seed));
         if (a < 0.02) continue;
         const sz = p.size * 3;
         g.globalAlpha = a;
         g.drawImage(S.spark, p.x - sz, p.y - sz, sz * 2, sz * 2);
       }
       for (const p of this.embers) {
-        const a = p.delay > 0 ? 0.4 + 0.25 * Math.sin(t * 9 + p.seed) : Math.pow(1 - p.f, 1.4) * 0.9;
+        const a = p.delay > 0 ? 0.42 + 0.18 * Math.sin(t * 2.5 + p.seed) : Math.pow(1 - p.f, 1.4) * 0.9;
         const sz = (p.delay > 0 ? 2.2 : 2.4) * s + 0.6;
         g.globalAlpha = a;
         g.drawImage(p.delay > 0 ? S.text : S.spark, p.x - sz, p.y - sz, sz * 2, sz * 2);

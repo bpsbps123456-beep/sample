@@ -1,4 +1,4 @@
-/* 멍캠프 — 화면 흐름: 자리 고르기 → 마음 날씨 → 멍 → 기록 */
+/* 멍캠프 — 화면 흐름: 자리 고르기 → 멍 → 돌아오기 */
 (function (MC) {
   'use strict';
 
@@ -7,56 +7,40 @@
 
   const SCENES = {
     fire: {
-      title: '불멍',
       place: '모닥불 글램핑',
       make: () => new MC.FireScene({ calm: MC.reducedMotion }),
       scape: MC.FireScape,
-      guidance: '불꽃이 움직이는 대로 그냥 바라봐요. 생각이 떠오르면 떠오르게 두고, 다시 불꽃으로.',
+      guidance: '불꽃을 바라봐요',
       actions: [
-        { id: 'log', icon: 'i-log', label: '장작 넣기', primary: true },
-        { id: 'worry', icon: 'i-pen', label: '걱정 태우기' },
+        { id: 'log', icon: 'i-log', label: '장작', primary: true },
+        { id: 'worry', icon: 'i-pen', label: '걱정' },
       ],
       space: 'log',
     },
     water: {
-      title: '물멍',
       place: '달빛 바다',
       make: () => new MC.WaterScene({}),
       scape: MC.WaterScape,
-      guidance: '파도는 10초마다 밀려와요. 차오를 때 들이쉬고, 쓸려 갈 때 내쉬어 보세요.',
+      guidance: '파도에 숨을 맞춰요',
       actions: [{ id: 'ripple', icon: 'i-drop', label: '물결', primary: true }],
       space: 'ripple',
     },
     forest: {
-      title: '숲멍',
-      place: '편백 숲의 아침',
+      place: '편백 숲',
       make: () => new MC.ForestScene({}),
       scape: MC.ForestScape,
-      guidance: '빛줄기 사이로 떠다니는 먼지를 따라가 보세요. 화면을 누르면 바람이 지나가요.',
+      guidance: '빛을 따라가 봐요',
       actions: [{ id: 'breeze', icon: 'i-wind', label: '바람', primary: true }],
       space: 'breeze',
     },
   };
 
-  const MOODS = [
-    { v: 1, label: '맑음' },
-    { v: 2, label: '구름 조금' },
-    { v: 3, label: '흐림' },
-    { v: 4, label: '비' },
-    { v: 5, label: '폭풍' },
-  ];
   const DURATIONS = [
     { v: 5, label: '5분' },
     { v: 10, label: '10분' },
-    { v: 20, label: '20분', small: '추천' },
+    { v: 20, label: '20분' },
     { v: 30, label: '30분' },
-    { v: 0, label: '제한 없음' },
-  ];
-  const OUTSIDE_TIPS = [
-    '다음엔 진짜 바깥으로. 점심시간 10분, 가까운 공원 나무 아래도 좋아요.',
-    '오늘 하루 중 한 번은 고개를 들어 진짜 하늘을 바라봐 주세요.',
-    '창문을 열고 바깥 공기를 세 번 깊게 들이쉬어 보세요.',
-    '이번 주말엔 가까운 숲길이나 물가를 20분쯤 걸어 보는 건 어때요?',
+    { v: 0, label: '계속' },
   ];
 
   const state = {
@@ -70,10 +54,8 @@
     started: false,
     startAt: 0,
     duration: MC.store.get('duration', 20),
-    before: null,
-    after: null,
     timerDone: false,
-    recorded: false,
+    leaving: false,
     lowHinted: false,
     worryShown: false,
     wakeLock: null,
@@ -87,27 +69,23 @@
   const session = $('#session');
   const stage = $('#stage');
   const ui = $('#ui');
+  const curtain = $('#curtain');
   const breath = new MC.Breath($('#breath'), sound);
 
-  // ── 작은 도구 ─────────────────────────────────────────
   const fmt = (sec) => {
     sec = Math.max(0, Math.round(sec));
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
   };
   const elapsedSec = () => (state.started ? (Date.now() - state.startAt) / 1000 : 0);
-  const moodLabel = (v) => (MOODS.find((m) => m.v === v) || {}).label || '';
-  // 받침이 있으면 '으로', 없거나 ㄹ이면 '로'
-  const ro = (word) => {
-    const c = word.charCodeAt(word.length - 1) - 0xac00;
-    if (c < 0 || c > 11171) return '로';
-    const jong = c % 28;
-    return jong === 0 || jong === 8 ? '로' : '으로';
-  };
+
+  // 장면 위에 덮인 어둠의 농도. 0이면 환하고 1이면 캄캄하다
+  function setCurtain(opacity, seconds) {
+    curtain.style.transitionDuration = `${seconds}s`;
+    curtain.style.opacity = String(opacity);
+  }
 
   let toastTimer = 0;
-  function toast(msg, ms = 4200) {
+  function toast(msg, ms = 3600) {
     const el = $('#toast');
     el.textContent = msg;
     el.classList.add('is-on');
@@ -125,33 +103,9 @@
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', String(it.v === current));
       b.textContent = it.label;
-      if (it.small) {
-        const sm = document.createElement('small');
-        sm.textContent = it.small;
-        b.appendChild(sm);
-      }
       b.addEventListener('click', () => {
         for (const o of box.children) o.setAttribute('aria-checked', String(o === b));
         onPick(it.v);
-      });
-      box.appendChild(b);
-    }
-  }
-
-  function renderMoods(sel, onPick) {
-    const box = $(sel);
-    box.textContent = '';
-    for (const m of MOODS) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.setAttribute('role', 'radio');
-      b.setAttribute('aria-checked', 'false');
-      b.innerHTML = `<svg aria-hidden="true"><use href="#w-${m.v}"/></svg><span>${m.label}</span>`;
-      b.addEventListener('click', () => {
-        const on = b.getAttribute('aria-checked') !== 'true';
-        for (const o of box.children) o.setAttribute('aria-checked', 'false');
-        b.setAttribute('aria-checked', String(on));
-        onPick(on ? m.v : null);
       });
       box.appendChild(b);
     }
@@ -195,106 +149,46 @@
     }
   }
 
-  function renderLog() {
-    const list = MC.store.get('records', []);
-    const has = Array.isArray(list) && list.length > 0;
-    $('#logStats').hidden = !has;
-    $('#logEmpty').hidden = has;
-    $('#logClearRow').hidden = !has;
-    $('#logConfirm').hidden = true;
-    $('#logClear').hidden = false;
-    const ol = $('#logList');
-    ol.textContent = '';
-    if (!has) return;
-    const minutes = list.reduce((a, r) => a + (r.m || 0), 0);
-    const pairs = list.filter((r) => r.b && r.a);
-    $('#statCount').textContent = String(list.length);
-    $('#statMinutes').textContent = String(minutes);
-    if (pairs.length) {
-      const avg = pairs.reduce((a, r) => a + (r.b - r.a), 0) / pairs.length;
-      $('#statDelta').textContent = `${avg >= 0 ? '+' : '−'}${Math.abs(avg).toFixed(1)}`;
-    } else {
-      $('#statDelta').textContent = '–';
-    }
-    for (const r of list.slice(-8).reverse()) {
-      const li = document.createElement('li');
-      const d = new Date(r.d);
-      const cells = [
-        isNaN(d) ? '' : `${d.getMonth() + 1}월 ${d.getDate()}일`,
-        (SCENES[r.s] || {}).title || '',
-        `${r.m}분`,
-        r.b || r.a ? `${moodLabel(r.b) || '–'} → ${moodLabel(r.a) || '–'}` : '',
-      ];
-      cells.forEach((text, i) => {
-        const span = document.createElement('span');
-        span.textContent = text;
-        if (i === 3) span.className = 'mood-change';
-        li.appendChild(span);
-      });
-      ol.appendChild(li);
-    }
-  }
-
-  function saveRecord(after) {
-    const list = MC.store.get('records', []);
-    const arr = Array.isArray(list) ? list : [];
-    arr.push({
-      d: new Date().toISOString(),
-      s: state.scene,
-      m: Math.max(1, Math.round(elapsedSec() / 60)),
-      b: state.before,
-      a: after,
-    });
-    while (arr.length > 200) arr.shift();
-    MC.store.set('records', arr);
-    state.recorded = true;
-  }
-
   // ── 세션 열고 닫기 ─────────────────────────────────────
   function openSession(name) {
     if (state.view === 'session') {
       if (state.scene === name) return;
-      if (state.started && !state.recorded && elapsedSec() >= 60) saveRecord(null);
       teardown();
     }
     const def = SCENES[name];
     Object.assign(state, {
-      view: 'session', scene: name, def, started: false, recorded: false,
-      before: null, after: null, timerDone: false, lowHinted: false, worryShown: false,
+      view: 'session', scene: name, def, started: false, timerDone: false,
+      leaving: false, lowHinted: false, worryShown: false,
     });
     stopHero();
     home.hidden = true;
     session.hidden = false;
     document.body.classList.add('in-session');
     session.dataset.scene = name;
-    const nameEl = $('#sceneName');
-    nameEl.textContent = def.title;
-    const small = document.createElement('small');
-    small.textContent = def.place;
-    nameEl.appendChild(small);
 
+    setCurtain(1, 0);
     const scene = def.make();
     state.sceneObj = scene;
     state.runner = new MC.Runner(stage, scene, { quality: MC.reducedMotion ? 0.7 : 1, onFrame });
     state.runner.start();
+    requestAnimationFrame(() => requestAnimationFrame(() => setCurtain(0, 2.4)));
 
     buildDock(def);
     buildSoundPanel(name, def);
     buildBreathPanel();
     renderSeg('#durationOptions', DURATIONS, state.duration, setDuration);
     renderSeg('#timerOptions', DURATIONS, state.duration, setDuration);
-    renderMoods('#moodBefore', (v) => { state.before = v; });
-    $('#checkinPlace').textContent = `${def.title} · ${def.place}`;
+    $('#start-title').textContent = def.place;
     ui.classList.add('is-hidden');
     closePanels();
-    $('#checkout').hidden = true;
-    $('#checkin').hidden = false;
+    $('#endCard').hidden = true;
+    $('#startCard').hidden = false;
     updateTimer();
     setTimeout(() => $('#startBtn').focus({ preventScroll: true }), 50);
   }
 
   function startSession() {
-    $('#checkin').hidden = true;
+    $('#startCard').hidden = true;
     const def = state.def;
     const scene = state.sceneObj;
     const ctx = sound.ensure();
@@ -311,7 +205,7 @@
         scene.onGust = () => scape.gust();
       }
     }
-    if (state.scene === 'fire') scene.onWorryBurned = () => toast('걱정 한 조각이 불티가 되어 날아갔어요.');
+    if (state.scene === 'fire') scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
     state.started = true;
     state.startAt = Date.now();
     clearInterval(state.timerInt);
@@ -334,25 +228,24 @@
     clearInterval(state.timerInt);
     clearTimeout(state.idleTimer);
     clearTimeout(state.guideTimer);
+    clearTimeout(state.endTimer);
     $('#guidance').classList.remove('is-on');
     $('#worryHint').hidden = true;
     releaseWakeLock();
     if (document.fullscreenElement || document.webkitFullscreenElement) toggleFullscreen();
     closePanels();
-    $('#checkin').hidden = true;
-    $('#checkout').hidden = true;
+    $('#startCard').hidden = true;
+    $('#endCard').hidden = true;
     state.started = false;
   }
 
   function closeSession() {
     if (state.view !== 'session') return;
-    if (state.started && !state.recorded && elapsedSec() >= 60) saveRecord(null);
     teardown();
     state.view = 'home';
     session.hidden = true;
     home.hidden = false;
     document.body.classList.remove('in-session');
-    renderLog();
     renderThumbs();
     startHero();
   }
@@ -363,12 +256,17 @@
     $('#seats').scrollIntoView({ block: 'start', behavior: 'instant' });
   }
 
-  function requestExit() {
-    if (state.started && !state.recorded && elapsedSec() >= 60) openCheckout('exit');
-    else {
-      state.recorded = true;
-      goHome();
-    }
+  // 나갈 때는 화면과 소리가 함께 천천히 잦아든다
+  function leave() {
+    if (state.leaving) return;
+    state.leaving = true;
+    closePanels();
+    $('#startCard').hidden = true;
+    $('#endCard').hidden = true;
+    ui.classList.add('is-hidden');
+    setCurtain(1, 0.9);
+    if (state.scape) state.scape.duck(0, 0.9);
+    setTimeout(goHome, 950);
   }
 
   function route() {
@@ -386,7 +284,7 @@
       const st = sc.status();
       if (st.fuel < 9 && !state.lowHinted) {
         state.lowHinted = true;
-        toast('불이 잦아들고 있어요. 장작을 하나 넣어 볼까요?');
+        toast('장작을 넣어 볼까요?');
       }
       if (st.fuel > 25) state.lowHinted = false;
       if (st.waiting !== state.worryShown) {
@@ -403,9 +301,8 @@
 
   function updateTimer() {
     const el = $('#timerText');
-    const chip = $('#timerChip');
     if (!state.started) {
-      el.textContent = state.duration ? fmt(state.duration * 60) : '제한 없음';
+      el.textContent = state.duration ? fmt(state.duration * 60) : fmt(0);
       return;
     }
     const sec = elapsedSec();
@@ -416,10 +313,8 @@
         return;
       }
       el.textContent = fmt(rem);
-      chip.setAttribute('aria-label', `남은 시간 ${fmt(rem)}`);
     } else {
       el.textContent = fmt(sec);
-      chip.setAttribute('aria-label', `머문 시간 ${fmt(sec)}`);
     }
   }
 
@@ -429,16 +324,37 @@
     for (const sel of ['#durationOptions', '#timerOptions']) {
       $$(`${sel} button`).forEach((b, i) => b.setAttribute('aria-checked', String(DURATIONS[i].v === min)));
     }
-    if (state.started && min && min * 60 > elapsedSec()) state.timerDone = false;
+    if (state.timerDone && (!min || min * 60 > elapsedSec())) stay();
     updateTimer();
   }
 
+  // 시간이 다 되면 종이 한 번 울리고, 소리와 빛이 서서히 잦아든다
   function finishTimer() {
     state.timerDone = true;
     sound.chime();
-    if (state.scape) state.scape.duck(0.45, 6);
+    if (state.scape) state.scape.duck(0.35, 18);
+    setCurtain(0.4, 18);
     updateTimer();
-    openCheckout('timer');
+    clearTimeout(state.endTimer);
+    state.endTimer = setTimeout(() => {
+      if (state.view !== 'session' || !state.timerDone) return;
+      closePanels();
+      breath.stop();
+      setBreathUI(false);
+      $('#endCard').hidden = false;
+      wake();
+      setTimeout(() => $('#stayBtn').focus({ preventScroll: true }), 50);
+    }, 6000);
+  }
+
+  function stay() {
+    state.timerDone = false;
+    clearTimeout(state.endTimer);
+    $('#endCard').hidden = true;
+    if (state.scape) state.scape.duck(1, 3);
+    setCurtain(0, 3);
+    if (!state.duration || state.duration * 60 <= elapsedSec()) state.timerDone = true;
+    armIdle();
   }
 
   function showGuidance(text) {
@@ -446,7 +362,7 @@
     g.textContent = text;
     requestAnimationFrame(() => g.classList.add('is-on'));
     clearTimeout(state.guideTimer);
-    state.guideTimer = setTimeout(() => g.classList.remove('is-on'), 8000);
+    state.guideTimer = setTimeout(() => g.classList.remove('is-on'), 6000);
   }
 
   // ── 조작부 ───────────────────────────────────────────
@@ -467,10 +383,9 @@
     const sc = state.sceneObj;
     if (!sc || !state.started) return;
     if (id === 'log') {
-      if (!sc.addLog()) toast('장작이 넉넉해요. 조금 타기를 기다려 볼까요?');
+      if (!sc.addLog()) toast('장작이 넉넉해요');
     } else if (id === 'worry') {
-      if (sc.worry) toast('먼저 들고 있는 장작을 불에 넣어 주세요.');
-      else togglePanel('worry');
+      if (!sc.worry) togglePanel('worry');
     } else if (id === 'ripple') sc.rippleAt();
     else if (id === 'breeze') sc.breeze();
   }
@@ -509,30 +424,25 @@
   function setMuteUI() {
     const b = $('#muteBtn');
     b.setAttribute('aria-pressed', String(sound.muted));
-    b.textContent = sound.muted ? '소리 켜기' : '소리 끄기';
+    b.textContent = sound.muted ? '켜기' : '끄기';
   }
 
   function toggleMute() {
     sound.setMuted(!sound.muted);
     setMuteUI();
-    toast(sound.muted ? '소리를 껐어요' : '소리를 켰어요', 1800);
   }
 
   function buildBreathPanel() {
     const P = MC.Breath.patterns;
     const items = Object.keys(P).map((k) => ({ v: k, label: P[k].name }));
-    renderSeg('#breathPatterns', items, breath.pattern, (v) => {
-      breath.setPattern(v);
-      $('#breathNote').textContent = P[v].note;
-    });
-    $('#breathNote').textContent = P[breath.pattern].note;
+    renderSeg('#breathPatterns', items, breath.pattern, (v) => breath.setPattern(v));
     $('#breathCue').checked = breath.cueOn;
     setBreathUI(breath.active);
   }
 
   function setBreathUI(on) {
     $('#breathBtn').setAttribute('aria-pressed', String(on));
-    $('#breathToggle').textContent = on ? '호흡 멈추기' : '호흡 시작';
+    $('#breathToggle').textContent = on ? '멈추기' : '시작';
   }
 
   function toggleBreath(force) {
@@ -548,7 +458,7 @@
   }
 
   const anyPanelOpen = () => $$('.panel').some((p) => !p.hidden);
-  const modalOpen = () => !$('#checkin').hidden || !$('#checkout').hidden;
+  const modalOpen = () => !$('#startCard').hidden || !$('#endCard').hidden;
 
   function openPanel(name) {
     for (const p of $$('.panel')) p.hidden = p.id !== `panel-${name}`;
@@ -566,6 +476,7 @@
 
   // 가만히 두면 조작부가 사라진다
   function wake() {
+    if (state.leaving) return;
     ui.classList.remove('is-hidden');
     session.classList.remove('is-idle');
     armIdle();
@@ -580,7 +491,7 @@
         return;
       }
       hideUI();
-    }, 6000);
+    }, 5000);
   }
   function hideUI() {
     ui.classList.add('is-hidden');
@@ -619,43 +530,6 @@
     state.wakeLock = null;
   }
 
-  // ── 나오기 ───────────────────────────────────────────
-  function openCheckout(reason) {
-    closePanels();
-    state.after = null;
-    $('#checkoutKicker').textContent = reason === 'timer' ? `${state.duration}분이 지났어요` : `${Math.max(1, Math.round(elapsedSec() / 60))}분 머물렀어요`;
-    renderMoods('#moodAfter', (v) => { state.after = v; });
-    $('#checkoutAsk').hidden = false;
-    $('#checkoutDone').hidden = true;
-    $('#checkout').hidden = false;
-    state.checkoutReason = reason;
-    wake();
-    setTimeout(() => $('#saveLeaveBtn').focus({ preventScroll: true }), 50);
-  }
-
-  function showDone() {
-    const minutes = Math.max(1, Math.round(elapsedSec() / 60));
-    const b = state.before;
-    const a = state.after;
-    $('#doneTitle').textContent = `${minutes}분 동안 쉬었어요`;
-    let text = '잠시 멈춘 것만으로도 충분해요.';
-    if (b && a) {
-      const d = b - a;
-      const from = moodLabel(b);
-      const to = moodLabel(a);
-      if (d >= 2) text = `${from}에서 ${to}${ro(to)}. 마음이 한결 가벼워졌네요.`;
-      else if (d === 1) text = `${from}에서 ${to}${ro(to)}. 조금 가벼워졌네요.`;
-      else if (d === 0) text = `${to}, 그대로예요. 그래도 잠시 멈춘 시간은 남아요.`;
-      else text = `${from}에서 ${to}${ro(to)}. 오늘은 마음이 더 무거워졌네요. 믿을 만한 사람과 이야기해 보는 것도 좋아요.`;
-    }
-    $('#doneText').textContent = text;
-    $('#doneCare').hidden = !(a && a >= 4);
-    $('#doneTip').textContent = OUTSIDE_TIPS[Math.floor(Math.random() * OUTSIDE_TIPS.length)];
-    $('#checkoutAsk').hidden = true;
-    $('#checkoutDone').hidden = false;
-    setTimeout(() => $('#doneBtn').focus({ preventScroll: true }), 50);
-  }
-
   // ── 이벤트 ───────────────────────────────────────────
   function stagePoint(e) {
     const r = stage.getBoundingClientRect();
@@ -678,7 +552,7 @@
     const sc = state.sceneObj;
     if (sc && sc.pointerMove) {
       const [x, y] = stagePoint(e);
-      if (sc.pointerMove(x, y)) return;
+      sc.pointerMove(x, y);
     }
   });
   const release = (e) => {
@@ -729,13 +603,13 @@
         break;
       case 'Escape':
         if (anyPanelOpen()) closePanels();
-        else if (!document.fullscreenElement) requestExit();
+        else if (!document.fullscreenElement) leave();
         break;
       default:
     }
   });
 
-  $('#exitBtn').addEventListener('click', requestExit);
+  $('#exitBtn').addEventListener('click', leave);
   $('#timerChip').addEventListener('click', () => togglePanel('timer'));
   $('#fsBtn').hidden = !fsOK;
   $('#fsBtn').addEventListener('click', toggleFullscreen);
@@ -767,40 +641,12 @@
   });
 
   $('#startBtn').addEventListener('click', startSession);
-  $('#checkinBack').addEventListener('click', () => {
-    state.recorded = true;
-    goHome();
-  });
-  $('#saveLeaveBtn').addEventListener('click', () => {
-    saveRecord(state.after);
-    showDone();
-  });
-  $('#leaveBtn').addEventListener('click', () => {
-    state.recorded = true;
-    goHome();
-  });
-  $('#stayBtn').addEventListener('click', () => {
-    $('#checkout').hidden = true;
-    if (state.scape) state.scape.duck(1, 3);
-    armIdle();
-  });
-  $('#doneBtn').addEventListener('click', goHome);
-
-  $('#logClear').addEventListener('click', () => {
-    $('#logClear').hidden = true;
-    $('#logConfirm').hidden = false;
-  });
-  $('#logClearNo').addEventListener('click', renderLog);
-  $('#logClearYes').addEventListener('click', () => {
-    MC.store.remove('records');
-    renderLog();
-  });
+  $('#startBack').addEventListener('click', leave);
+  $('#stayBtn').addEventListener('click', stay);
+  $('#leaveBtn').addEventListener('click', leave);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.started) requestWakeLock();
-  });
-  window.addEventListener('pagehide', () => {
-    if (state.started && !state.recorded && elapsedSec() >= 60) saveRecord(null);
   });
   window.addEventListener('hashchange', route);
 
@@ -811,7 +657,6 @@
   });
 
   // 시작
-  renderLog();
   route();
   if (state.view === 'home') startHero();
   const afterFonts = () => renderThumbs();
@@ -827,5 +672,5 @@
     }
   } catch (e) { /* 등록할 수 없는 환경 */ }
 
-  MC.app = { state, sound, openSession, startSession, doAction, toggleBreath };
+  MC.app = { state, sound, openSession, startSession, doAction, toggleBreath, finishTimer };
 })(window.MC = window.MC || {});
