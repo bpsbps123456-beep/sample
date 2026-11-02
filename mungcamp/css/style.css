@@ -1,5 +1,5 @@
 /* 멍캠프
-   레이아웃: 밤하늘처럼 어두운 한 장의 바탕. 첫 화면은 살아 있는 모닥불, 아래로 자리 고르기 → 연구 → 기록 → 도움.
+   레이아웃: 밤하늘처럼 어두운 한 장의 바탕. 첫 화면은 살아 있는 모닥불, 아래로 자리 고르기 → 기록 → 도움.
    세션에서는 장면이 화면 전체를 채우고, 조작부는 옅은 유리처럼 떠 있다가 가만히 두면 사라진다. */
 :root {
   --night: #0c0e1a;
@@ -155,6 +155,7 @@ kbd { font-family: inherit; font-size: 0.85em; padding: 1px 6px; border: 1px sol
 
 /* ── 공통 섹션 ───────────────────────── */
 .band { padding-block: clamp(64px, 9vw, 112px); }
+.seats { padding-bottom: clamp(24px, 4vw, 48px); }
 .band h2 {
   font-family: var(--font-display);
   font-size: var(--step-3);
@@ -191,40 +192,6 @@ kbd { font-family: inherit; font-size: 0.85em; padding: 1px 6px; border: 1px sol
 .seat-tags li { font-size: var(--step--2); padding: 1px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-dim); }
 .seat-go { margin-top: auto; padding-top: 12px; color: var(--accent); font-weight: 600; font-size: var(--step--1); }
 .seat-go::after { content: " →"; }
-
-/* ── 연구 ───────────────────────────── */
-.science { background: linear-gradient(180deg, var(--night) 0%, var(--night-2) 100%); }
-.sci-group { margin-top: 44px; }
-.sci-group-title {
-  margin: 0 0 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  font-size: var(--step--1);
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--ink-faint);
-}
-.sci-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.sci-card {
-  background: var(--night-2);
-  border-radius: 16px;
-  padding: 22px 22px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-.science .sci-card { background: var(--night-3); }
-.sci-card.is-wide { grid-column: 1 / -1; }
-.sci-card.is-wide > p { max-width: 64em; }
-.sci-tag { margin: 0; font-size: var(--step--2); font-weight: 600; letter-spacing: 0.12em; color: var(--ember); }
-.sci-card h4 { margin: 0; font-family: var(--font-display); font-size: var(--step-1); line-height: 1.45; text-wrap: balance; }
-.sci-card > p { margin: 0; color: var(--ink-dim); font-size: var(--step--1); line-height: 1.8; }
-.sci-card .sci-apply { color: var(--ink); padding-top: 10px; border-top: 1px dashed var(--line); }
-.sci-apply span { display: block; color: var(--ember); font-size: var(--step--2); font-weight: 600; letter-spacing: 0.06em; }
-.sci-card .sci-cite { margin-top: auto; display: flex; flex-direction: column; gap: 2px; font-size: var(--step--2); line-height: 1.5; }
-.sci-cite a { color: var(--ink-faint); text-decoration-color: var(--line); text-underline-offset: 3px; }
-.sci-cite a:hover { color: var(--ink-dim); }
 
 /* ── 기록 ───────────────────────────── */
 .log-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 28px; max-width: 640px; }
