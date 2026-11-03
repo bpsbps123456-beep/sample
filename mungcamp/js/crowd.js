@@ -5,7 +5,18 @@
   'use strict';
 
   const MAX_VISITORS = 40;
-  const MAX_DRAWN = 16; // 장면 안에서는 가까운 사람부터 이만큼만
+
+  // 다른 사람 멍이는 가까운 사람부터 이만큼만 그린다. 기기가 버거워하면(MC.Runner 가 품질을 낮추면) 줄인다
+  function maxDrawn() {
+    const q = MC.frameQuality == null ? 1 : MC.frameQuality;
+    return q >= 0.8 ? 16 : q >= 0.6 ? 12 : 8;
+  }
+  // 다시 그리는 간격도 버거우면 늘린다
+  function paintGap(lively) {
+    const slow = (MC.frameQuality == null ? 1 : MC.frameQuality) < 0.6;
+    return lively ? (slow ? 1 / 12 : 1 / 20) : slow ? 1 / 5 : 1 / 8;
+  }
+  MC.crowdMaxDrawn = maxDrawn;
 
   // 다른 사람의 멍이. 받은 자리로 부드럽게 따라가고, 들어오고 나갈 때 살며시 나타났다 사라진다
   class Visitor {
@@ -67,7 +78,7 @@
       p.setLie(!!st.l);
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
       const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.mood === 'eating' || p.mood === 'startled' || (p.lie > 0 && p.lie < 1);
-      p.paintEvery = lively ? 1 / 20 : 1 / 8;
+      p.paintEvery = paintGap(lively);
       if (st.z && !p.sleeping) p.setMood('sleepy', 2.5);
       else if (!st.z && p.sleeping) p.wake();
       p.update(dt, Object.assign({}, env, { walking: !!st.w || d > (env.walkEps || 3), noSleep: true }));
@@ -574,10 +585,11 @@
       if (this.shownAt === this.t && this.shownSet) return this.shownSet;
       this.shownAt = this.t;
       const all = Array.from(this.visitors.values());
-      if (all.length > MAX_DRAWN) {
+      const max = maxDrawn();
+      if (all.length > max) {
         const me = this.cfg.toScreen(this.me.X, this.me.Z);
         all.sort((a, b) => Math.hypot(a.pup.x - me.x, a.pup.y - me.y) - Math.hypot(b.pup.x - me.x, b.pup.y - me.y));
-        all.length = MAX_DRAWN;
+        all.length = max;
       }
       this.shownSet = new Set(all);
       return this.shownSet;

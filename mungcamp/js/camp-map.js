@@ -1086,9 +1086,21 @@
       items.push({ y: PAVILION.y + 0.6, d: () => this.drawChime(g) });
       const left = vx0 - 120;
       const right = vx0 + w / z + 120;
+      // 화면 안의 사람 가운데 내 곁부터 (MC.crowdMaxDrawn: 기기가 버거우면 줄어든다)
+      let near = [];
       for (const v of this.visitors.values()) {
         const p = v.pup;
         if (p.y < top || p.y > bottom + 160 || p.x < left || p.x > right) continue;
+        near.push(v);
+      }
+      const maxV = MC.crowdMaxDrawn ? MC.crowdMaxDrawn() : 16;
+      if (near.length > maxV) {
+        const me = this.pup;
+        near.sort((a, b) => Math.hypot(a.pup.x - me.x, a.pup.y - me.y) - Math.hypot(b.pup.x - me.x, b.pup.y - me.y));
+        near = near.slice(0, maxV);
+      }
+      for (const v of near) {
+        const p = v.pup;
         items.push({ y: p.y, d: () => {
           const a = MC.clamp(v.fade, 0, 1);
           if (a < 1) g.globalAlpha = a;

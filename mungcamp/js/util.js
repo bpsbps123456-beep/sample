@@ -161,6 +161,7 @@
       if (dt > 0.1) dt = 0.1; // 탭으로 돌아온 직후의 큰 점프 방지
       this._adapt(dt);
       this.scene.quality = this.quality;
+      MC.frameQuality = this.quality / this.baseQuality; // 다른 사람 멍이를 몇 마리 그릴지도 이걸 따른다
       this.scene.update(dt);
       this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       this.ctx.globalAlpha = 1;

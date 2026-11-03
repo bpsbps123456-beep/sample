@@ -280,10 +280,9 @@ const HEADERS = {
 };
 const files = new Map();
 
+// 페이지와 코드는 매번 확인한다 (바뀐 게 없으면 304 로 짧게). 아이콘만 오래 둔다
 function cacheFor(rel) {
-  if (rel === 'index.html' || rel === 'sw.js') return 'public, max-age=0, must-revalidate';
-  if (/^(css|js)\//.test(rel)) return 'public, max-age=3600, stale-while-revalidate=86400';
-  return 'public, max-age=604800';
+  return /^icon/.test(rel) ? 'public, max-age=604800' : 'no-cache';
 }
 
 function loadFile(rel) {
