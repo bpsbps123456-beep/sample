@@ -82,7 +82,11 @@
           return;
         }
         if (!m || typeof m !== 'object') return;
-        if (m.t === 'you' && typeof m.id === 'string') net.id = m.id;
+        if (m.t === 'you' && typeof m.id === 'string') {
+          net.id = m.id;
+          // 서버에 올라간 사이트의 버전 (다시 배포되면 바뀐다)
+          if (typeof m.v === 'string' && m.v.length <= 64 && net.onVersion) net.onVersion(m.v);
+        }
         else if (m.t === 'd') {
           // 새 방에 들어가면 방 안의 모두를 한 번에 받는다: 예전 방 사람들은 지운다
           if (m.full) net.clear();
@@ -214,6 +218,7 @@
       this.dirty = false;
       this.hello = true;
       this.onBoop = null;
+      this.onVersion = null;
     }
 
     async start() {

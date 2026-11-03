@@ -156,6 +156,50 @@
     (sc && sc.pup ? sc.pup : camp.pup).poke();
   };
   camp.onBoop = (id) => net.boop(id);
+
+  // ── 새 버전 ───────────────────────────────────────────
+  // 이 페이지를 건넨 서버(server/presence.js)가 다시 배포되어 내용이 바뀌면, 다시 이어질 때 알려 준다.
+  // 쉬는 중에는 방해하지 않는다: 마을로 돌아올 때(화면이 어두워진 사이), 또는 아직 소리를 켜지 않았거나
+  // 소리 없이 다른 탭에 가 있을 때 조용히 새로 고친다
+  const myVersion = (() => {
+    const m = document.querySelector('meta[name="mc-version"]');
+    return m && m.content ? m.content : '';
+  })();
+  let newVersion = '';
+  net.onVersion = (v) => {
+    if (!myVersion || !v || v === myVersion) return;
+    newVersion = v;
+    if (state.view === 'home' && !audioRunning()) freshen();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.view === 'home' && !audioRunning()) freshen();
+  });
+  function freshen(backTo) {
+    if (!newVersion) return false;
+    try {
+      // 한 번 새로 고쳤는데도 옛것이 왔으면(느린 인터넷에 캐시가 대신 답했으면) 되풀이하지 않는다
+      if (sessionStorage.getItem('mungcamp.freshFor') === newVersion) return false;
+      sessionStorage.setItem('mungcamp.freshFor', newVersion);
+      if (backTo) sessionStorage.setItem('mungcamp.backTo', backTo);
+    } catch (e) {
+      return false; // 기록할 수 없으면 되풀이를 막을 수 없으니 하지 않는다
+    }
+    location.reload();
+    return true;
+  }
+  // 새로 고친 뒤에는 떠나온 자리 곁에서 다시 시작한다
+  function backToSpot() {
+    let spot = null;
+    try {
+      spot = sessionStorage.getItem('mungcamp.backTo');
+      sessionStorage.removeItem('mungcamp.backTo');
+    } catch (e) { /* 저장 불가 */ }
+    if (spot && SCENES[spot] && state.view === 'home') {
+      state.lastSpot = spot;
+      camp.placeAt(spot);
+    }
+  }
+
   // 내 멍이도 내 털빛과 모자를 입는다
   camp.pup.setLook(net.look.c, net.look.h);
   const together = { camp: $('#campTogether'), session: $('#sessionTogether'), at: 0 };
@@ -472,6 +516,8 @@
   function closeSession() {
     if (state.view !== 'session') return;
     const from = state.scene;
+    // 새 버전이 와 있으면 마을로 돌아오는 이 틈에 새로 고친다
+    if (freshen(state.lastSpot || (from === 'tent' ? 'fire' : from))) return;
     teardown();
     state.view = 'home';
     session.hidden = true;
@@ -939,6 +985,7 @@
 
   // 시작
   route();
+  backToSpot();
   if (state.view === 'home') startCamp();
   const afterFonts = () => renderThumbs();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(afterFonts, afterFonts);

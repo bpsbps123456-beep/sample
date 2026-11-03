@@ -280,6 +280,28 @@ const HEADERS = {
 };
 const files = new Map();
 
+// 지금 올라간 사이트의 지문: 파일 내용으로 만든다. 다시 배포해 내용이 바뀌면 달라지고,
+// 그러면 열려 있는 페이지가 알맞은 때에 스스로 새로 고친다 (js/app.js '새 버전')
+function siteVersion() {
+  const h = crypto.createHash('sha1');
+  const walk = (dir, rel) => {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const r = rel ? rel + '/' + name : name;
+      if (name[0] === '.' || r === 'server' || r === 'node_modules') continue;
+      const abs = path.join(dir, name);
+      if (fs.statSync(abs).isDirectory()) walk(abs, r);
+      else if (TYPES[path.extname(name)]) h.update(r).update('\0').update(fs.readFileSync(abs));
+    }
+  };
+  try {
+    walk(ROOT, '');
+  } catch (e) {
+    return '';
+  }
+  return h.digest('base64url').slice(0, 12);
+}
+const VERSION = STATIC ? siteVersion() : '';
+
 // 페이지와 코드는 매번 확인한다 (바뀐 게 없으면 304 로 짧게). 아이콘만 오래 둔다
 function cacheFor(rel) {
   return /^icon/.test(rel) ? 'public, max-age=604800' : 'no-cache';
@@ -296,8 +318,10 @@ function loadFile(rel) {
   } catch (e) {
     return null;
   }
-  // 이 서버에서 연 페이지는 이 서버로 모인다
-  if (rel === 'index.html') body = Buffer.from(body.toString('utf8').replace('<meta name="mc-presence" content="">', '<meta name="mc-presence" content="auto">'));
+  // 이 서버에서 연 페이지는 이 서버로 모이고, 자기 버전을 안다
+  if (rel === 'index.html') {
+    body = Buffer.from(body.toString('utf8').replace('<meta name="mc-presence" content="">', `<meta name="mc-presence" content="auto">\n  <meta name="mc-version" content="${VERSION}">`));
+  }
   const text = !/^image\/(png|x-icon)/.test(type);
   const f = {
     body,
@@ -384,7 +408,7 @@ server.on('upgrade', (req, socket) => {
     seen: Date.now(),
   };
   clients.add(c);
-  send(c, { t: 'you', id: c.id });
+  send(c, VERSION ? { t: 'you', id: c.id, v: VERSION } : { t: 'you', id: c.id });
   socket.on('data', (d) => onData(c, d));
   socket.on('close', () => close(c));
   socket.on('error', () => close(c));
@@ -400,5 +424,5 @@ setInterval(() => {
 }, 20000).unref();
 
 server.listen(PORT, () => {
-  console.log(`mungcamp on :${PORT}${STATIC ? ' (site + presence)' : ' (presence only)'} (room cap ${ROOM_CAP}, map cap ${MAP_CAP})`);
+  console.log(`mungcamp on :${PORT}${STATIC ? ` (site ${VERSION} + presence)` : ' (presence only)'} (room cap ${ROOM_CAP}, map cap ${MAP_CAP})`);
 });
