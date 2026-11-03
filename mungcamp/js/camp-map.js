@@ -772,6 +772,16 @@
       return { x: (sx - this.w / 2) / this.z + this.cam.x, y: (sy - this.h / 2) / this.z + this.cam.y };
     }
 
+    // 끌어서 지도 둘러보기. 지도 끝에 닿아 더 못 간 만큼(화면 px, 세로)을 돌려준다: 페이지 스크롤로 넘긴다
+    pan(dx, dy) {
+      this.camFree = true;
+      const y0 = this.cam.y;
+      this.cam.x -= dx / this.z;
+      this.cam.y -= dy / this.z;
+      this.clampCam();
+      return dy - (y0 - this.cam.y) * this.z;
+    }
+
     clampCam() {
       const hw = this.w / 2 / this.z;
       const hh = this.h / 2 / this.z;
@@ -790,10 +800,15 @@
     setKeys(x, y) {
       this.keys.x = x;
       this.keys.y = y;
-      if (x || y) this.target = null;
+      if (x || y) {
+        this.target = null;
+        this.camFree = false;
+      }
     }
 
     tap(sx, sy) {
+      // 톡 하면 카메라는 다시 내 멍이를 따라간다
+      this.camFree = false;
       const p = this.toWorld(sx, sy);
       // 다른 사람의 멍이를 톡 하면 하트를 보낸다. 겹쳐 있으면 앞에 있는 멍이가 먼저
       let hit = null;
@@ -848,6 +863,7 @@
       this.pup.restView = 'front';
       this.pup.baseTurn = 0;
       this.target = null;
+      this.camFree = false;
       this.cam.x = this.pup.x;
       this.cam.y = this.pup.y - 40;
       this.clampCam();
@@ -966,9 +982,11 @@
       }
       MC.dropFaded(this.visitors);
 
-      // 카메라는 멍이를 부드럽게 따라간다
-      this.cam.x += (pup.x + vx * 0.25 - this.cam.x) * Math.min(1, dt * 3.2);
-      this.cam.y += (pup.y - 40 + vy * 0.25 - this.cam.y) * Math.min(1, dt * 3.2);
+      // 카메라는 멍이를 부드럽게 따라간다 (손가락으로 끌어 둘러보는 동안에는 그 자리에 둔다)
+      if (!this.camFree) {
+        this.cam.x += (pup.x + vx * 0.25 - this.cam.x) * Math.min(1, dt * 3.2);
+        this.cam.y += (pup.y - 40 + vy * 0.25 - this.cam.y) * Math.min(1, dt * 3.2);
+      }
       this.clampCam();
 
       // 가장 가까운 자리

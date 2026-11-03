@@ -14,6 +14,7 @@
       star: MC.glow([226, 232, 255], 16, 0.22),
       glint: MC.glow([255, 244, 214], 32, 0.25),
       plankton: MC.glow([110, 225, 255], 16, 0.3),
+      cloud: MC.glow([150, 140, 178], 128, 0.25),
       spout: MC.glow([214, 226, 255], 32, 0.3),
     };
     return SPR;
@@ -355,7 +356,7 @@
       this.s = MC.clamp(Math.min(w / 520, h / 800), 0.6, 1.4);
       this.hy = Math.round(h * (portrait ? 0.47 : 0.53));
       this.sandTop = Math.round(h * (portrait ? 0.8 : 0.86));
-      this.moon = { x: w * (portrait ? 0.66 : 0.63), y: this.hy - Math.min(h * 0.2, 170), r: 19 * this.s };
+      this.moon = this.moonAt();
       this.buildBackground();
       this.buildRows();
       const pup = this.pup;
@@ -367,6 +368,71 @@
       this.buildStand();
       if (this.crowd) this.crowd.layout();
       this.crab.place(this);
+    }
+
+    // 달: 몇 시간에 걸쳐 하늘을 천천히 오간다. 벽시계를 따르므로 같은 바다의 모두가 같은 달을 보고,
+    // 다시 오면 달이 자리를 옮겨 있다. 수평선 아래로 지거나 곶 뒤로 가지는 않는다
+    moonAt() {
+      const { w, h, hy } = this;
+      const portrait = w < h * 0.9;
+      const bx = w * (portrait ? 0.66 : 0.63);
+      const by = hy - Math.min(h * 0.2, 170);
+      return {
+        x: bx + w * (portrait ? 0.13 : 0.11) * MC.slow(170, 0.4),
+        y: by + Math.min(h * 0.06, 50) * MC.slow(130, 2.1),
+        r: 19 * this.s,
+      };
+    }
+
+    // 가끔 달 앞을 지나가는 얇은 구름 하나, 그보다 높이 지나가는 구름 하나 (벽시계)
+    cloudsNow() {
+      const { w, s } = this;
+      const m = this.moon;
+      const L = w * 0.4;
+      const span = w + L * 2;
+      const v = 2.4 * s;
+      const out = [];
+      for (let i = 0; i < 2; i++) {
+        const x = ((MC.world() * v * (1 - i * 0.18) + i * span * 0.55 + 97) % span) - L;
+        const y = m.y + (i ? -64 : 6) * s + MC.slow(23 + i * 9, i * 2) * 6 * s;
+        out.push({ x, y, L: L * (1 - i * 0.25), H: (13 - i * 3) * s });
+      }
+      return out;
+    }
+
+    drawMoon(g) {
+      const { s, hy, sandTop } = this;
+      const m = this.moon;
+      const veil = this.veil || 0;
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = 0.08 * (1 - 0.6 * veil);
+      g.drawImage(SPR.moonGlow, m.x - m.r * 22, m.y - m.r * 22, m.r * 44, m.r * 44);
+      g.globalAlpha = 0.35 * (1 - 0.6 * veil);
+      g.drawImage(SPR.moonGlow, m.x - m.r * 6, m.y - m.r * 6, m.r * 12, m.r * 12);
+      g.globalCompositeOperation = 'source-over';
+      g.globalAlpha = 1 - 0.45 * veil;
+      const md = this.moonDisk;
+      const D = m.r * 2 + 2 / this.dpr;
+      g.drawImage(md, m.x - D / 2, m.y - D / 2, D, D);
+      g.globalAlpha = 1;
+      // 구름: 달빛을 받아 은은하게
+      g.globalCompositeOperation = 'lighter';
+      for (const c of this.clouds || []) {
+        g.globalAlpha = 0.16;
+        g.drawImage(SPR.cloud, c.x - c.L / 2, c.y - c.H, c.L, c.H * 2);
+        g.globalAlpha = 0.1;
+        g.drawImage(SPR.cloud, c.x - c.L * 0.3, c.y - c.H * 1.6, c.L * 0.5, c.H * 1.8);
+      }
+      // 달빛 기둥: 달이 옮겨 가면 바다 위의 길도 따라 옮겨 간다
+      g.save();
+      g.beginPath();
+      g.rect(0, hy - 10, this.w, sandTop - hy + 10);
+      g.clip();
+      g.globalAlpha = 0.13 * (1 - 0.6 * veil);
+      g.drawImage(SPR.column, m.x - 90 * s, hy - 10, 180 * s, (sandTop - hy) * 1.15);
+      g.restore();
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
     }
 
     headland(x) {
@@ -411,26 +477,26 @@
         g.globalAlpha = 0.08 + rnd() * 0.08;
         g.drawImage(cloud, rnd() * w - cw / 2, cy - 5 * this.s, cw, (6 + rnd() * 8) * this.s);
       }
-      // 달
-      const m = this.moon;
-      g.globalAlpha = 0.08;
-      g.drawImage(SPR.moonGlow, m.x - m.r * 22, m.y - m.r * 22, m.r * 44, m.r * 44);
-      g.globalAlpha = 0.35;
-      g.drawImage(SPR.moonGlow, m.x - m.r * 6, m.y - m.r * 6, m.r * 12, m.r * 12);
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
-      const disk = g.createRadialGradient(m.x - m.r * 0.3, m.y - m.r * 0.3, m.r * 0.1, m.x, m.y, m.r);
+      // 달은 아주 천천히 하늘을 건너가므로 매 프레임 그린다 (drawMoon). 둥근 달 그림만 한 번 만들어 둔다
+      const mr = this.moon.r;
+      const md = (this.moonDisk = MC.canvas(Math.ceil(mr * 2 * dpr) + 2, Math.ceil(mr * 2 * dpr) + 2));
+      const mg = md.getContext('2d');
+      mg.scale(dpr, dpr);
+      mg.translate(mr + 1 / dpr, mr + 1 / dpr);
+      const disk = mg.createRadialGradient(-mr * 0.3, -mr * 0.3, mr * 0.1, 0, 0, mr);
       disk.addColorStop(0, '#fffbef');
       disk.addColorStop(1, '#e6dfc9');
-      g.fillStyle = disk;
-      g.beginPath();
-      g.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = 'rgba(160,150,130,0.18)';
+      mg.fillStyle = disk;
+      mg.beginPath();
+      mg.arc(0, 0, mr, 0, Math.PI * 2);
+      mg.fill();
+      mg.fillStyle = 'rgba(160,150,130,0.18)';
       for (const [dx, dy, rr] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.3], [0.05, -0.45, 0.14]]) {
-        g.beginPath();
-        g.arc(m.x + dx * m.r, m.y + dy * m.r, rr * m.r, 0, Math.PI * 2);
-        g.fill();
+        mg.beginPath();
+        mg.arc(dx * mr, dy * mr, rr * mr, 0, Math.PI * 2);
+        mg.fill();
       }
 
       // 바다
@@ -441,12 +507,6 @@
       sea.addColorStop(1, '#0e1534');
       g.fillStyle = sea;
       g.fillRect(0, hy, w, sandTop - hy + 2);
-      // 달빛 기둥
-      g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = 0.13;
-      g.drawImage(SPR.column, m.x - 90 * this.s, hy - 10, 180 * this.s, (sandTop - hy) * 1.15);
-      g.globalAlpha = 1;
-      g.globalCompositeOperation = 'source-over';
 
       // 곶과 등대
       g.fillStyle = '#0a1024';
@@ -796,6 +856,15 @@
     update(dt) {
       this.t += dt;
       const s = this.s;
+      // 달과 구름은 벽시계를 따라 아주 천천히
+      this.moon = this.moonAt();
+      this.clouds = this.cloudsNow();
+      let veil = 0;
+      for (const c of this.clouds) {
+        if (Math.abs(c.y - this.moon.y) > c.H + this.moon.r) continue;
+        veil = Math.max(veil, Math.max(0, 1 - Math.abs(c.x - this.moon.x) / (c.L * 0.5)));
+      }
+      this.veil = 0.38 * veil;
       for (const r of this.ripples) r.age += dt;
       this.ripples = this.ripples.filter((r) => r.age < 4.5);
       for (const q of this.plank) {
@@ -1086,6 +1155,7 @@
       if (!this.bg) return;
       const { w, h, s, hy, t } = this;
       g.drawImage(this.bg, 0, 0, w, h);
+      this.drawMoon(g);
 
       g.globalCompositeOperation = 'lighter';
       for (const st of this.twinkles) {
@@ -1160,7 +1230,7 @@
         for (const gl of r.glints) {
           const b = Math.sin(t * gl.sp + gl.ph);
           if (b <= 0.15) continue;
-          const a = Math.pow((b - 0.15) / 0.85, 2) * (0.25 + 0.45 * r.z);
+          const a = Math.pow((b - 0.15) / 0.85, 2) * (0.25 + 0.45 * r.z) * (1 - 0.55 * (this.veil || 0));
           const x = m.x + gl.o * spread + Math.sin(t * 0.3 + gl.ph) * 4 * s;
           const y = this.waveY(r, x);
           const len = (4 + 22 * r.z) * gl.len * s;

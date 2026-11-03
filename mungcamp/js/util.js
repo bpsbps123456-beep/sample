@@ -40,6 +40,12 @@
 
   // 물멍의 파도 주기. 10초 = 1분에 6번, 공명 호흡의 리듬과 같다
   MC.WAVE_T = 10;
+
+  // 이 세계의 느린 시간: 벽시계를 따르므로 같은 곳의 누구에게나 같고, 다시 와도 이어진다.
+  // 낮과 밤은 바뀌지 않는다. 달과 별, 햇살이 아주 천천히 자리를 옮길 뿐이다
+  MC.world = () => Date.now() / 1000;
+  // minutes 분에 한 번 오가는 느린 흔들림 (-1..1)
+  MC.slow = (minutes, phase = 0) => Math.sin((2 * Math.PI * MC.world()) / (minutes * 60) + phase);
   MC.waveAmp = (k) => 0.62 + 0.3 * MC.hash(k) + (MC.hash(k + 99) > 0.86 ? 0.22 : 0);
 
   MC.reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);

@@ -96,7 +96,9 @@
 
   let toastTimer = 0;
   function toast(msg, ms = 3600) {
-    const el = $('#toast');
+    // 마을에서는 마을의 알림 자리에, 장면 안에서는 장면의 알림 자리에
+    const el = state.view === 'home' ? $('#campToast') : $('#toast');
+    for (const other of [$('#campToast'), $('#toast')]) if (other !== el) other.classList.remove('is-on');
     el.textContent = msg;
     el.classList.add('is-on');
     clearTimeout(toastTimer);
@@ -154,9 +156,23 @@
   net.start();
   setInterval(() => net.tick(), 1000);
   // 누군가 내 멍이에게 하트를 보내면 내 멍이가 폴짝
-  net.onBoop = () => {
+  // 누가 내 멍이에게 하트를 보내면: 내 멍이에게서도 하트가 퐁퐁 오르고, 누가 응원하는지 살짝 알려 준다
+  // (같은 사람이 연달아 보내면 알림은 6초에 한 번만)
+  const cheeredAt = new Map();
+  net.onBoop = (id) => {
     const sc = state.view === 'session' ? state.sceneObj : null;
-    (sc && sc.pup ? sc.pup : camp.pup).poke();
+    const p = sc && sc.pup ? sc.pup : camp.pup;
+    p.wake();
+    if (p.mood !== 'eating') p.setMood('happy', 1.8);
+    p.addHearts(3);
+    p.hopV = -45;
+    const now = MC.clock();
+    if (now - (cheeredAt.get(id) || -99) > 6) {
+      cheeredAt.set(id, now);
+      const peer = net.peers.get(id);
+      const name = peer && peer.s.n;
+      toast(name ? `${name}님이 나를 응원해주고 있어요!` : '누군가 나를 응원해주고 있어요!');
+    }
   };
   camp.onBoop = (id) => {
     net.boop(id);
@@ -437,7 +453,53 @@
     location.hash = id;
   }
 
+  // 지도: 톡 하면 그리로 걸어가고, 끌면 지도를 둘러본다.
+  // 지도 위아래 끝에 닿은 뒤에도 더 끌면 페이지가 스크롤된다 (아래의 '다른 곳' 카드로)
+  let drag = null;
+  let dragged = false;
+  campCanvas.addEventListener('pointerdown', (e) => {
+    if (drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+    dragged = false;
+  });
+  campCanvas.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < 8) return;
+      drag.moved = true;
+      try { campCanvas.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+    }
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    let rest = dy;
+    // 손가락을 따라 바로 움직여야 하니 부드러운 스크롤(CSS)은 쓰지 않는다
+    const scroll = (by) => window.scrollBy({ top: by, behavior: 'instant' });
+    // 페이지가 내려가 있으면 먼저 페이지를 올린다
+    if (dy > 0 && window.scrollY > 0) {
+      const up = Math.min(dy, window.scrollY);
+      scroll(-up);
+      rest -= up;
+    }
+    const left = camp.pan(dx, rest);
+    if (left < 0) scroll(-left);
+    e.preventDefault();
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    dragged = drag.moved;
+    drag = null;
+  };
+  campCanvas.addEventListener('pointerup', endDrag);
+  campCanvas.addEventListener('pointercancel', endDrag);
+
   campCanvas.addEventListener('click', (e) => {
+    // 끌어서 둘러본 뒤 손을 뗀 것은 톡이 아니다
+    if (dragged) {
+      dragged = false;
+      return;
+    }
     const r = campCanvas.getBoundingClientRect();
     if (camp.tap(e.clientX - r.left, e.clientY - r.top) === 'pup') showName(campName, camp.pup, net.name, true);
   });

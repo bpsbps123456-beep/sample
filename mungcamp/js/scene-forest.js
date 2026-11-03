@@ -412,8 +412,9 @@
     }
 
     perch(sc) {
-      const br = sc.tree.branches[this.i % sc.tree.branches.length];
-      const p = sc.branchPoint(br, this.i ? 0.97 : 0.9);
+      const bs = sc.tree.branches;
+      const br = bs[Math.max(0, bs.length - 1 - this.i)];
+      const p = sc.branchPoint(br, this.i ? 0.95 : 0.2);
       return { x: p.x + this.off * sc.s, y: p.y - this.hop * 6 * sc.s };
     }
 
@@ -554,6 +555,9 @@
       g.restore();
     }
   }
+
+  // 큰 편백의 가지마다 엎드릴 수 있는 자리 수 (아래 가지부터). 자리 번호: 1 그루터기, 2.. 가지 자리
+  const BRANCH_SPOTS = [2, 2, 2, 2, 1, 1];
 
   // 그루터기에 누가 있으면 숲 바닥에 흩어져 앉는다 (오른쪽 큰 편백 밑동은 비워 둔다)
   const FOREST_SEATS = [
@@ -825,7 +829,7 @@
         const x0 = -w * 0.15 + (i / n) * w * 0.85 + rnd() * 40 * s;
         const w0 = (18 + rnd() * 40) * s;
         const len = h * 1.25;
-        this.beams.push({ x0, y0: -20, dx, dy, w0, w1: w0 * 2.6, len, base: 0.12 + rnd() * 0.14, seed: rnd() * 40 });
+        this.beams.push({ x0, bx0: x0, y0: -20, dx, dy, w0, w1: w0 * 2.6, len, base: 0.12 + rnd() * 0.14, seed: rnd() * 40 });
       }
     }
 
@@ -995,15 +999,25 @@
       const b = this.band();
       const tx = w * (P ? 0.93 : 0.87);
       const tw = (P ? 62 : 86) * s;
-      const x0 = tx - tw * 0.4;
-      // 아래에서 위로: 줄기에서 나오는 높이(바닥 위), 끝 위치(화면 가로 비율), 끝이 올라가는 정도, 두께
-      const levels = P
-        ? [[86, 0.4, 22, 38, 17], [196, 0.5, 18, 33, 15], [300, 0.42, 18, 30, 13], [400, 0.55, 16, 27, 12]]
-        : [[94, 0.49, 22, 38, 17], [210, 0.6, 18, 33, 15], [322, 0.52, 18, 30, 13], [430, 0.63, 16, 27, 12]];
-      const branches = levels.map(([up, x1, rise, th0, th1]) => {
-        const y0 = b.top - up * s;
-        return { x0, y0, x1: w * x1, y1: y0 - rise * s, th0: th0 * s, th1: th1 * s };
-      });
+      // 줄기는 위로 갈수록 가늘어진다
+      const half = (y) => (tw / 2) * (0.7 + 0.3 * MC.clamp(y / h, 0, 1));
+      this.trunkHalf = half;
+      // 가지 여섯: 바닥 가까이에서 꼭대기 가까이까지. 화면 크기가 달라도 가지 수와 자리 수는 같다
+      // (함께 있는 사람들과 자리 번호가 같은 가지를 가리키도록). 가장 높은 가지도 엎드린 멍이 머리가 화면 안에 든다
+      const NB = BRANCH_SPOTS.length;
+      const lowY = b.top - (P ? 86 : 94) * s;
+      const topY = Math.max(h * 0.1, 92 * s);
+      const step = (lowY - topY) / (NB - 1);
+      const ends = P ? [0.36, 0.44, 0.38, 0.46, 0.42, 0.52] : [0.49, 0.58, 0.51, 0.6, 0.55, 0.66];
+      const rises = [22, 12, 26, 15, 24, 18];
+      const jit = [0, 0.16, -0.1, 0.14, -0.08, 0];
+      const branches = [];
+      for (let i = 0; i < NB; i++) {
+        const y0 = lowY - step * (i + jit[i]);
+        const th0 = Math.max(20, 38 - i * 3.2) * s;
+        const th1 = Math.max(9, 17 - i * 1.3) * s;
+        branches.push({ x0: tx - half(y0) * 0.8, y0, x1: w * ends[i], y1: y0 - rises[i] * s, th0, th1 });
+      }
       for (const br of branches) {
         br.cx = (br.x0 + br.x1) / 2;
         br.cy = Math.max(br.y0, br.y1) + 8 * s;
@@ -1011,10 +1025,13 @@
       this.tree = { x: tx, w: tw, branches };
       // 자리: 1 그루터기, 2.. 아래 가지(줄기 쪽부터), 그다음 위 가지
       this.spots = [null, { kind: 'stump' }];
+      // 가지 사이가 좁은 화면(낮고 넓은 창)에서는 엎드린 멍이를 조금 작게
+      let gapMin = Infinity;
+      for (let i = 1; i < branches.length; i++) gapMin = Math.min(gapMin, branches[i - 1].y0 - branches[i].y0);
+      const kSpot = Math.min(s * 0.9, gapMin / 100);
       branches.forEach((br, bi) => {
-        const len = Math.abs(br.x0 - br.x1);
-        const k = s * 0.9;
-        const n = MC.clamp(Math.floor((len - 30 * s) / (104 * k)), 1, bi ? 2 : 3);
+        const k = kSpot;
+        const n = BRANCH_SPOTS[bi];
         for (let j = 0; j < n; j++) {
           const t = n === 1 ? 0.55 : 0.3 + (0.48 * j) / (n - 1);
           const p = this.branchPoint(br, t);
@@ -1053,13 +1070,14 @@
       // 줄기: 아래로 갈수록 넓어지며 뿌리가 땅을 움켜쥔다
       const left = tx - tw / 2;
       const right = tx + tw / 2;
+      const yb = b.top - 34 * s;
       g.beginPath();
-      g.moveTo(left + tw * 0.06, -10);
-      g.lineTo(left, b.top - 34 * s);
-      g.quadraticCurveTo(left - 4 * s, b.top + 14 * s, left - tw * 0.34, h + 10);
+      g.moveTo(tx - half(-10), -10);
+      g.lineTo(tx - half(yb), yb);
+      g.quadraticCurveTo(tx - half(yb) - 4 * s, b.top + 14 * s, left - tw * 0.34, h + 10);
       g.lineTo(right + tw * 0.34, h + 10);
-      g.quadraticCurveTo(right + 4 * s, b.top + 14 * s, right, b.top - 34 * s);
-      g.lineTo(right - tw * 0.06, -10);
+      g.quadraticCurveTo(tx + half(yb) + 4 * s, b.top + 14 * s, tx + half(yb), yb);
+      g.lineTo(tx + half(-10), -10);
       g.closePath();
       const bark = g.createLinearGradient(left, 0, right, 0);
       bark.addColorStop(0, '#c58e60');
@@ -1199,12 +1217,46 @@
         g.fill();
       }
 
+      // 꼭대기 가지, 줄기 가까이에 작은 새 둥지
+      {
+        const tb = branches[branches.length - 1];
+        const np = this.branchPoint(tb, 0.1);
+        this.nest = { x: np.x, y: np.y };
+        g.save();
+        g.translate(np.x, np.y + 2 * s);
+        g.fillStyle = '#7a5434';
+        g.beginPath();
+        g.ellipse(0, -3 * s, 15 * s, 7 * s, 0, 0, Math.PI);
+        g.fill();
+        g.strokeStyle = 'rgba(200,160,110,0.8)';
+        g.lineWidth = 1.2 * s;
+        for (let i = 0; i < 9; i++) {
+          const a = -0.2 + (i / 8) * (Math.PI + 0.4);
+          g.beginPath();
+          g.moveTo(Math.cos(a) * 14 * s, -3 * s + Math.sin(a) * 6 * s);
+          g.quadraticCurveTo(Math.cos(a + 0.6) * 8 * s, -6 * s, Math.cos(a + 1.1) * 13 * s, -3 * s + Math.sin(a + 1.1) * 5 * s);
+          g.stroke();
+        }
+        g.fillStyle = '#4a311f';
+        g.beginPath();
+        g.ellipse(0, -4.5 * s, 11 * s, 3 * s, 0, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = '#cfe3f0';
+        for (const ex of [-3.5, 3]) {
+          g.beginPath();
+          g.ellipse(ex * s, -5.5 * s, 2.8 * s, 2.2 * s, 0, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.restore();
+      }
+
       // 가지 끝에서 살랑이는 잎은 따로 그린다
       this.tips = [];
       branches.forEach((br, bi) => {
         const p = this.branchPoint(br, 1);
-        this.tips.push({ x: p.x + 3 * s, y: p.y + br.th1 * 0.5, a: Math.PI + 0.25, spr: this.sprays[bi], ph: rnd() * 6 });
-        this.tips.push({ x: p.x + 8 * s, y: p.y + br.th1 * 0.8, a: Math.PI - 0.55, spr: this.sprays[(bi + 1) % 3], ph: rnd() * 6 });
+        const n = this.sprays.length;
+        this.tips.push({ x: p.x + 3 * s, y: p.y + br.th1 * 0.5, a: Math.PI + 0.25, spr: this.sprays[bi % n], ph: rnd() * 6 });
+        this.tips.push({ x: p.x + 8 * s, y: p.y + br.th1 * 0.8, a: Math.PI - 0.55, spr: this.sprays[(bi + 1) % n], ph: rnd() * 6 });
       });
     }
 
@@ -1277,7 +1329,7 @@
       g.globalCompositeOperation = 'lighter';
       for (const d of this.dapples) {
         if (d.on !== on) continue;
-        const a = (0.09 + 0.09 * MC.fbm(this.t * d.sp + d.ph)) * (1 + this.gust * 0.6);
+        const a = (0.09 + 0.09 * MC.fbm(this.t * d.sp + d.ph)) * (1 + this.gust * 0.6) * (1 - 0.85 * (this.sunVeil || 0));
         if (a <= 0.01) continue;
         const ox = Math.sin(this.t * 0.35 + d.ph) * 5 * this.s * (1 + this.gust);
         g.globalAlpha = Math.min(0.35, a);
@@ -1447,12 +1499,31 @@
     }
 
     beamAlpha(b) {
-      return b.base * (0.55 + 0.45 * MC.fbm(this.t * 0.11 + b.seed));
+      return b.base * (0.55 + 0.45 * MC.fbm(this.t * 0.11 + b.seed)) * (1 - (this.sunVeil || 0));
+    }
+
+    // 해는 아주 천천히 옮겨 가고(빛줄기의 기울기와 자리), 가끔 구름이 해를 가렸다 지나간다.
+    // 벽시계를 따르므로 같은 숲의 모두가 같은 햇살을 본다. 낮과 밤은 바뀌지 않는다
+    moveSun() {
+      const ang = ((62 + 4 * MC.slow(150, 0.7)) * Math.PI) / 180;
+      const shift = 40 * this.s * MC.slow(110, 1.9);
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      for (const b of this.beams) {
+        b.dx = dx;
+        b.dy = dy;
+        b.x0 = b.bx0 + shift;
+      }
+      // 7분에 한 번, 1분 남짓 구름이 지나간다
+      const v = 0.5 + 0.5 * Math.sin((2 * Math.PI * MC.world()) / 420 + 0.5);
+      const e = MC.clamp((v - 0.84) / 0.16, 0, 1);
+      this.sunVeil = 0.6 * e * e * (3 - 2 * e);
     }
 
     update(dt) {
       const { w, h, s } = this;
       this.t += dt;
+      this.moveSun();
       this.gust = Math.max(0, this.gust - dt * 0.22);
       this.wind = 0.25 + 0.15 * (0.5 + 0.5 * MC.fbm(this.t * 0.05)) + this.gust;
       const n = Math.round(this.motes.length * MC.clamp(this.quality, 0.4, 1));

@@ -549,16 +549,13 @@
     buildBackground() {
       const { w, h, dpr } = this;
       const rnd = MC.rng(4242);
-      const c = (this.bg = MC.canvas(w * dpr, h * dpr));
-      const g = c.getContext('2d');
-      g.scale(dpr, dpr);
-      const sky = g.createLinearGradient(0, 0, 0, this.ground);
-      sky.addColorStop(0, '#04060e');
-      sky.addColorStop(0.5, '#0a0f23');
-      sky.addColorStop(0.85, '#16162d');
-      sky.addColorStop(1, '#24192a');
-      g.fillStyle = sky;
-      g.fillRect(0, 0, w, this.ground + 2);
+      // 별하늘은 아주 천천히 돈다: 가장자리에 여유를 두고 따로 그려 두면 composeSky 가 돌려서 하늘에 얹는다
+      const M = (this.skyM = Math.round(Math.max(w, h) * 0.16));
+      const sd = Math.min(dpr, 1.5);
+      const sc = (this.starImg = MC.canvas(Math.ceil((w + 2 * M) * sd), Math.ceil((this.ground + 2 * M) * sd)));
+      let g = sc.getContext('2d');
+      g.scale(sd, sd);
+      g.translate(M, M);
 
       // 은하수: 대각선 띠를 따라 별이 몰린다
       const ax = w * 0.05, ay = h * 0.02, bx = w * 0.95, by = this.ground * 0.75;
@@ -574,17 +571,17 @@
         g.drawImage(haze, ax + (bx - ax) * t + nx * off - r, ay + (by - ay) * t + ny * off - r * 0.6, r * 2, r * 1.2);
       }
       g.globalAlpha = 1;
-      const stars = Math.round((w * this.ground) / 1700);
+      const stars = Math.round(((w + 2 * M) * (this.ground + 2 * M)) / 1700);
       for (let i = 0; i < stars; i++) {
         let x, y;
         if (i % 2) {
-          const t = rnd();
+          const t = rnd() * 1.3 - 0.15;
           const off = MC.gauss() * len * 0.045;
           x = ax + (bx - ax) * t + nx * off;
           y = ay + (by - ay) * t + ny * off;
         } else {
-          x = rnd() * w;
-          y = rnd() * this.ground * 0.92;
+          x = rnd() * (w + 2 * M) - M;
+          y = rnd() * (this.ground + 2 * M) - M;
         }
         const r = 0.25 + Math.pow(rnd(), 3) * 1.1;
         g.fillStyle = `rgba(220,228,255,${0.25 + rnd() * 0.6})`;
@@ -599,6 +596,11 @@
       for (let i = 0; i < 46; i++) {
         this.twinkles.push({ x: rnd() * w, y: rnd() * this.ground * 0.85, r: 0.9 + rnd() * 1.3, ph: rnd() * 6.28, sp: 0.4 + rnd() * 1.4 });
       }
+
+      // 땅: 먼 산, 소나무, 풀밭 (하늘은 비워 두고 composeSky 가 별하늘 위에 얹는다)
+      const lc = (this.landImg = MC.canvas(w * dpr, h * dpr));
+      g = lc.getContext('2d');
+      g.scale(dpr, dpr);
 
       // 먼 산 두 겹
       const ridge = (base, amp, color, seed) => {
@@ -659,6 +661,9 @@
         g.stroke();
       }
 
+      this.bg = MC.canvas(w * dpr, h * dpr);
+      this.composeSky();
+
       // 가장자리를 어둡게 해 시선을 가운데 불로 모은다
       const v = (this.vignette = MC.canvas(w * dpr, h * dpr));
       const vg = v.getContext('2d');
@@ -668,6 +673,47 @@
       rad.addColorStop(1, 'rgba(0,0,0,0.6)');
       vg.fillStyle = rad;
       vg.fillRect(0, 0, w, h);
+    }
+
+    // 별하늘이 도는 각도와 그 중심(화면 밖 왼쪽 위의 북극성 쪽). 벽시계를 따라 몇 시간에 걸쳐 몇 도만 오간다
+    skyAngle() {
+      return 0.065 * MC.slow(240, 0.9);
+    }
+
+    skyPivot() {
+      return { x: -this.w * 0.35, y: -this.h * 0.9 };
+    }
+
+    // 하늘빛, 돌아간 별하늘, 땅을 겹쳐 배경 한 장으로. 별은 아주 느리게 돌므로 가끔만 다시 겹친다
+    composeSky() {
+      const { w, h, dpr } = this;
+      const g = this.bg.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.globalCompositeOperation = 'source-over';
+      g.globalAlpha = 1;
+      const sky = g.createLinearGradient(0, 0, 0, this.ground);
+      sky.addColorStop(0, '#04060e');
+      sky.addColorStop(0.5, '#0a0f23');
+      sky.addColorStop(0.85, '#16162d');
+      sky.addColorStop(1, '#24192a');
+      g.fillStyle = sky;
+      g.fillRect(0, 0, w, this.ground + 2);
+      const a = this.skyAngle();
+      const P = this.skyPivot();
+      const M = this.skyM;
+      g.save();
+      g.beginPath();
+      g.rect(0, 0, w, this.ground + 2);
+      g.clip();
+      g.translate(P.x, P.y);
+      g.rotate(a);
+      g.translate(-P.x, -P.y);
+      g.globalCompositeOperation = 'lighter';
+      g.drawImage(this.starImg, -M, -M, w + 2 * M, this.ground + 2 * M);
+      g.restore();
+      g.globalCompositeOperation = 'source-over';
+      g.drawImage(this.landImg, 0, 0, w, h);
+      this.skyA = a;
     }
 
     tentPath(g) {
@@ -1018,6 +1064,8 @@
       const s = this.s;
       this.t += dt;
       const t = this.t;
+      // 별하늘이 눈에 띄지 않을 만큼 돌았으면 배경을 다시 겹친다 (십몇 초에 한 번쯤)
+      if (this.bg && this.starImg && Math.abs(this.skyAngle() - (this.skyA || 0)) > 0.0004) this.composeSky();
 
       // 장작은 넣은 순서대로 탄다. 다 탄 장작은 무너지고, 마지막 둘은 숯으로 남는다
       if (!this.preview) {
@@ -1352,12 +1400,22 @@
       const flick = (0.9 + 0.1 * MC.fbm(t * 2.2)) * (0.95 + 0.05 * tide);
       g.drawImage(this.bg, 0, 0, w, h);
 
-      // 반짝이는 별과 별똥별
+      // 반짝이는 별과 별똥별 (별하늘과 같이 아주 천천히 돈다. 산 뒤로 넘어가면 숨는다)
       g.globalCompositeOperation = 'lighter';
+      const sa = this.skyA || 0;
+      const SP = this.skyPivot();
+      const ca = Math.cos(sa);
+      const sn = Math.sin(sa);
+      const hide = this.ground - 80 * s;
       for (const st of this.twinkles) {
+        const dx = st.x - SP.x;
+        const dy = st.y - SP.y;
+        const x = SP.x + dx * ca - dy * sn;
+        const y = SP.y + dx * sn + dy * ca;
+        if (y > hide) continue;
         const a = 0.3 + 0.6 * (0.5 + 0.5 * Math.sin(t * st.sp + st.ph));
         g.globalAlpha = a;
-        g.drawImage(S.star, st.x - st.r * 2.5, st.y - st.r * 2.5, st.r * 5, st.r * 5);
+        g.drawImage(S.star, x - st.r * 2.5, y - st.r * 2.5, st.r * 5, st.r * 5);
       }
       if (this.shoot) {
         const sh = this.shoot;
