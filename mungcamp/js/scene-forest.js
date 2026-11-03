@@ -1329,7 +1329,7 @@
       g.globalCompositeOperation = 'lighter';
       for (const d of this.dapples) {
         if (d.on !== on) continue;
-        const a = (0.09 + 0.09 * MC.fbm(this.t * d.sp + d.ph)) * (1 + this.gust * 0.6) * (1 - 0.85 * (this.sunVeil || 0));
+        const a = (0.09 + 0.09 * MC.fbm(this.t * d.sp + d.ph)) * (1 + this.gust * 0.2) * (1 - 0.85 * (this.sunVeil || 0));
         if (a <= 0.01) continue;
         const ox = Math.sin(this.t * 0.35 + d.ph) * 5 * this.s * (1 + this.gust);
         g.globalAlpha = Math.min(0.35, a);
@@ -1505,8 +1505,8 @@
     // 해는 아주 천천히 옮겨 가고(빛줄기의 기울기와 자리), 가끔 구름이 해를 가렸다 지나간다.
     // 벽시계를 따르므로 같은 숲의 모두가 같은 햇살을 본다. 낮과 밤은 바뀌지 않는다
     moveSun() {
-      const ang = ((62 + 4 * MC.slow(150, 0.7)) * Math.PI) / 180;
-      const shift = 40 * this.s * MC.slow(110, 1.9);
+      const ang = ((62 + 4 * MC.slow(60, 0.7)) * Math.PI) / 180;
+      const shift = 40 * this.s * MC.slow(45, 1.9);
       const dx = Math.cos(ang);
       const dy = Math.sin(ang);
       for (const b of this.beams) {

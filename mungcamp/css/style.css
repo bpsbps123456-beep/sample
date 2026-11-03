@@ -39,7 +39,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0;
   background: var(--night);
@@ -102,6 +102,9 @@ a { color: inherit; }
 /* ── 첫 화면: 걸어 다니는 캠프 마을 ── */
 .camp {
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   height: 100svh;
   min-height: 520px;
   overflow: hidden;
@@ -555,6 +558,21 @@ a { color: inherit; }
   border-radius: var(--r-soft);
 }
 .text-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 골라 쓰기: 걱정과 유리병 편지에 넣을 예시 말 */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.chip-pick {
+  padding: 3px 12px 1px;
+  font: inherit;
+  font-size: var(--step--1);
+  line-height: 1.25;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.chip-pick:hover { border-color: var(--ink-dim); }
+.chip-pick[aria-pressed="true"] { color: var(--on-ember); background: var(--accent); border-color: var(--accent); }
 
 /* 멍이를 누르면 머리 위에 잠깐 뜨는 닉네임 */
 .name-tag {

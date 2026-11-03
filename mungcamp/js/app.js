@@ -577,6 +577,7 @@
   function startSession(keep) {
     const scene = state.sceneObj;
     if (state.scene === 'fire') {
+      scene.age = () => elapsedSec();
       scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
       scene.onEnterTent = () => switchScene('tent');
     }
@@ -921,11 +922,45 @@
   const anyPanelOpen = () => $$('.panel').some((p) => !p.hidden);
   const modalOpen = () => !$('#endCard').hidden;
 
+  // 무엇을 적을지 막막할 때 골라 쓸 수 있는 말. 열 때마다 몇 개씩 섞어 보여 준다
+  const WORRY_SAMPLES = ['시험', '숙제', '성적', '친구 사이', '진로', '가족', '건강', '발표', '마감', '잠이 안 와요', '실수한 일', '비교하는 마음', '할 일이 너무 많아요', '외로움', '내일 일', '돈'];
+  const BOTTLE_SAMPLES = ['고마워', '수고했어', '괜찮아', '보고 싶어', '미안해', '잘 될 거야', '오늘도 애썼어', '안녕', '푹 자'];
+  function fillChips(box, input, list, n) {
+    box.textContent = '';
+    const picks = list.slice().sort(() => Math.random() - 0.5).slice(0, n);
+    for (const text of picks) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip-pick';
+      b.textContent = text;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => {
+        input.value = text;
+        for (const o of box.children) o.setAttribute('aria-pressed', String(o === b));
+        // 고르면 자판을 띄우지 않고 바로 '장작에 적기'·'띄우기' 단추로
+        const submit = input.form && input.form.querySelector('button[type="submit"]');
+        if (submit) submit.focus();
+      });
+      box.appendChild(b);
+    }
+  }
+  // 직접 고쳐 쓰면 고른 표시를 맞춘다
+  for (const [box, input] of [['#worryChips', '#worryInput'], ['#bottleChips', '#bottleInput']]) {
+    $(input).addEventListener('input', () => {
+      for (const o of $(box).children) o.setAttribute('aria-pressed', String(o.textContent === $(input).value));
+    });
+  }
+
   function openPanel(name) {
     for (const p of $$('.panel')) p.hidden = p.id !== `panel-${name}`;
     wake();
-    if (name === 'worry') setTimeout(() => $('#worryInput').focus(), 30);
-    if (name === 'bottle') setTimeout(() => $('#bottleInput').focus(), 30);
+    if (name === 'worry') fillChips($('#worryChips'), $('#worryInput'), WORRY_SAMPLES, 6);
+    if (name === 'bottle') fillChips($('#bottleChips'), $('#bottleInput'), BOTTLE_SAMPLES, 6);
+    // 휴대폰에서는 자판이 골라 쓰기를 가리지 않게, 칸을 누를 때 연다
+    if (finePointer) {
+      if (name === 'worry') setTimeout(() => $('#worryInput').focus(), 30);
+      if (name === 'bottle') setTimeout(() => $('#bottleInput').focus(), 30);
+    }
   }
   function togglePanel(name) {
     const p = $(`#panel-${name}`);

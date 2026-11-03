@@ -259,7 +259,8 @@
       this.w = w;
       this.h = h;
       this.dpr = dpr;
-      this.z = MC.clamp(Math.min(w / 1150, h / 820), 0.62, 1.25);
+      // 세로 화면(휴대폰)은 지도를 조금 당겨 보여 준다: 멍이가 크게 보이고, 위아래로도 끌어 둘러볼 수 있다
+      this.z = w < h * 0.9 ? MC.clamp(h / 1050, 0.7, 1.05) : MC.clamp(Math.min(w / 1150, h / 820), 0.62, 1.25);
       const gs = Math.min(1.25, this.z * dpr);
       if (!this.ground || Math.abs(gs - this.gs) / this.gs > 0.15) {
         this.gs = gs;

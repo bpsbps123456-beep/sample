@@ -36,6 +36,7 @@
       bulb: MC.glow([255, 212, 150], 48, 0.16),
       smoke: MC.glow([110, 108, 120], 64, 0.3),
       star: MC.glow([226, 232, 255], 16, 0.22),
+      bug: MC.glow([214, 255, 150], 32, 0.35),
     };
     for (let i = 0; i < STEPS; i++) SPR.flame.push(MC.glow(ramp(i / (STEPS - 1)), 64, 0.38));
     return SPR;
@@ -306,6 +307,9 @@
       this.worry = null;
       this.nextShoot = MC.rand(20, 45);
       this.shoot = null;
+      // 밤이 깊어 간다: 오래 머물수록 별똥별이 조금 잦아지고 반딧불이가 하나둘 나온다 (낮이 되지는 않는다)
+      this.age = null; // 앱이 '이번 쉼에 머문 초'를 알려 준다
+      this.bugs = [];
       this.rnd = MC.rng(20261030);
       sprites();
       const rnd = this.rnd;
@@ -677,7 +681,7 @@
 
     // 별하늘이 도는 각도와 그 중심(화면 밖 왼쪽 위의 북극성 쪽). 벽시계를 따라 몇 시간에 걸쳐 몇 도만 오간다
     skyAngle() {
-      return 0.065 * MC.slow(240, 0.9);
+      return 0.08 * MC.slow(90, 0.9);
     }
 
     skyPivot() {
@@ -1205,10 +1209,21 @@
         this.pup.comfort();
       }
 
+      // 머문 시간이 15분에 가까워질수록 밤이 깊다
+      const depth = this.age ? MC.clamp(this.age() / 900, 0, 1) : 0;
+      if (!this.preview) {
+        const want = Math.floor(depth * 9 + 1e-6);
+        while (this.bugs.length < want) this.bugs.push(this.newBug());
+        for (const b of this.bugs) {
+          b.fade = Math.min(1, b.fade + dt / 4);
+          b.x = b.hx + MC.fbm(t * 0.06 + b.wp) * 70 * s;
+          b.y = b.hy + MC.fbm(t * 0.08 + b.wp * 1.7) * 34 * s;
+        }
+      }
       if (!this.calm && !this.preview) {
         this.nextShoot -= dt;
         if (this.nextShoot <= 0) {
-          this.nextShoot = MC.rand(70, 160);
+          this.nextShoot = MC.rand(70, 160) * (1 - 0.55 * depth);
           const dir = Math.random() < 0.5 ? -1 : 1;
           this.shoot = { x: MC.rand(0.2, 0.8) * this.w, y: MC.rand(0.05, 0.3) * this.ground, vx: dir * 780, vy: 300, t: 0, dur: 0.7 };
         }
@@ -1217,6 +1232,34 @@
         this.shoot.t += dt;
         if (this.shoot.t > this.shoot.dur) this.shoot = null;
       }
+    }
+
+    // 반딧불이: 불 바로 위는 비우고 양옆 풀밭과 소나무 아래에서, 천천히 깜빡이며 떠다닌다
+    newBug() {
+      const { w, h, s, cx } = this;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const reach = Math.max(60 * s, Math.min(cx, w - cx) - 30 * s);
+      const x = cx + side * MC.rand(Math.min(reach, 190 * s), reach);
+      const y = MC.rand(this.ground - 50 * s, h - 70 * s);
+      return { hx: x, hy: y, x, y, ph: Math.random() * 6.28, sp: MC.rand(0.5, 1.1), wp: Math.random() * 40, fade: 0 };
+    }
+
+    drawBugs(g) {
+      if (!this.bugs.length) return;
+      const S = SPR;
+      const s = this.s;
+      g.globalCompositeOperation = 'lighter';
+      for (const b of this.bugs) {
+        const blink = Math.pow(0.5 + 0.5 * Math.sin(this.t * b.sp + b.ph), 2);
+        const a = b.fade * (0.12 + 0.78 * blink);
+        if (a < 0.02) continue;
+        g.globalAlpha = a * 0.55;
+        g.drawImage(S.bug, b.x - 12 * s, b.y - 12 * s, 24 * s, 24 * s);
+        g.globalAlpha = a;
+        g.drawImage(S.bug, b.x - 3 * s, b.y - 3 * s, 6 * s, 6 * s);
+      }
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
     }
 
     // ── 그리기 ───────────────────────────────────────────
@@ -1451,6 +1494,8 @@
       g.drawImage(S.hot, tn.x - 70 * tn.k, tn.y - 120 * tn.k, 140 * tn.k, 130 * tn.k);
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
+      // 밤이 깊으면 반딧불이
+      this.drawBugs(g);
 
       g.strokeStyle = '#0a0a0f';
       g.lineWidth = Math.max(2, 3 * s);

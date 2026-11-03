@@ -378,8 +378,8 @@
       const bx = w * (portrait ? 0.66 : 0.63);
       const by = hy - Math.min(h * 0.2, 170);
       return {
-        x: bx + w * (portrait ? 0.13 : 0.11) * MC.slow(170, 0.4),
-        y: by + Math.min(h * 0.06, 50) * MC.slow(130, 2.1),
+        x: bx + w * (portrait ? 0.13 : 0.11) * MC.slow(70, 0.4),
+        y: by + Math.min(h * 0.06, 50) * MC.slow(55, 2.1),
         r: 19 * this.s,
       };
     }
@@ -390,7 +390,7 @@
       const m = this.moon;
       const L = w * 0.4;
       const span = w + L * 2;
-      const v = 2.4 * s;
+      const v = 5 * s;
       const out = [];
       for (let i = 0; i < 2; i++) {
         const x = ((MC.world() * v * (1 - i * 0.18) + i * span * 0.55 + 97) % span) - L;
@@ -678,7 +678,7 @@
       const z = (y - this.hy) / (this.sandTop - this.hy);
       this.ripples.push({ x, y, z, age: 0 });
       if (this.ripples.length > 12) this.ripples.shift();
-      this.spark(x, y, 14, 26 * this.s * (0.3 + 1.2 * z), this.s * (0.4 + 0.8 * z));
+      this.spark(x, y, 8, 26 * this.s * (0.3 + 1.2 * z), this.s * (0.4 + 0.8 * z), 0.55);
       if (this.onRipple) this.onRipple(z, (x / this.w) * 2 - 1);
     }
 
@@ -690,7 +690,7 @@
     }
 
     // 야광 플랑크톤: 물이 흔들린 자리에서 푸르게 반짝이다 스러진다
-    spark(x, y, n, spread, k) {
+    spark(x, y, n, spread, k, a = 1) {
       const max = Math.round(300 * MC.clamp(this.quality, 0.4, 1));
       for (let i = 0; i < n; i++) {
         if (this.plank.length >= max) this.plank.shift();
@@ -703,6 +703,7 @@
           life: MC.rand(1.3, 2.8),
           r: MC.rand(1, 2.3) * k,
           ph: Math.random() * 6.28,
+          a,
         });
       }
     }
@@ -988,7 +989,7 @@
     splashAt(x, y, k) {
       this.ripples.push({ x, y: y + 10 * k, z: MC.clamp((y - this.hy) / (this.sandTop - this.hy), 0, 1), age: 0 });
       if (this.ripples.length > 12) this.ripples.shift();
-      this.spark(x, y + 12 * k, 22, 50 * k, k);
+      this.spark(x, y + 12 * k, 14, 50 * k, k, 0.7);
     }
 
     // 한 파도의 진행 상태. 소리와 같은 시계(MC.clock)를 쓴다
@@ -1267,7 +1268,7 @@
         g.globalCompositeOperation = 'lighter';
         for (const q of this.plank) {
           const life = 1 - q.age / q.life;
-          const a = Math.pow(life, 1.4) * (0.55 + 0.45 * Math.sin(q.age * 4 + q.ph)) * 0.85;
+          const a = Math.pow(life, 1.4) * (0.55 + 0.45 * Math.sin(q.age * 4 + q.ph)) * 0.85 * (q.a == null ? 1 : q.a);
           if (a <= 0.01) continue;
           const r = q.r * 3;
           g.globalAlpha = a;

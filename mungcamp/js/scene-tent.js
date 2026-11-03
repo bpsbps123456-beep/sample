@@ -2196,8 +2196,8 @@
         g.fillRect(st.x - st.r / 2, st.y - st.r / 2, st.r, st.r);
       }
       // 바닷가의 달과 같은 박자로 아주 천천히 창 안을 건너간다 (벽시계)
-      const mx = wn.x + wn.r * (0.16 + 0.24 * MC.slow(170, 0.4));
-      const my = wn.y - wn.r * (0.2 + 0.14 * MC.slow(130, 2.1));
+      const mx = wn.x + wn.r * (0.16 + 0.24 * MC.slow(70, 0.4));
+      const my = wn.y - wn.r * (0.2 + 0.14 * MC.slow(55, 2.1));
       const mr = wn.r * 0.3;
       g.globalAlpha = 0.6 * (1 - 0.7 * rain);
       g.drawImage(SPR.moon, mx - mr * 3, my - mr * 3, mr * 6, mr * 6);
