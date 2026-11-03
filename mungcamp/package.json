@@ -1,0 +1,13 @@
+{
+  "name": "mungcamp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "멍 때리고 가요. 캠프 마을을 걷다가 모닥불, 달빛 바다, 편백 숲에서 함께 멍때리기",
+  "scripts": {
+    "start": "node server/presence.js",
+    "test": "node tests/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

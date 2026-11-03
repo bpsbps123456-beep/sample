@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>멍캠프</title>
+  <meta name="description" content="불멍, 물멍, 숲멍. 모닥불과 달빛 바다, 편백 숲 앞에서 잠깐 멍 때리고 가는 작은 힐링 캠프.">
+  <meta name="theme-color" content="#0c0e1a">
+  <meta name="mc-presence" content="">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="멍캠프">
+  <meta property="og:description" content="잠깐, 멍 때리고 가요. 모닥불, 달빛 바다, 편백 숲.">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Gamja+Flower&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-log" viewBox="0 0 24 24"><rect x="2.5" y="9" width="15" height="7" rx="3.5"/><ellipse cx="17.6" cy="12.5" rx="2.6" ry="3.5"/><path d="M6 11.6h5M8 14h4"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/></symbol>
+    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/></symbol>
+    <symbol id="i-breath" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5l-7 7 7 7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 18.5h5M10.5 21h3"/><path d="M12 3.5a5.6 5.6 0 0 0-3.3 10.1c.8.6 1.2 1.5 1.2 2.4v.5h4.2V16c0-.9.4-1.8 1.2-2.4A5.6 5.6 0 0 0 12 3.5z"/></symbol>
+    <symbol id="i-bottle" viewBox="0 0 24 24"><path d="M10 3h4v3.2c0 .6.3 1.1.8 1.5A5 5 0 0 1 17 11.8V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-7.2a5 5 0 0 1 2.2-4.1c.5-.4.8-.9.8-1.5z"/><path d="M9.5 13.5h5M9.5 16.5h3.5"/></symbol>
+    <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 14.5a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.2 7a3.8 3.8 0 0 1 .3 7.5z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/></symbol>
+    <symbol id="pup-face" viewBox="0 0 120 104">
+      <path d="M60 14C83 14 96 27 96 45C96 64 81 72 60 72C39 72 24 64 24 45C24 27 37 14 60 14Z" fill="#fff3e3" stroke="#5b3d2c" stroke-width="2.6"/>
+      <path d="M36 25C22 24 15 43 19 58C22 67 33 68 36 58C39 47 41 34 36 25Z" fill="#dc9a5c" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
+      <path d="M84 25C98 24 105 43 101 58C98 67 87 68 84 58C81 47 79 34 84 25Z" fill="#dc9a5c" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
+      <ellipse cx="40" cy="55" rx="6.5" ry="3.8" fill="#ff7e8c" opacity="0.45"/>
+      <ellipse cx="80" cy="55" rx="6.5" ry="3.8" fill="#ff7e8c" opacity="0.45"/>
+      <ellipse cx="60" cy="53.5" rx="11.5" ry="8" fill="#fffdf9"/>
+      <path d="M56 49.4Q60 47.2 64 49.4Q63.3 52.2 60.9 53Q60 53.5 59.1 53Q56.7 52.2 56 49.4Z" fill="#3a261d"/>
+      <path d="M60 53.6V55.2M60 55.2Q59 57.4 56.2 56M60 55.2Q61 57.4 63.8 56" fill="none" stroke="#3a261d" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M33 26C33 4 87 4 87 26Z" fill="#e4664b" stroke="#5b3d2c" stroke-width="2.6" stroke-linejoin="round"/>
+      <rect x="30" y="20" width="60" height="11" rx="5.5" fill="#e4664b" stroke="#5b3d2c" stroke-width="2.6"/>
+      <circle cx="60" cy="7.5" r="7" fill="#fbf1e4" stroke="#5b3d2c" stroke-width="2.4"/>
+    </symbol>
+  </svg>
+
+  <div id="home">
+    <header class="camp" id="camp">
+      <canvas class="camp-canvas" id="campCanvas" tabindex="0" aria-label="캠프 마을. 방향키나 클릭으로 멍이를 걷게 해요"></canvas>
+      <div class="camp-layer" id="campLayer" aria-hidden="false"><p class="name-tag" id="campName" aria-live="polite"></p></div>
+      <h1 class="camp-title">멍 때리고 가요.</h1>
+      <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>함께 <b></b></span></p>
+      <p class="camp-hint" id="campHint"></p>
+      <p class="toast toast-camp" id="campToast" role="status" aria-live="polite"></p>
+    </header>
+
+    <main>
+      <section class="band seats" id="seats" aria-labelledby="seats-title">
+        <div class="wrap">
+          <h2 id="seats-title">다른 곳도 가볼까요?</h2>
+          <div class="seat-grid">
+            <a class="seat seat-fire" href="#fire">
+              <canvas class="seat-thumb" data-scene="fire" aria-hidden="true"></canvas>
+              <div class="seat-body"><h3>모닥불 글램핑</h3></div>
+            </a>
+            <a class="seat seat-water" href="#water">
+              <canvas class="seat-thumb" data-scene="water" aria-hidden="true"></canvas>
+              <div class="seat-body"><h3>달빛 바다</h3></div>
+            </a>
+            <a class="seat seat-forest" href="#forest">
+              <canvas class="seat-thumb" data-scene="forest" aria-hidden="true"></canvas>
+              <div class="seat-body"><h3>편백 숲</h3></div>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="session" id="session" hidden>
+    <canvas class="stage" id="stage" aria-label="장면"></canvas>
+    <div class="scene-act-wrap" id="sceneActWrap" hidden><button class="scene-act" id="sceneAct" type="button"></button></div>
+    <p class="name-tag" id="sceneName" aria-live="polite"></p>
+    <div class="curtain" id="curtain" aria-hidden="true"></div>
+    <div class="ui" id="ui">
+      <div class="topbar">
+        <button class="chip chip-icon" id="exitBtn" type="button" aria-label="나가기"><svg class="ico"><use href="#i-back"/></svg></button>
+        <div class="top-right">
+          <p class="together" id="sessionTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>함께 <b></b></span></p>
+          <button class="chip chip-icon" id="fsBtn" type="button" aria-label="전체 화면"><svg class="ico"><use href="#i-full"/></svg></button>
+        </div>
+      </div>
+
+      <p class="guidance" id="guidance"></p>
+
+      <div class="breath" id="breath" hidden aria-live="polite">
+        <div class="breath-ring" data-breath-ring></div>
+        <p class="breath-label" data-breath-label></p>
+        <p class="breath-count" data-breath-count></p>
+      </div>
+
+      <div class="worry-hint" id="worryHint" hidden>
+        <p>불 속으로 끌어 넣어요</p>
+        <button class="chip" id="worryThrow" type="button">넣기</button>
+      </div>
+
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+      <section class="panel" id="panel-sound" hidden aria-labelledby="panel-sound-title">
+        <header class="panel-head"><h3 id="panel-sound-title">소리</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <label class="slider"><span>전체</span><input type="range" id="vol-master" min="0" max="1" step="0.01"></label>
+        <div id="layerSliders"></div>
+        <button class="chip" id="muteBtn" type="button" aria-pressed="false">끄기</button>
+      </section>
+
+      <section class="panel" id="panel-breath" hidden aria-labelledby="panel-breath-title">
+        <header class="panel-head"><h3 id="panel-breath-title">호흡</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <div class="seg" id="breathPatterns" role="radiogroup" aria-label="호흡법"></div>
+        <label class="check"><input type="checkbox" id="breathCue"> 안내음</label>
+        <button class="btn btn-ember btn-block" id="breathToggle" type="button">시작</button>
+      </section>
+
+      <section class="panel" id="panel-bottle" hidden aria-labelledby="panel-bottle-title">
+        <header class="panel-head"><h3 id="panel-bottle-title">유리병 편지</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <form id="bottleForm" class="worry-form">
+          <input id="bottleInput" class="text-input" type="text" maxlength="40" autocomplete="off" placeholder="바다에 띄울 마음" aria-label="바다에 띄울 마음" required>
+          <div class="chips" id="bottleChips" role="group" aria-label="골라 쓰기"></div>
+          <p class="panel-fine">저장되지 않아요</p>
+          <button class="btn btn-ember btn-block" type="submit">띄우기</button>
+        </form>
+      </section>
+
+      <section class="panel" id="panel-worry" hidden aria-labelledby="panel-worry-title">
+        <header class="panel-head"><h3 id="panel-worry-title">걱정 태우기</h3><button class="panel-close" type="button" data-close aria-label="닫기"><svg class="ico"><use href="#i-close"/></svg></button></header>
+        <form id="worryForm" class="worry-form">
+          <input id="worryInput" class="text-input" type="text" maxlength="24" autocomplete="off" placeholder="마음에 걸리는 것" aria-label="걱정" required>
+          <div class="chips" id="worryChips" role="group" aria-label="골라 쓰기"></div>
+          <p class="panel-fine">저장되지 않아요</p>
+          <button class="btn btn-ember btn-block" type="submit">장작에 적기</button>
+        </form>
+      </section>
+
+
+      <nav class="dock" id="dock" aria-label="장면 조작">
+        <div class="dock-scene" id="dockScene"></div>
+        <span class="dock-sep" aria-hidden="true"></span>
+        <button class="dock-btn" type="button" data-panel="breath" id="breathBtn" aria-pressed="false"><svg class="ico"><use href="#i-breath"/></svg><span>호흡</span></button>
+        <button class="dock-btn" type="button" data-panel="sound"><svg class="ico"><use href="#i-sound"/></svg><span>소리</span></button>
+        <button class="dock-btn" type="button" id="hideBtn"><svg class="ico"><use href="#i-eye"/></svg><span>숨기기</span></button>
+      </nav>
+    </div>
+
+    <div class="modal" id="endCard" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="end-title">
+        <svg class="pup-face" viewBox="0 0 120 104" aria-hidden="true">
+          <use href="#pup-face"/>
+          <path d="M43 45Q47.5 38.5 52 45M68 45Q72.5 38.5 77 45" fill="none" stroke="#2a1a13" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>
+        <h2 id="end-title">잘 쉬었어요</h2>
+        <div class="modal-buttons">
+          <button class="btn btn-ghost" id="stayBtn" type="button">조금 더</button>
+          <button class="btn btn-ember" id="leaveBtn" type="button">나가기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 처음 들어올 때 한 번만: 지금 마음을 나타내는 단어 (닉네임) -->
+  <div class="modal modal-fixed" id="nickCard" hidden>
+    <form class="modal-card nick-card" id="nickForm" role="dialog" aria-modal="true" aria-labelledby="nick-title" novalidate>
+      <svg class="pup-face" viewBox="0 0 120 104" aria-hidden="true">
+        <use href="#pup-face"/>
+        <ellipse cx="47" cy="44" rx="4.2" ry="5.2" fill="#2a1a13"/>
+        <ellipse cx="73" cy="44" rx="4.2" ry="5.2" fill="#2a1a13"/>
+        <circle cx="48.4" cy="42.2" r="1.5" fill="#fff"/>
+        <circle cx="74.4" cy="42.2" r="1.5" fill="#fff"/>
+      </svg>
+      <h2 id="nick-title">당신의 현재 마음을 잘 표현할 단어를 떠올려 적어주세요.</h2>
+      <input class="text-input nick-input" id="nickInput" type="text" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-labelledby="nick-title" aria-describedby="nickFine">
+      <p class="nick-fine" id="nickFine">누가 내 멍이를 누르면 보여요</p>
+      <button class="btn btn-ember btn-block" type="submit">들어가기</button>
+    </form>
+  </div>
+
+  <script src="js/util.js" defer></script>
+  <script src="js/audio.js" defer></script>
+  <script src="js/fire-gl.js" defer></script>
+  <script src="js/pup.js" defer></script>
+  <script src="js/net.js" defer></script>
+  <script src="js/crowd.js" defer></script>
+  <script src="js/scene-fire.js" defer></script>
+  <script src="js/scene-water.js" defer></script>
+  <script src="js/scene-forest.js" defer></script>
+  <script src="js/scene-tent.js" defer></script>
+  <script src="js/camp-map.js" defer></script>
+  <script src="js/breath.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
