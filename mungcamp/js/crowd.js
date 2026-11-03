@@ -45,6 +45,8 @@
       if (this.st && (!!this.st.q !== !!st.q || (st.q && this.st.l !== st.l))) {
         this.jumpFrom = { x: p.x, y: p.y };
         this.jumpT = 0;
+        this.fromSpot = this.st.q ? this.st.l || 1 : 0;
+        this.jumpVia = undefined; // 디딤 가지는 장면이 정한다 (placeVisitor)
       }
       if (st.c !== p.coatId || st.h !== p.hatId) p.setLook(st.c, st.h);
       if (st.hp > this.hp) {
@@ -80,9 +82,10 @@
       p.baseTurn = st.t;
       p.flip = st.f;
       p.setStick(st.s);
-      // 눕는지와 어디에 눕는지는 장면이 정한다 (튜브, 나뭇가지, 침대)
-      p.setLie(env.lieOf ? env.lieOf(st) : !!st.l);
-      p.rest = env.restOf ? env.restOf(st) : null;
+      // 눕는지와 어디에 눕는지는 장면이 정한다 (튜브, 나뭇가지, 침대). 폴짝 뛰는 동안은 눕지 않는다
+      const lie = env.lieOf ? env.lieOf(st) : !!st.l;
+      p.setLie(lie && !this.jumpFrom);
+      p.rest = this.jumpFrom ? null : env.restOf ? env.restOf(st) : null;
       if (this.jumpFrom) this.jumpT += dt;
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
       const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.mood === 'eating' || p.mood === 'startled' || (p.lie > 0 && p.lie < 1);
@@ -103,6 +106,26 @@
     const e = 0.5 - 0.5 * Math.cos(Math.PI * u);
     const H = 14 * k + Math.max(0, -dy) * 0.3 + Math.max(0, dy) * 0.08;
     return { x: MC.lerp(from.x, to.x, e), y: MC.lerp(from.y, to.y, e) - H * Math.sin(Math.PI * u), k: to.k };
+  }
+
+  // 디딤 자리를 차례로 밟으며 폴짝폴짝. holder: { jumpFrom, jumpT, jumpVia }
+  function followJump(holder, q) {
+    if (!holder.jumpFrom) return q;
+    for (let guard = 0; guard < 8; guard++) {
+      const via = holder.jumpVia;
+      const dest = via && via.length ? via[0] : q;
+      const j = jumpPos(holder.jumpFrom, dest, holder.jumpT || 0);
+      if (j) return j;
+      if (via && via.length) {
+        holder.jumpFrom = via.shift();
+        holder.jumpT = 0;
+        continue;
+      }
+      holder.jumpFrom = null;
+      holder.jumpVia = null;
+      return q;
+    }
+    return q;
   }
 
   // 같은 곳의 다른 사람들을 받은 목록에 맞춘다
@@ -391,6 +414,8 @@
       if (P.jumpArc) {
         this.jumpFrom = { x: this.pup.x, y: this.pup.y };
         this.jumpT = 0;
+        const from = this.cfg.extra ? this.cfg.extra().l || 1 : 1;
+        this.jumpVia = P.via ? P.via(this.jumpFrom, from, 0) : null;
       }
       this.me.X = P.X;
       this.me.Z = P.Z;
@@ -418,6 +443,7 @@
           this.jumpT = 0;
         }
         this.perched = true;
+        if (P.jumpArc && P.via) this.jumpVia = P.via(this.jumpFrom, 0, this.cfg.extra ? this.cfg.extra().l || 1 : 1);
         this.posed = false;
         this.still = 0;
         this.pup.hopV = -80;
@@ -496,11 +522,7 @@
       let q = this.perched ? cfg.perch.seat(null) : cfg.toScreen(this.me.X, this.me.Z);
       // 물 위에서는 파도를 따라 둥실둥실
       if (!this.perched && cfg.bob) q = { x: q.x, y: q.y + cfg.bob(this.me.X, this.me.Z, null), k: q.k };
-      if (this.jumpFrom) {
-        const j = jumpPos(this.jumpFrom, q, this.jumpT || 0);
-        if (j) q = j;
-        else this.jumpFrom = null;
-      }
+      q = followJump(this, q);
       p.x = q.x;
       p.y = q.y;
       p.k = q.k;
@@ -511,11 +533,10 @@
       const cfg = this.cfg;
       let q = v.st.q && cfg.perch ? cfg.perch.seat(v.id, v.st) : cfg.toScreen(v.x, v.y);
       if (!v.st.q && cfg.bob) q = { x: q.x, y: q.y + cfg.bob(v.x, v.y, v.id), k: q.k };
-      if (v.jumpFrom) {
-        const j = jumpPos(v.jumpFrom, q, v.jumpT || 0);
-        if (j) q = j;
-        else v.jumpFrom = null;
+      if (v.jumpFrom && v.jumpVia === undefined) {
+        v.jumpVia = cfg.perch && cfg.perch.via ? cfg.perch.via(v.jumpFrom, v.fromSpot || 0, v.st.q ? v.st.l || 1 : 0) : null;
       }
+      q = followJump(v, q);
       p.x = q.x;
       p.y = q.y;
       p.k = q.k;

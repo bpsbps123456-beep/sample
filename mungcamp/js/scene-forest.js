@@ -115,43 +115,52 @@
 
   const INK = '#5b3d2c';
 
-  // 편백 잎: 납작한 부채처럼 갈라지는 비늘잎 가지. 오른쪽을 향해 그려 두고 돌려서 쓴다
+  // 편백 잎: 납작한 부채꼴로 갈래갈래 갈라지는 비늘잎. 줄기마다 작은 비늘잎이 엇갈려 붙고,
+  // 끝으로 갈수록 가늘고 밝다. 오른쪽을 향해 그려 두고 돌려서 쓴다
   function makeSpray(size, seed, dpr, sunny) {
     const rnd = MC.rng(seed);
-    const W = size * 1.15;
-    const H = size * 0.9;
+    const W = size * 1.3;
+    const H = size * 1.1;
     const c = MC.canvas(Math.ceil(W * dpr), Math.ceil(H * dpr));
     const g = c.getContext('2d');
     g.scale(dpr, dpr);
-    g.translate(2, H / 2);
-    const dark = '#2c5531';
-    const mid = '#41733f';
-    const lit = sunny ? '#9cc56a' : '#6f9e4f';
-    const leaf = (x, y, r, a, col) => {
-      g.fillStyle = col;
-      g.beginPath();
-      g.ellipse(x, y, r * 1.5, r * 0.82, a, 0, Math.PI * 2);
-      g.fill();
-    };
-    const twig = (x, y, a, len, depth) => {
-      const n = Math.max(3, Math.round(len / (size * 0.05)));
+    g.translate(3, H * 0.45);
+    const cols = sunny ? ['#244a2b', '#356638', '#4f8443', '#86b45a', '#b4d57e'] : ['#203f27', '#2f5a33', '#43733d', '#6d9c4e', '#94bd68'];
+    const frond = (x, y, a, len, wd, depth, light) => {
+      const n = Math.max(4, Math.round(len / (wd * 0.85)));
       let px = x;
       let py = y;
       for (let i = 0; i < n; i++) {
-        const f = i / n;
-        const r = size * 0.034 * (1 - f * 0.55);
-        px += Math.cos(a) * len / n;
-        py += Math.sin(a) * len / n;
-        leaf(px, py, r, a, f > 0.72 ? lit : i % 2 ? mid : dark);
-        if (depth > 0 && i % 2 === 1 && f < 0.75) {
-          const side = i % 4 === 1 ? 1 : -1;
-          twig(px, py, a + side * (0.62 + rnd() * 0.2), len * (0.42 - f * 0.25), depth - 1);
+        const f = i / Math.max(1, n - 1);
+        a += 0.016 * (1 + depth * 0.5) + (rnd() - 0.5) * 0.06; // 끝으로 갈수록 살짝 처진다
+        px += (Math.cos(a) * len) / n;
+        py += (Math.sin(a) * len) / n;
+        const ww = wd * (1 - 0.62 * f);
+        for (const side of [-1, 1]) {
+          const ox = Math.cos(a + side * 1.25) * ww * 0.32;
+          const oy = Math.sin(a + side * 1.25) * ww * 0.32;
+          const tone = MC.clamp(light + (side < 0 ? 1 : 0) + (f > 0.7 ? 2 : f > 0.4 ? 1 : 0) - (rnd() < 0.25 ? 1 : 0), 0, 4);
+          g.fillStyle = cols[tone];
+          g.beginPath();
+          g.ellipse(px + ox, py + oy, ww * 0.6, ww * 0.3, a + side * 0.55, 0, Math.PI * 2);
+          g.fill();
         }
-        a += (rnd() - 0.5) * 0.08;
+        if (depth > 0 && i > 0 && i < n - 1 && i % 2 === 0) {
+          const side = (i / 2) % 2 ? 1 : -1;
+          frond(px, py, a + side * (0.5 + rnd() * 0.3), len * (0.6 - f * 0.4), ww * 0.9, depth - 1, Math.min(2, light + (side < 0 ? 1 : 0)));
+        }
       }
+      g.fillStyle = cols[4];
+      g.beginPath();
+      g.ellipse(px + Math.cos(a) * wd * 0.2, py + Math.sin(a) * wd * 0.2, wd * 0.3, wd * 0.17, a, 0, Math.PI * 2);
+      g.fill();
     };
-    twig(0, 0, -0.04, size * 0.95, 2);
-    return { c, W, H, ax: 2, ay: H / 2 };
+    // 그늘진 아래 겹 한 번, 그 위에 밝은 겹
+    g.globalAlpha = 0.55;
+    frond(0, size * 0.04, 0.08, size * 0.9, size * 0.07, 2, 0);
+    g.globalAlpha = 1;
+    frond(0, 0, -0.06, size, size * 0.075, 2, 1);
+    return { c, W, H, ax: 3, ay: H * 0.45 };
   }
 
   // 다람쥐: 가끔 줄기를 타고 내려와 아래 가지 끝으로 달려가 솔방울을 오물오물 먹고 돌아간다
@@ -614,6 +623,7 @@
           perch: {
             manage: true,
             jumpArc: true,
+            via: (from, fromSpot, toSpot) => sc.via(from, fromSpot, toSpot),
             get X() {
               return sc.footOf(sc.spot || sc.pendingSpot || 1).X;
             },
@@ -628,6 +638,12 @@
             onFull: () => sc.spotFull(),
           },
           extra: () => ({ l: sc.crowd && sc.crowd.perched ? sc.spot : 0 }),
+          // 가지에 엎드리면 가지가 기운 만큼 함께 기운다
+          tilt: (p, me, v) => {
+            if (p.rest !== 'branch') return 0;
+            const sp = sc.spots && sc.spots[me ? sc.spot : v.st.l];
+            return sp && sp.a ? sp.a : 0;
+          },
         });
       }
       sprites();
@@ -979,13 +995,15 @@
       const b = this.band();
       const tx = w * (P ? 0.93 : 0.87);
       const tw = (P ? 62 : 86) * s;
-      const lowY = b.top - (P ? 86 : 94) * s;
-      const upY = b.top - (P ? 200 : 216) * s;
       const x0 = tx - tw * 0.4;
-      const branches = [
-        { x0, y0: lowY, x1: w * (P ? 0.4 : 0.49), y1: lowY - 24 * s, th0: 38 * s, th1: 17 * s },
-        { x0, y0: upY, x1: w * (P ? 0.57 : 0.66), y1: upY - 30 * s, th0: 31 * s, th1: 14 * s },
-      ];
+      // 아래에서 위로: 줄기에서 나오는 높이(바닥 위), 끝 위치(화면 가로 비율), 끝이 올라가는 정도, 두께
+      const levels = P
+        ? [[86, 0.4, 22, 38, 17], [196, 0.5, 18, 33, 15], [300, 0.42, 18, 30, 13], [400, 0.55, 16, 27, 12]]
+        : [[94, 0.49, 22, 38, 17], [210, 0.6, 18, 33, 15], [322, 0.52, 18, 30, 13], [430, 0.63, 16, 27, 12]];
+      const branches = levels.map(([up, x1, rise, th0, th1]) => {
+        const y0 = b.top - up * s;
+        return { x0, y0, x1: w * x1, y1: y0 - rise * s, th0: th0 * s, th1: th1 * s };
+      });
       for (const br of branches) {
         br.cx = (br.x0 + br.x1) / 2;
         br.cy = Math.max(br.y0, br.y1) + 8 * s;
@@ -996,11 +1014,12 @@
       branches.forEach((br, bi) => {
         const len = Math.abs(br.x0 - br.x1);
         const k = s * 0.9;
-        const n = MC.clamp(Math.floor((len - 30 * s) / (104 * k)), 1, 3);
+        const n = MC.clamp(Math.floor((len - 30 * s) / (104 * k)), 1, bi ? 2 : 3);
         for (let j = 0; j < n; j++) {
-          const t = n === 1 ? 0.6 : 0.3 + (0.55 * j) / (n - 1);
+          const t = n === 1 ? 0.55 : 0.3 + (0.48 * j) / (n - 1);
           const p = this.branchPoint(br, t);
-          this.spots.push({ kind: 'branch', b: bi, t, x: p.x, y: p.y, k });
+          // 엎드린 멍이는 가지 기울기를 살짝만 따른다 (너무 기울면 미끄러질 것 같으니)
+          this.spots.push({ kind: 'branch', b: bi, t, x: p.x, y: p.y, k, a: MC.clamp(this.branchSlope(br, t), -0.1, 0.1) });
         }
       });
 
@@ -1010,7 +1029,7 @@
       g.scale(dpr, dpr);
       g.lineJoin = 'round';
       g.lineCap = 'round';
-      this.sprays = [makeSpray(78 * s, 11, dpr, true), makeSpray(64 * s, 23, dpr, false), makeSpray(52 * s, 37, dpr, true)];
+      this.sprays = [makeSpray(80 * s, 11, dpr, true), makeSpray(66 * s, 23, dpr, false), makeSpray(56 * s, 37, dpr, true), makeSpray(72 * s, 51, dpr, false)];
       const spray = (x, y, a, i, sc = 1) => {
         const sp = this.sprays[i % this.sprays.length];
         g.save();
@@ -1021,12 +1040,13 @@
         g.restore();
       };
 
-      // 가지 뒤로 드리운 잎 (가지보다 먼저)
-      branches.forEach((br) => {
-        for (let i = 0; i < 4; i++) {
-          const t = 0.15 + i * 0.24 + rnd() * 0.06;
+      // 가지 뒤로 드리운 잎 (가지보다 먼저): 위로 비스듬히, 옆으로 납작하게 겹겹이
+      branches.forEach((br, bi) => {
+        const n = bi ? 5 : 6;
+        for (let i = 0; i < n; i++) {
+          const t = 0.1 + (i / (n - 1)) * 0.82 + (rnd() - 0.5) * 0.06;
           const p = this.branchPoint(br, t);
-          spray(p.x, p.y - 2 * s, Math.PI + (i % 2 ? -0.75 : -0.35) + (rnd() - 0.5) * 0.3, i, 0.85 + rnd() * 0.3);
+          spray(p.x, p.y + 2 * s, Math.PI + (i % 2 ? -0.62 : -0.22) + (rnd() - 0.5) * 0.3, i + bi, (0.7 + rnd() * 0.35) * (bi > 1 ? 0.85 : 1));
         }
       });
 
@@ -1159,12 +1179,12 @@
         g.fill();
       });
 
-      // 가지 아래로 드리운 잎
-      branches.forEach((br) => {
+      // 가지 아래로 늘어진 잎
+      branches.forEach((br, bi) => {
         for (let i = 0; i < 3; i++) {
-          const t = 0.2 + i * 0.3 + rnd() * 0.08;
+          const t = 0.18 + i * 0.32 + rnd() * 0.08;
           const p = this.branchPoint(br, t);
-          spray(p.x, p.y + br.th0 * 0.6, Math.PI - 0.95 + (rnd() - 0.5) * 0.3, i + 1, 0.7 + rnd() * 0.25);
+          spray(p.x, p.y + MC.lerp(br.th0, br.th1, t) * 0.75, Math.PI - 1.05 + (rnd() - 0.5) * 0.35, i + bi + 1, 0.6 + rnd() * 0.25);
         }
       });
       // 밑동: 뿌리 사이에 낀 이끼 (밑으로 갈수록 짙게)
@@ -1195,6 +1215,29 @@
       const y = u * u * br.y0 + 2 * u * t * br.cy + t * t * br.y1;
       const th = MC.lerp(br.th0, br.th1, t);
       return { x, y: y - th / 2, th };
+    }
+
+    // 가지가 기운 정도 (왼쪽→오른쪽 방향의 각도). 엎드린 멍이도 그만큼 기운다
+    branchSlope(br, t) {
+      const dx = 2 * (1 - t) * (br.cx - br.x0) + 2 * t * (br.x1 - br.cx);
+      const dy = 2 * (1 - t) * (br.cy - br.y0) + 2 * t * (br.y1 - br.cy);
+      return Math.atan2(-dy, -dx);
+    }
+
+    // 높은 가지로 갈 때는 사이의 가지를 계단처럼 차례로 딛는다 (줄기 가까운 쪽)
+    via(from, fromSpot, toSpot) {
+      const level = (i) => (i >= 2 && this.spots[i] ? this.spots[i].b : -1);
+      const a = level(fromSpot);
+      const b = level(toSpot);
+      const out = [];
+      const step = (L) => {
+        const br = this.tree.branches[L];
+        const p = this.branchPoint(br, 0.14);
+        return { x: p.x, y: p.y + 2 * this.s, k: this.s * 0.9 };
+      };
+      if (b > a) for (let L = a + 1; L < b; L++) out.push(step(L));
+      else if (a > b) for (let L = a - 1; L > b; L--) out.push(step(L));
+      return out;
     }
 
     drawTips(g) {
@@ -1349,6 +1392,7 @@
       const c = this.crowd;
       c.jumpFrom = { x: this.pup.x, y: this.pup.y };
       c.jumpT = 0;
+      c.jumpVia = this.via(c.jumpFrom, this.spot || 1, i);
       this.spot = i;
       this.onSpot();
       c.posed = false;
@@ -1457,6 +1501,9 @@
           }
         }
         if (c.perched && this.spot >= 2) pup.sleepAfter = Math.min(pup.sleepAfter, 25);
+        const onBranch = c.perched && this.spot >= 2 && !c.jumpFrom;
+        pup.rest = onBranch ? 'branch' : null;
+        pup.setLie(onBranch);
       }
       this.squirrel.update(dt);
       for (const b of this.birds) b.update(dt, this, () => { if (this.onChirp) this.onChirp(); });
@@ -1607,7 +1654,14 @@
         g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
         this.pup.draw(g, this.dpr);
       }
-      // 큰 편백과 가지, 그 위에 엎드린 멍이들
+      // 큰 편백과 가지, 그 위에 엎드린 멍이들 (가지 너머로 늘어진 뒷다리와 꼬리를 먼저)
+      if (this.crowd) {
+        const c = this.crowd;
+        const back = (p, sp) => p.drawBranchBack(g, sp && sp.a ? sp.a : 0);
+        if (c.perched && this.spot >= 2) back(this.pup, this.spots[this.spot]);
+        const shown = c.shown();
+        for (const v of c.visitors.values()) if (shown.has(v) && v.st.q && v.st.l >= 2) back(v.pup, this.spots[v.st.l]);
+      }
       g.drawImage(this.treeImg, 0, 0, w, h);
       this.drawTips(g);
       if (this.crowd) this.crowd.draw(g, this.dpr, (Z, up, spot) => up && spot >= 2, w);

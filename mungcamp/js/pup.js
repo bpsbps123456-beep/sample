@@ -464,7 +464,7 @@
 
     // ── 그리기 ───────────────────────────────────────────
     bounds() {
-      return { x0: -78, y0: -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 34 : 14 };
+      return { x0: -78, y0: -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 42 : 14 };
     }
 
     draw(g, dpr, bodyOnly) {
@@ -534,7 +534,7 @@
     }
 
     // 나뭇가지에 엎드리면 네 다리가 가지 양옆으로 축 늘어져 살랑인다
-    paintDangle(o, x, y, len, side, ph, splay = 0.05) {
+    paintDangle(o, x, y, len, side, ph, splay = 0.05, fill) {
       const sw = Math.sin(this.t * 1.3 + ph) * 0.07;
       o.save();
       o.translate(x, y);
@@ -548,7 +548,7 @@
       o.quadraticCurveTo(6.5 + bend, len + 5, 6 + bend, len - 4);
       o.quadraticCurveTo(6.8 + bend * 0.4, len * 0.55, 6.5, 0);
       o.closePath();
-      o.fillStyle = this.coat.fur;
+      o.fillStyle = fill || this.coat.fur;
       o.fill();
       o.lineWidth = 2.2;
       o.strokeStyle = INK;
@@ -562,15 +562,41 @@
       o.restore();
     }
 
+    // 나뭇가지 너머로 늘어진 뒷다리와 꼬리. 장면이 가지보다 먼저 그려서 가지 밑으로 발끝과 꼬리만 보인다
+    drawBranchBack(g, tilt = 0) {
+      if (this.rest !== 'branch' || this.lie < 0.5) return;
+      g.save();
+      g.translate(this.x, this.y);
+      if (tilt) g.rotate(tilt);
+      g.scale(this.k * (this.flip < 0 ? -1 : 1), this.k);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      const sw = Math.sin(this.t * 1.1) * 0.1 + (this.sleeping ? 0 : Math.sin(this.wagPhase || 0) * 0.08);
+      g.save();
+      g.translate(30, -6);
+      g.rotate(-0.12 + sw);
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.quadraticCurveTo(7, 20, 3, 44);
+      g.strokeStyle = INK;
+      g.lineWidth = 12;
+      g.stroke();
+      g.strokeStyle = this.coat.lo;
+      g.lineWidth = 7.6;
+      g.stroke();
+      g.restore();
+      this.paintDangle(g, -26, -4, 44, -1, 0.4, 0.16, this.coat.lo);
+      this.paintDangle(g, 22, -4, 44, 1, 2.1, 0.16, this.coat.lo);
+      g.restore();
+    }
+
     // 엎드려 누운 모습: 턱을 앞발에 괴고, 등은 동그랗게, 뒷발은 양옆으로 빼꼼, 꼬리는 등 위로 살랑
     paintLying(o, b) {
       const branch = this.rest === 'branch';
-      // 가지 위: 다리는 몸보다 먼저 그려 배 밑으로 늘어진다
+      // 가지 위: 가지를 가로질러 엎드려, 앞다리는 이쪽으로 축 늘어진다 (뒷다리와 꼬리는 가지 너머, drawBranchBack)
       if (branch) {
-        this.paintDangle(o, -38, -5, 15, -1, 0, 0.42);
-        this.paintDangle(o, 38, -5, 15, 1, 1.7, 0.42);
-        this.paintDangle(o, -14, -3, 23, -1, 0.8, 0.12);
-        this.paintDangle(o, 14, -3, 23, 1, 2.6, 0.12);
+        this.paintDangle(o, -15, -3, 30, -1, 0.8, 0.1);
+        this.paintDangle(o, 15, -3, 30, 1, 2.6, 0.1);
       }
       // 동그란 등
       o.save();
@@ -592,12 +618,14 @@
       o.strokeStyle = INK;
       o.stroke();
       o.restore();
-      // 꼬리: 몸 옆으로 살랑
-      o.save();
-      o.translate(40, -12);
-      o.rotate(0.9);
-      this.paintTail(o, 0, 0, 1);
-      o.restore();
+      // 꼬리: 몸 옆으로 살랑 (가지 위에서는 가지 너머로 늘어뜨렸다)
+      if (!branch) {
+        o.save();
+        o.translate(40, -12);
+        o.rotate(0.9);
+        this.paintTail(o, 0, 0, 1);
+        o.restore();
+      }
       // 뒷발 (가지 위에서는 늘어뜨렸다)
       if (!branch) {
         for (const side of [-1, 1]) {

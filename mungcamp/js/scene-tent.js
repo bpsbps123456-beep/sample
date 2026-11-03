@@ -116,7 +116,12 @@
           inside: (X, Z) => this.onFloor(X, Z),
           blockers: () => this.blockers || [],
           floor: (x, y) => y > this.L.floorTop - 6 * this.s,
-          speed: () => 118 * this.s,
+          // 모닥불 앞과 같은 빠르기. 텐트 앞쪽은 멍이가 크게 보이니 그만큼 걸음도 넓게
+          speed: () => {
+            const c = this.crowd;
+            const z = c ? MC.clamp(c.me.Z / 1000, 0, 1) : 0.5;
+            return 150 * this.s * (0.9 + 0.35 * z);
+          },
           pose: (X, Z) => this.seatPose(X, Z),
           seats: () => TENT_SEATS,
           lightFor: (p, X, Z, a) => this.lightPup(p, a),
@@ -1725,6 +1730,20 @@
       this.pendingSpot = spot;
       c.go(this.bedFootOf(spot), true);
       this.toDoor = false;
+    }
+
+    // 침대 위에 '눕기' 단추: 빈자리가 있고 멍이가 바닥에 가만히 있을 때
+    portalHint() {
+      const c = this.crowd;
+      if (!c || c.perched || c.moving || c.target || c.portal || this.leaving || this.pendingSpot) return null;
+      if (!this.freeSpot(2)) return null;
+      const L = this.L;
+      return { x: L.bed.x + this.bedSpotX(2) * L.bed.k, y: L.bed.y - 132 * L.bed.k, label: '눕기' };
+    }
+
+    usePortal() {
+      const L = this.L;
+      this.tapBed(L.bed.x + this.bedSpotX(2) * L.bed.k);
     }
 
     hitBed(x, y) {
