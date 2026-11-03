@@ -41,6 +41,11 @@
 
     apply(st) {
       const p = this.pup;
+      // 올라앉거나 내려오거나 자리를 옮기면, 지금 자리에서 폴짝 뛰어 간다
+      if (this.st && (!!this.st.q !== !!st.q || (st.q && this.st.l !== st.l))) {
+        this.jumpFrom = { x: p.x, y: p.y };
+        this.jumpT = 0;
+      }
       if (st.c !== p.coatId || st.h !== p.hatId) p.setLook(st.c, st.h);
       if (st.hp > this.hp) {
         p.addHearts(2);
@@ -75,7 +80,10 @@
       p.baseTurn = st.t;
       p.flip = st.f;
       p.setStick(st.s);
-      p.setLie(!!st.l);
+      // 눕는지와 어디에 눕는지는 장면이 정한다 (튜브, 나뭇가지, 침대)
+      p.setLie(env.lieOf ? env.lieOf(st) : !!st.l);
+      p.rest = env.restOf ? env.restOf(st) : null;
+      if (this.jumpFrom) this.jumpT += dt;
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
       const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.mood === 'eating' || p.mood === 'startled' || (p.lie > 0 && p.lie < 1);
       p.paintEvery = paintGap(lively);
@@ -83,6 +91,18 @@
       else if (!st.z && p.sleeping) p.wake();
       p.update(dt, Object.assign({}, env, { walking: !!st.w || d > (env.walkEps || 3), noSleep: true }));
     }
+  }
+
+  // 올라앉을 때·내려올 때의 폴짝: from 에서 to 로 포물선을 그리며. 끝나면 null
+  function jumpPos(from, to, t) {
+    const dy = to.y - from.y;
+    const k = to.k || 1;
+    const dur = MC.clamp(0.28 + Math.abs(dy) / (420 * k), 0.3, 0.8);
+    const u = t / dur;
+    if (u >= 1) return null;
+    const e = 0.5 - 0.5 * Math.cos(Math.PI * u);
+    const H = 14 * k + Math.max(0, -dy) * 0.3 + Math.max(0, dy) * 0.08;
+    return { x: MC.lerp(from.x, to.x, e), y: MC.lerp(from.y, to.y, e) - H * Math.sin(Math.PI * u), k: to.k };
   }
 
   // 같은 곳의 다른 사람들을 받은 목록에 맞춘다
@@ -172,8 +192,11 @@
     makeRoom(force) {
       this.roomMade = true;
       if (!force && (this.wandered || this.target)) return;
+      if (this.cfg.drifting && this.cfg.drifting(this.me.X, this.me.Z)) return;
       if (this.target) return;
       let hopped = false;
+      // 자리가 여럿인 곳(숲의 그루터기와 나뭇가지)은 장면이 겹침을 직접 푼다
+      if (this.perched && this.cfg.perch.manage) return;
       if (this.perched) {
         // 그루터기에 누가 먼저 앉아 있으면 내려와서 빈자리를 찾는다
         let other = false;
@@ -365,6 +388,10 @@
 
     hopDown() {
       const P = this.cfg.perch;
+      if (P.jumpArc) {
+        this.jumpFrom = { x: this.pup.x, y: this.pup.y };
+        this.jumpT = 0;
+      }
       this.me.X = P.X;
       this.me.Z = P.Z;
       this.perched = false;
@@ -385,6 +412,10 @@
         if (P.claim && !P.claim()) {
           if (P.onFull) P.onFull();
           return;
+        }
+        if (P.jumpArc) {
+          this.jumpFrom = { x: this.pup.x, y: this.pup.y };
+          this.jumpT = 0;
         }
         this.perched = true;
         this.posed = false;
@@ -461,7 +492,15 @@
 
     placeMe() {
       const p = this.pup;
-      const q = this.perched ? this.cfg.perch.seat(null) : this.cfg.toScreen(this.me.X, this.me.Z);
+      const cfg = this.cfg;
+      let q = this.perched ? cfg.perch.seat(null) : cfg.toScreen(this.me.X, this.me.Z);
+      // 물 위에서는 파도를 따라 둥실둥실
+      if (!this.perched && cfg.bob) q = { x: q.x, y: q.y + cfg.bob(this.me.X, this.me.Z, null), k: q.k };
+      if (this.jumpFrom) {
+        const j = jumpPos(this.jumpFrom, q, this.jumpT || 0);
+        if (j) q = j;
+        else this.jumpFrom = null;
+      }
       p.x = q.x;
       p.y = q.y;
       p.k = q.k;
@@ -470,7 +509,13 @@
     placeVisitor(v) {
       const p = v.pup;
       const cfg = this.cfg;
-      const q = v.st.q && cfg.perch ? cfg.perch.seat(v.id, v.st) : cfg.toScreen(v.x, v.y);
+      let q = v.st.q && cfg.perch ? cfg.perch.seat(v.id, v.st) : cfg.toScreen(v.x, v.y);
+      if (!v.st.q && cfg.bob) q = { x: q.x, y: q.y + cfg.bob(v.x, v.y, v.id), k: q.k };
+      if (v.jumpFrom) {
+        const j = jumpPos(v.jumpFrom, q, v.jumpT || 0);
+        if (j) q = j;
+        else v.jumpFrom = null;
+      }
       p.x = q.x;
       p.y = q.y;
       p.k = q.k;
@@ -482,6 +527,7 @@
 
     update(dt) {
       this.t += dt;
+      if (this.jumpFrom) this.jumpT = (this.jumpT || 0) + dt;
       const cfg = this.cfg;
       const pup = this.pup;
       let vx = 0;
@@ -555,7 +601,8 @@
       if (this.clashT > this.clashGap) {
         this.clashT = 0;
         this.clashGap = 1 + Math.random() * 1.2;
-        if (!moved && !keyed && !this.target && !this.perched && !this.portal && this.roomMade && this.selfId && (this.clashes || 0) < 3) {
+        const drifting = cfg.drifting && cfg.drifting(this.me.X, this.me.Z);
+        if (!moved && !keyed && !drifting && !this.target && !this.perched && !this.portal && this.roomMade && this.selfId && (this.clashes || 0) < 3) {
           const me = cfg.toScreen(this.me.X, this.me.Z);
           const near = 50 * me.k;
           for (const v of this.visitors.values()) {
@@ -659,26 +706,38 @@
       const P = this.cfg.perch;
       const key = (p, up) => (up && P && P.sortY ? P.sortY() + p.y * 1e-4 : p.y);
       const marked = this.visitors.size > 0;
-      const put = (p, a, up, me) => {
+      const cfg = this.cfg;
+      const put = (p, a, up, me, v) => {
         out.push({
           y: key(p, up),
           draw: (g) => {
             if (a <= 0.01) return;
             if (a < 1) g.globalAlpha = a;
-            if (me && marked) drawMark(g, p, this.t);
+            const tilt = cfg.tilt ? cfg.tilt(p, me, v) : 0;
+            if (tilt) {
+              g.save();
+              g.translate(p.x, p.y);
+              g.rotate(tilt);
+              g.translate(-p.x, -p.y);
+            }
+            if (cfg.under) cfg.under(g, p, me, v);
+            if (me && marked && !p.rest) drawMark(g, p, this.t);
             p.draw(g, dpr);
+            if (cfg.over) cfg.over(g, p, me, v);
+            if (tilt) g.restore();
             g.globalAlpha = 1;
           },
         });
       };
-      if (!which || which(this.me.Z, this.perched)) put(this.pup, this.alpha, this.perched, true);
+      const mySpot = this.perched && cfg.extra ? cfg.extra().l || 0 : 0;
+      if (!which || which(this.me.Z, this.perched, mySpot)) put(this.pup, this.alpha, this.perched, true, null);
       const shown = this.shown();
       for (const v of this.visitors.values()) {
         if (!shown.has(v)) continue;
-        if (which && !which(v.y, !!v.st.q)) continue;
+        if (which && !which(v.y, !!v.st.q, v.st.q ? v.st.l || 0 : 0)) continue;
         const p = v.pup;
         if (w && (p.x < -160 * p.k || p.x > w + 160 * p.k)) continue;
-        put(p, Math.max(0, Math.min(1, v.fade)), !!v.st.q, false);
+        put(p, Math.max(0, Math.min(1, v.fade)), !!v.st.q, false, v);
       }
       return out;
     }

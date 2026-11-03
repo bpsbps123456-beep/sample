@@ -116,6 +116,8 @@
       this.walk = 0;
       this.lie = 0; // 0 앉음 … 1 엎드려 누움
       this.lieTo = 0;
+      this.rest = null; // 어디에 엎드렸는지: null(바닥·침대), 'tube'(바다의 튜브), 'branch'(편백 가지)
+      this.paddle = 0; // 튜브 위에서 앞발로 물을 젓는 정도 (0..1)
       this.walkPhase = 0;
       this.cv = null;
     }
@@ -462,7 +464,7 @@
 
     // ── 그리기 ───────────────────────────────────────────
     bounds() {
-      return { x0: -78, y0: -140, x1: this.stick ? 240 : 78, y1: 14 };
+      return { x0: -78, y0: -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 34 : 14 };
     }
 
     draw(g, dpr, bodyOnly) {
@@ -506,9 +508,12 @@
 
     paint(o) {
       const b = this.breath();
-      o.fillStyle = 'rgba(0,0,0,0.3)';
-      ellipse(o, 0, 1.5, 35 * (1 + this.hop * 0.005), 6.5);
-      o.fill();
+      // 바닥 그림자 (튜브나 나뭇가지 위에서는 장면이 따로 그린다)
+      if (!this.rest) {
+        o.fillStyle = 'rgba(0,0,0,0.3)';
+        ellipse(o, 0, 1.5, 35 * (1 + this.hop * 0.005), 6.5);
+        o.fill();
+      }
       const shake = this.mood === 'cold' ? Math.sin(this.t * 43) * 0.7 : 0;
       const spinX = this.spin ? Math.max(0.06, Math.abs(Math.cos((Math.PI * this.spin.t) / this.spin.dur))) : 1;
       const bob = -Math.abs(Math.sin(this.walkPhase)) * 3 * this.walk;
@@ -528,8 +533,45 @@
       o.restore();
     }
 
+    // 나뭇가지에 엎드리면 네 다리가 가지 양옆으로 축 늘어져 살랑인다
+    paintDangle(o, x, y, len, side, ph, splay = 0.05) {
+      const sw = Math.sin(this.t * 1.3 + ph) * 0.07;
+      o.save();
+      o.translate(x, y);
+      o.rotate(side * splay + sw);
+      // 힘을 뺀 다리: 아래로 갈수록 살짝 안쪽으로 휜다
+      const bend = -side * 2.5;
+      o.beginPath();
+      o.moveTo(-6.5, 0);
+      o.quadraticCurveTo(-6.8 + bend * 0.4, len * 0.55, -6 + bend, len - 4);
+      o.quadraticCurveTo(-6.5 + bend, len + 5, bend, len + 5.5);
+      o.quadraticCurveTo(6.5 + bend, len + 5, 6 + bend, len - 4);
+      o.quadraticCurveTo(6.8 + bend * 0.4, len * 0.55, 6.5, 0);
+      o.closePath();
+      o.fillStyle = this.coat.fur;
+      o.fill();
+      o.lineWidth = 2.2;
+      o.strokeStyle = INK;
+      o.stroke();
+      // 발바닥 쪽은 하얀 양말
+      ellipse(o, bend, len + 1, 6.2, 4.8);
+      o.fillStyle = '#fffaf1';
+      o.fill();
+      o.lineWidth = 2;
+      o.stroke();
+      o.restore();
+    }
+
     // 엎드려 누운 모습: 턱을 앞발에 괴고, 등은 동그랗게, 뒷발은 양옆으로 빼꼼, 꼬리는 등 위로 살랑
     paintLying(o, b) {
+      const branch = this.rest === 'branch';
+      // 가지 위: 다리는 몸보다 먼저 그려 배 밑으로 늘어진다
+      if (branch) {
+        this.paintDangle(o, -38, -5, 15, -1, 0, 0.42);
+        this.paintDangle(o, 38, -5, 15, 1, 1.7, 0.42);
+        this.paintDangle(o, -14, -3, 23, -1, 0.8, 0.12);
+        this.paintDangle(o, 14, -3, 23, 1, 2.6, 0.12);
+      }
       // 동그란 등
       o.save();
       o.translate(0, -2);
@@ -556,14 +598,16 @@
       o.rotate(0.9);
       this.paintTail(o, 0, 0, 1);
       o.restore();
-      // 뒷발
-      for (const side of [-1, 1]) {
-        ellipse(o, side * 45, -5, 9.5, 6.2, side * 0.35);
-        o.fillStyle = '#fffaf1';
-        o.fill();
-        o.lineWidth = 2.2;
-        o.strokeStyle = INK;
-        o.stroke();
+      // 뒷발 (가지 위에서는 늘어뜨렸다)
+      if (!branch) {
+        for (const side of [-1, 1]) {
+          ellipse(o, side * 45, -5, 9.5, 6.2, side * 0.35);
+          o.fillStyle = '#fffaf1';
+          o.fill();
+          o.lineWidth = 2.2;
+          o.strokeStyle = INK;
+          o.stroke();
+        }
       }
       // 머리: 앞발 위에 턱을 괸다 (누워 있을 때는 늘 얼굴이 보인다)
       const view = this.view;
@@ -573,10 +617,12 @@
       this.paintHeadGroup(o, b * 0.5);
       o.restore();
       this.view = view;
-      // 앞발: 턱 밑으로 빼꼼
+      // 앞발: 턱 밑으로 빼꼼 (가지 위에서는 늘어뜨렸고, 튜브 위에서는 번갈아 물을 젓는다)
+      if (branch) return;
       for (const side of [-1, 1]) {
         const x = side * 13;
-        ellipse(o, x, -2.5, 9.5, 6.4);
+        const row = this.paddle > 0.01 ? Math.max(0, Math.sin(this.t * 7 + (side > 0 ? Math.PI : 0))) * 4 * this.paddle : 0;
+        ellipse(o, x, -2.5 + row, 9.5, 6.4);
         o.fillStyle = '#fffaf1';
         o.fill();
         o.lineWidth = 2.2;
@@ -585,10 +631,10 @@
         o.strokeStyle = 'rgba(91,61,44,0.5)';
         o.lineWidth = 1.2;
         o.beginPath();
-        o.moveTo(x - 3, 0);
-        o.lineTo(x - 3, 2.6);
-        o.moveTo(x + 3, 0);
-        o.lineTo(x + 3, 2.6);
+        o.moveTo(x - 3, row);
+        o.lineTo(x - 3, 2.6 + row);
+        o.moveTo(x + 3, row);
+        o.lineTo(x + 3, 2.6 + row);
         o.stroke();
       }
     }

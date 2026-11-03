@@ -1,4 +1,6 @@
-/* 멍캠프 — 숲멍: 아침 햇살이 비껴 드는 편백 숲 */
+/* 멍캠프 — 숲멍: 아침 햇살이 비껴 드는 편백 숲.
+   오른쪽의 큰 편백에는 낮은 가지가 둘. 가지를 톡 하면 폴짝 올라가 엎드리고, 네 다리를 축 늘어뜨린 채 꾸벅꾸벅 존다.
+   잎 사이로 햇빛이 일렁이고, 가끔 다람쥐가 가지 끝에서 열매를 먹고, 오목눈이가 내려앉아 지저귄다 */
 (function (MC) {
   'use strict';
 
@@ -9,6 +11,7 @@
       mote: MC.glow([255, 246, 214], 16, 0.25),
       sun: MC.glow([255, 246, 220], 256, 0.1),
       fog: MC.glow([232, 238, 222], 128, 0.2),
+      dapple: MC.glow([255, 240, 198], 64, 0.4),
     };
     return SPR;
   }
@@ -110,9 +113,442 @@
     }
   }
 
-  // 그루터기에 누가 있으면 숲 바닥에 흩어져 앉는다
+  const INK = '#5b3d2c';
+
+  // 편백 잎: 납작한 부채처럼 갈라지는 비늘잎 가지. 오른쪽을 향해 그려 두고 돌려서 쓴다
+  function makeSpray(size, seed, dpr, sunny) {
+    const rnd = MC.rng(seed);
+    const W = size * 1.15;
+    const H = size * 0.9;
+    const c = MC.canvas(Math.ceil(W * dpr), Math.ceil(H * dpr));
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    g.translate(2, H / 2);
+    const dark = '#2c5531';
+    const mid = '#41733f';
+    const lit = sunny ? '#9cc56a' : '#6f9e4f';
+    const leaf = (x, y, r, a, col) => {
+      g.fillStyle = col;
+      g.beginPath();
+      g.ellipse(x, y, r * 1.5, r * 0.82, a, 0, Math.PI * 2);
+      g.fill();
+    };
+    const twig = (x, y, a, len, depth) => {
+      const n = Math.max(3, Math.round(len / (size * 0.05)));
+      let px = x;
+      let py = y;
+      for (let i = 0; i < n; i++) {
+        const f = i / n;
+        const r = size * 0.034 * (1 - f * 0.55);
+        px += Math.cos(a) * len / n;
+        py += Math.sin(a) * len / n;
+        leaf(px, py, r, a, f > 0.72 ? lit : i % 2 ? mid : dark);
+        if (depth > 0 && i % 2 === 1 && f < 0.75) {
+          const side = i % 4 === 1 ? 1 : -1;
+          twig(px, py, a + side * (0.62 + rnd() * 0.2), len * (0.42 - f * 0.25), depth - 1);
+        }
+        a += (rnd() - 0.5) * 0.08;
+      }
+    };
+    twig(0, 0, -0.04, size * 0.95, 2);
+    return { c, W, H, ax: 2, ay: H / 2 };
+  }
+
+  // 다람쥐: 가끔 줄기를 타고 내려와 아래 가지 끝으로 달려가 솔방울을 오물오물 먹고 돌아간다
+  class Squirrel {
+    constructor() {
+      this.state = 'away';
+      this.next = MC.rand(16, 30);
+      this.t = 0;
+      this.u = 0;
+      this.want = 0.94;
+      this.down = 0;
+      this.alertT = 0;
+      this.sitT = 0;
+    }
+
+    update(dt) {
+      this.t += dt;
+      this.alertT = Math.max(0, this.alertT - dt);
+      switch (this.state) {
+        case 'away':
+          this.next -= dt;
+          if (this.next <= 0) {
+            this.state = 'descend';
+            this.down = 0;
+          }
+          break;
+        case 'descend':
+          this.down = Math.min(1, this.down + dt / 1.7);
+          if (this.down >= 1) {
+            this.state = 'run';
+            this.u = 0.03;
+          }
+          break;
+        case 'run':
+          this.u = Math.min(this.want, this.u + dt * 0.3);
+          if (this.u >= this.want) {
+            this.state = 'sit';
+            this.sitT = MC.rand(8, 13);
+          }
+          break;
+        case 'sit':
+          this.sitT -= dt;
+          if (this.sitT <= 0) this.state = 'back';
+          break;
+        case 'back':
+          this.u = Math.max(0.03, this.u - dt * 0.34);
+          if (this.u <= 0.03) this.state = 'ascend';
+          break;
+        default:
+          this.down = Math.max(0, this.down - dt / 1.4);
+          if (this.down <= 0) {
+            this.state = 'away';
+            this.next = MC.rand(45, 85);
+          }
+      }
+    }
+
+    poke() {
+      if (this.state === 'sit' || this.state === 'run') {
+        this.alertT = 1.3;
+        if (this.state === 'sit') this.sitT = Math.min(this.sitT, 1.5);
+        return true;
+      }
+      return false;
+    }
+
+    // 지금 자리와 몸짓
+    pose(sc) {
+      const br = sc.tree.branches[0];
+      const k = sc.s * 0.8;
+      if (this.state === 'descend' || this.state === 'ascend') {
+        const base = sc.branchPoint(br, 0.03);
+        const top = base.y - 190 * sc.s;
+        return { x: sc.tree.x - sc.tree.w * 0.46, y: MC.lerp(top, base.y, this.down), k, rot: this.state === 'descend' ? Math.PI / 2 : -Math.PI / 2, dir: 1, run: true };
+      }
+      const p = sc.branchPoint(br, this.u);
+      return { x: p.x, y: p.y, k, rot: 0, dir: this.state === 'back' ? 1 : -1, run: this.state !== 'sit' };
+    }
+
+    hit(x, y, sc) {
+      if (this.state === 'away') return false;
+      const q = this.pose(sc);
+      return Math.abs(x - q.x) < 26 * q.k && y > q.y - 48 * q.k && y < q.y + 8 * q.k;
+    }
+
+    draw(g, sc) {
+      if (this.state === 'away') return;
+      const q = this.pose(sc);
+      const fur = '#b5743f';
+      const furHi = '#d39a62';
+      g.save();
+      g.translate(q.x, q.y);
+      g.rotate(q.rot);
+      g.scale(q.k * q.dir, q.k);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      g.strokeStyle = INK;
+      if (q.run) {
+        const st = this.t * 16;
+        // 꼬리는 뒤로 물결치며
+        g.lineWidth = 12;
+        g.strokeStyle = INK;
+        g.beginPath();
+        g.moveTo(-9, -8);
+        g.quadraticCurveTo(-22, -10 + Math.sin(st * 0.5) * 3, -30, -20);
+        g.stroke();
+        g.lineWidth = 9;
+        g.strokeStyle = furHi;
+        g.stroke();
+        // 다리
+        g.fillStyle = fur;
+        g.lineWidth = 1.4;
+        g.strokeStyle = INK;
+        for (const [lx, ph] of [[-6, 0], [7, Math.PI]]) {
+          g.beginPath();
+          g.ellipse(lx + Math.sin(st + ph) * 2.5, -1.5, 3, 2.2, 0, 0, Math.PI * 2);
+          g.fill();
+          g.stroke();
+        }
+        // 몸과 머리
+        g.beginPath();
+        g.ellipse(0, -8, 12, 6.8, -0.05, 0, Math.PI * 2);
+        g.fillStyle = fur;
+        g.fill();
+        g.stroke();
+        g.beginPath();
+        g.arc(11, -11, 6.2, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        g.beginPath();
+        g.moveTo(8, -16);
+        g.lineTo(9.5, -21);
+        g.lineTo(12, -16.5);
+        g.fill();
+        g.stroke();
+        g.fillStyle = '#2a1a13';
+        g.beginPath();
+        g.arc(13, -12, 1.3, 0, Math.PI * 2);
+        g.fill();
+      } else {
+        const nib = this.alertT > 0 ? 0 : Math.sin(this.t * 15) * 0.7;
+        // 등 뒤로 둥글게 말아 올린 꼬리
+        g.lineWidth = 13;
+        g.strokeStyle = INK;
+        g.beginPath();
+        g.moveTo(-6, -5);
+        g.bezierCurveTo(-24, -10, -22, -36, -10, -40);
+        g.quadraticCurveTo(-4, -42, -3, -36);
+        g.stroke();
+        g.lineWidth = 10;
+        g.strokeStyle = fur;
+        g.stroke();
+        g.lineWidth = 4;
+        g.strokeStyle = furHi;
+        g.beginPath();
+        g.moveTo(-14, -14);
+        g.bezierCurveTo(-20, -22, -18, -34, -10, -37);
+        g.stroke();
+        g.strokeStyle = INK;
+        g.lineWidth = 1.4;
+        // 몸
+        g.fillStyle = fur;
+        g.beginPath();
+        g.ellipse(0, -12, 8.5, 11, -0.12, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        g.fillStyle = '#f3dcc0';
+        g.beginPath();
+        g.ellipse(3, -10, 4.4, 7.2, -0.1, 0, Math.PI * 2);
+        g.fill();
+        // 뒷발
+        g.fillStyle = fur;
+        g.beginPath();
+        g.ellipse(-1, -1.5, 5, 2.6, 0, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        // 머리 (오물오물)
+        g.save();
+        g.translate(0, nib);
+        g.fillStyle = fur;
+        g.beginPath();
+        g.arc(5, -26, 7, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        g.beginPath();
+        g.moveTo(1.5, -31);
+        g.lineTo(2.2, -38 - (this.alertT > 0 ? 2 : 0));
+        g.lineTo(6, -32);
+        g.fill();
+        g.stroke();
+        g.fillStyle = '#2a1a13';
+        g.beginPath();
+        g.arc(8, -27, 1.5, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = '#fff';
+        g.beginPath();
+        g.arc(8.5, -27.6, 0.5, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = 'rgba(255,150,160,0.6)';
+        g.beginPath();
+        g.ellipse(8, -23.5, 2, 1.2, 0, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = '#2a1a13';
+        g.beginPath();
+        g.arc(11.8, -25, 0.9, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+        // 앞발에 든 편백 열매
+        if (this.alertT <= 0) {
+          g.fillStyle = '#8a5a34';
+          g.beginPath();
+          g.arc(10, -17 + nib * 0.5, 3.4, 0, Math.PI * 2);
+          g.fill();
+          g.stroke();
+          g.strokeStyle = 'rgba(255,220,170,0.6)';
+          g.lineWidth = 0.8;
+          g.beginPath();
+          g.moveTo(7.6, -17 + nib * 0.5);
+          g.lineTo(12.4, -17 + nib * 0.5);
+          g.moveTo(10, -19.5 + nib * 0.5);
+          g.lineTo(10, -14.5 + nib * 0.5);
+          g.stroke();
+        }
+        g.strokeStyle = INK;
+        g.lineWidth = 1.4;
+        g.fillStyle = fur;
+        g.beginPath();
+        g.ellipse(8, -15.5, 2.6, 2, 0.4, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+      }
+      g.restore();
+    }
+  }
+
+  // 오목눈이: 하얗고 동그란 작은 새. 가끔 가지 끝에 내려앉아 콩콩 뛰고 지저귄다
+  class Bird {
+    constructor(i) {
+      this.i = i;
+      this.state = 'away';
+      this.next = MC.rand(10, 26) + i * 9;
+      this.t = 0;
+      this.f = 0;
+      this.hop = 0;
+      this.hopT = MC.rand(1, 3);
+      this.off = 0;
+      this.chirpT = MC.rand(1.5, 4);
+      this.dir = 1;
+    }
+
+    perch(sc) {
+      const br = sc.tree.branches[this.i % sc.tree.branches.length];
+      const p = sc.branchPoint(br, this.i ? 0.97 : 0.9);
+      return { x: p.x + this.off * sc.s, y: p.y - this.hop * 6 * sc.s };
+    }
+
+    start(sc) {
+      return { x: this.i ? -40 * sc.s : sc.w * 0.45, y: -40 * sc.s };
+    }
+
+    update(dt, sc, chirp) {
+      this.t += dt;
+      if (this.state === 'away') {
+        this.next -= dt;
+        if (this.next <= 0) {
+          this.state = 'in';
+          this.f = 0;
+        }
+        return;
+      }
+      if (this.state === 'in' || this.state === 'out') {
+        this.f += dt / 2.6;
+        if (this.f >= 1) {
+          if (this.state === 'in') {
+            this.state = 'perch';
+            this.stay = MC.rand(9, 16);
+          } else {
+            this.state = 'away';
+            this.next = MC.rand(28, 60);
+          }
+        }
+        return;
+      }
+      this.stay -= dt;
+      this.hopT -= dt;
+      if (this.hopT <= 0) {
+        this.hopT = MC.rand(1.2, 3.4);
+        this.hopV = 1;
+        this.off = MC.clamp(this.off + MC.rand(-9, 9), -14, 6);
+        this.dir = Math.random() < 0.5 ? -1 : 1;
+      }
+      this.hop = this.hopV > 0 ? Math.sin(Math.PI * (1 - this.hopV)) : 0;
+      this.hopV = Math.max(0, (this.hopV || 0) - dt * 4);
+      this.chirpT -= dt;
+      if (this.chirpT <= 0) {
+        this.chirpT = MC.rand(3, 7);
+        if (chirp) chirp();
+      }
+      if (this.stay <= 0) this.leave();
+    }
+
+    leave() {
+      if (this.state !== 'perch') return false;
+      this.state = 'out';
+      this.f = 0;
+      return true;
+    }
+
+    pos(sc) {
+      const P = this.perch(sc);
+      if (this.state === 'perch') return { x: P.x, y: P.y, fly: false };
+      const S = this.start(sc);
+      const e = this.state === 'in' ? 1 - Math.pow(1 - this.f, 2) : this.f * this.f;
+      const a = this.state === 'in' ? S : P;
+      const b = this.state === 'in' ? P : { x: S.x + (this.i ? -60 : 60) * sc.s, y: S.y };
+      return { x: MC.lerp(a.x, b.x, e), y: MC.lerp(a.y, b.y, e) - Math.abs(Math.sin(e * Math.PI * 3)) * 18 * sc.s, fly: true };
+    }
+
+    hit(x, y, sc) {
+      if (this.state !== 'perch') return false;
+      const q = this.pos(sc);
+      return Math.hypot(x - q.x, y - (q.y - 8 * sc.s)) < 18 * sc.s;
+    }
+
+    draw(g, sc) {
+      if (this.state === 'away') return;
+      const q = this.pos(sc);
+      const k = sc.s * 0.82;
+      g.save();
+      g.translate(q.x, q.y);
+      g.scale(k * (q.fly ? (this.state === 'in' ? (this.i ? 1 : -1) : this.i ? -1 : 1) : this.dir), k);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      // 긴 꼬리
+      g.strokeStyle = '#2b2b33';
+      g.lineWidth = 3.4;
+      g.beginPath();
+      g.moveTo(-7, -9);
+      g.lineTo(-22, q.fly ? -10 : -3);
+      g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.8)';
+      g.lineWidth = 1;
+      g.stroke();
+      // 동그란 몸
+      const grd = g.createRadialGradient(-2, -13, 1, 0, -10, 10);
+      grd.addColorStop(0, '#ffffff');
+      grd.addColorStop(1, '#efe6ea');
+      g.fillStyle = grd;
+      g.strokeStyle = INK;
+      g.lineWidth = 1.3;
+      g.beginPath();
+      g.ellipse(0, -10, 9, 8, 0, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      // 분홍빛 옆구리와 검은 눈썹줄
+      g.fillStyle = 'rgba(232,168,182,0.75)';
+      g.beginPath();
+      g.ellipse(-2, -7, 4.5, 3, -0.3, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = '#2b2b33';
+      g.lineWidth = 1.8;
+      g.beginPath();
+      g.moveTo(-1, -15);
+      g.quadraticCurveTo(3, -16.5, 7.5, -14);
+      g.stroke();
+      g.fillStyle = '#1d1414';
+      g.beginPath();
+      g.arc(4.5, -12.5, 1.2, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.moveTo(8.6, -11.5);
+      g.lineTo(11, -10.8);
+      g.lineTo(8.6, -10);
+      g.fill();
+      // 날개
+      const flap = q.fly ? Math.sin(this.t * 26) : 0;
+      g.fillStyle = '#3a3640';
+      g.beginPath();
+      g.ellipse(-3, -10 - flap * 4, 5.5, 3 + Math.abs(flap) * 2.5, -0.4 - flap * 0.5, 0, Math.PI * 2);
+      g.fill();
+      if (!q.fly) {
+        g.strokeStyle = '#6b5048';
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(-1.5, -2.5);
+        g.lineTo(-1.5, 0.5);
+        g.moveTo(2, -2.5);
+        g.lineTo(2, 0.5);
+        g.stroke();
+      }
+      g.restore();
+    }
+  }
+
+  // 그루터기에 누가 있으면 숲 바닥에 흩어져 앉는다 (오른쪽 큰 편백 밑동은 비워 둔다)
   const FOREST_SEATS = [
-    [400, 520], [540, 380], [680, 560], [820, 420], [300, 760], [470, 800], [640, 820], [900, 640],
+    [400, 520], [540, 380], [660, 560], [760, 420], [300, 760], [470, 800], [620, 820], [740, 700],
   ].map(([X, Z]) => ({ X, Z }));
 
   class ForestScene {
@@ -129,6 +565,13 @@
       this.flies = [];
       this.nextPerch = MC.rand(14, 26);
       this.nextLook = MC.rand(6, 12);
+      this.spot = 1; // 내가 올라앉은 자리: 1 그루터기, 2.. 나뭇가지 (0 이면 바닥)
+      this.pendingSpot = 0;
+      this.squirrel = new Squirrel();
+      this.birds = [new Bird(0), new Bird(1)];
+      this.onChirp = null;
+      this.onSquirrel = null;
+      this.onToast = null;
       // 멍이: 새싹을 달고 그루터기에 앉아 있다
       this.pup = new MC.Pup({
         outfit: 'sprout',
@@ -153,30 +596,38 @@
           },
           bounds: () => {
             const m = Math.min(200, ((44 * this.s) / this.w) * 1000);
-            return { x0: m, x1: 1000 - m, z0: 0, z1: 1000 };
+            const right = this.tree ? ((this.tree.x - this.tree.w * 0.62) / this.w) * 1000 : 1000 - m;
+            return { x0: m, x1: Math.min(1000 - m, right), z0: 0, z1: 1000 };
           },
           blockers: () => [this.stumpBlock()],
           floor: (x, y) => y > this.band().top - 8 * this.s,
           speed: () => 130 * this.s,
           pose: () => ({ view: 'front', turn: this.pup.flip < 0 ? -0.3 : 0.3, flip: 1, stick: false }),
           seats: () => FOREST_SEATS,
-          env: () => ({ wind: this.wind * 0.6, walkEps: 4 }),
+          env: () => ({
+            wind: this.wind * 0.6,
+            walkEps: 4,
+            lieOf: (st) => !!st.q && st.l >= 2,
+            restOf: (st) => (st.q && st.l >= 2 ? 'branch' : null),
+          }),
+          // 올라앉는 자리: 그루터기(1)와 나뭇가지 자리들(2..). 한 자리에 한 마리
           perch: {
+            manage: true,
+            jumpArc: true,
             get X() {
-              return (sc.stump.x / sc.w) * 1000;
+              return sc.footOf(sc.spot || sc.pendingSpot || 1).X;
             },
             get Z() {
-              const b = sc.band();
-              return ((sc.stump.top + sc.stump.h + 16 * sc.s - b.top) / (b.bot - b.top)) * 1000;
+              return sc.footOf(sc.spot || sc.pendingSpot || 1).Z;
             },
-            // 여럿이 앉으면 조금씩 비켜 앉는다
-            seat: (id) => ({
-              x: sc.stump.x + (id ? (MC.hash(id.length * 7.3 + id.charCodeAt(id.length - 1)) - 0.5) * sc.stump.w * 0.5 : 0),
-              y: sc.stump.top + 3 * sc.s,
-              k: sc.s * 0.95,
-            }),
-            hit: (x, y) => Math.abs(x - sc.stump.x) < sc.stump.w * 0.7 && y > sc.stump.top - 16 * sc.s && y < sc.stump.top + sc.stump.h + 4 * sc.s,
+            seat: (id, st) => sc.seatOf(id ? (st && st.l ? st.l : 1) : sc.spot || sc.pendingSpot || 1, id),
+            hit: (x, y) => sc.spotAt(x, y) > 0,
+            claim: () => sc.claimSpot(),
+            onSit: () => sc.onSpot(),
+            onLeave: () => sc.leaveSpot(),
+            onFull: () => sc.spotFull(),
           },
+          extra: () => ({ l: sc.crowd && sc.crowd.perched ? sc.spot : 0 }),
         });
       }
       sprites();
@@ -223,6 +674,8 @@
       const portrait = w < h * 0.9;
       const st = (this.stump = { x: w * (portrait ? 0.28 : 0.2), top: h * (portrait ? 0.83 : 0.84), w: 86 * this.s, h: 54 * this.s });
       this.buildStump();
+      this.buildTree();
+      this.buildDapples();
       const pup = this.pup;
       pup.k = this.s * 0.95;
       pup.x = st.x;
@@ -519,17 +972,419 @@
       this.stumpBox = { W, H, ox: W / 2, oy: st.h * 0.55 };
     }
 
+    // ── 큰 편백과 낮은 가지 둘 ───────────────────────────────────
+    buildTree() {
+      const { w, h, dpr, s } = this;
+      const P = w < h * 0.9;
+      const b = this.band();
+      const tx = w * (P ? 0.93 : 0.87);
+      const tw = (P ? 62 : 86) * s;
+      const lowY = b.top - (P ? 86 : 94) * s;
+      const upY = b.top - (P ? 200 : 216) * s;
+      const x0 = tx - tw * 0.4;
+      const branches = [
+        { x0, y0: lowY, x1: w * (P ? 0.4 : 0.49), y1: lowY - 24 * s, th0: 38 * s, th1: 17 * s },
+        { x0, y0: upY, x1: w * (P ? 0.57 : 0.66), y1: upY - 30 * s, th0: 31 * s, th1: 14 * s },
+      ];
+      for (const br of branches) {
+        br.cx = (br.x0 + br.x1) / 2;
+        br.cy = Math.max(br.y0, br.y1) + 8 * s;
+      }
+      this.tree = { x: tx, w: tw, branches };
+      // 자리: 1 그루터기, 2.. 아래 가지(줄기 쪽부터), 그다음 위 가지
+      this.spots = [null, { kind: 'stump' }];
+      branches.forEach((br, bi) => {
+        const len = Math.abs(br.x0 - br.x1);
+        const k = s * 0.9;
+        const n = MC.clamp(Math.floor((len - 30 * s) / (104 * k)), 1, 3);
+        for (let j = 0; j < n; j++) {
+          const t = n === 1 ? 0.6 : 0.3 + (0.55 * j) / (n - 1);
+          const p = this.branchPoint(br, t);
+          this.spots.push({ kind: 'branch', b: bi, t, x: p.x, y: p.y, k });
+        }
+      });
+
+      const rnd = MC.rng(2468);
+      const c = (this.treeImg = MC.canvas(w * dpr, h * dpr));
+      const g = c.getContext('2d');
+      g.scale(dpr, dpr);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      this.sprays = [makeSpray(78 * s, 11, dpr, true), makeSpray(64 * s, 23, dpr, false), makeSpray(52 * s, 37, dpr, true)];
+      const spray = (x, y, a, i, sc = 1) => {
+        const sp = this.sprays[i % this.sprays.length];
+        g.save();
+        g.translate(x, y);
+        g.rotate(a);
+        g.scale(sc, sc);
+        g.drawImage(sp.c, -sp.ax, -sp.ay, sp.W, sp.H);
+        g.restore();
+      };
+
+      // 가지 뒤로 드리운 잎 (가지보다 먼저)
+      branches.forEach((br) => {
+        for (let i = 0; i < 4; i++) {
+          const t = 0.15 + i * 0.24 + rnd() * 0.06;
+          const p = this.branchPoint(br, t);
+          spray(p.x, p.y - 2 * s, Math.PI + (i % 2 ? -0.75 : -0.35) + (rnd() - 0.5) * 0.3, i, 0.85 + rnd() * 0.3);
+        }
+      });
+
+      // 줄기: 아래로 갈수록 넓어지며 뿌리가 땅을 움켜쥔다
+      const left = tx - tw / 2;
+      const right = tx + tw / 2;
+      g.beginPath();
+      g.moveTo(left + tw * 0.06, -10);
+      g.lineTo(left, b.top - 34 * s);
+      g.quadraticCurveTo(left - 4 * s, b.top + 14 * s, left - tw * 0.34, h + 10);
+      g.lineTo(right + tw * 0.34, h + 10);
+      g.quadraticCurveTo(right + 4 * s, b.top + 14 * s, right, b.top - 34 * s);
+      g.lineTo(right - tw * 0.06, -10);
+      g.closePath();
+      const bark = g.createLinearGradient(left, 0, right, 0);
+      bark.addColorStop(0, '#c58e60');
+      bark.addColorStop(0.3, '#9d6644');
+      bark.addColorStop(0.75, '#6c442c');
+      bark.addColorStop(1, '#4e3020');
+      g.fillStyle = bark;
+      g.fill();
+      g.strokeStyle = 'rgba(58,38,26,0.85)';
+      g.lineWidth = 2 * s;
+      g.stroke();
+      g.save();
+      g.clip();
+      // 세로로 길게 갈라지는 섬유질 껍질
+      for (let i = 0; i < 34; i++) {
+        const fx = left - tw * 0.2 + rnd() * tw * 1.4;
+        const lightLine = rnd() < 0.38;
+        g.strokeStyle = lightLine ? 'rgba(240,196,156,0.3)' : 'rgba(52,30,18,0.4)';
+        g.lineWidth = (0.8 + rnd() * 1.8) * s;
+        g.beginPath();
+        let y = -10;
+        let x = fx;
+        g.moveTo(x, y);
+        while (y < h + 10) {
+          y += 26 * s;
+          x += (rnd() - 0.5) * 3.2 * s;
+          g.lineTo(x, y);
+        }
+        g.stroke();
+      }
+      // 길게 벗겨진 껍질 몇 가닥
+      for (let i = 0; i < 5; i++) {
+        const fx = left + tw * (0.15 + rnd() * 0.7);
+        const y0 = rnd() * b.top * 0.8;
+        const len = (60 + rnd() * 90) * s;
+        g.strokeStyle = 'rgba(214,150,108,0.65)';
+        g.lineWidth = (2 + rnd() * 2) * s;
+        g.beginPath();
+        g.moveTo(fx, y0);
+        g.quadraticCurveTo(fx + 4 * s, y0 + len * 0.5, fx + (rnd() < 0.5 ? -7 : 7) * s, y0 + len);
+        g.stroke();
+      }
+      // 오른쪽은 그늘, 왼쪽 가장자리에는 아침 햇빛
+      const shade = g.createLinearGradient(left, 0, right, 0);
+      shade.addColorStop(0, 'rgba(255,236,190,0.32)');
+      shade.addColorStop(0.12, 'rgba(255,236,190,0)');
+      shade.addColorStop(0.7, 'rgba(20,12,6,0)');
+      shade.addColorStop(1, 'rgba(20,12,6,0.32)');
+      g.fillStyle = shade;
+      g.fillRect(left - tw, 0, tw * 3, h);
+      g.restore();
+
+      // 가지
+      branches.forEach((br, bi) => {
+        const N = 30;
+        const top = [];
+        const bot = [];
+        for (let i = 0; i <= N; i++) {
+          const t = i / N;
+          const u = 1 - t;
+          const x = u * u * br.x0 + 2 * u * t * br.cx + t * t * br.x1;
+          const y = u * u * br.y0 + 2 * u * t * br.cy + t * t * br.y1;
+          const th = MC.lerp(br.th0, br.th1, t) * (1 + 0.05 * Math.sin(t * 13 + bi));
+          const flare = t < 0.1 ? (1 - t / 0.1) * br.th0 * 0.45 : 0;
+          top.push([x, y - th / 2 - flare]);
+          bot.push([x, y + th / 2 + flare * 0.7]);
+        }
+        g.beginPath();
+        g.moveTo(top[0][0] + tw * 0.2, top[0][1] - 6 * s);
+        for (const [x, y] of top) g.lineTo(x, y);
+        const tip = top[N];
+        const tipB = bot[N];
+        g.quadraticCurveTo(tip[0] - br.th1 * 0.7, (tip[1] + tipB[1]) / 2, tipB[0], tipB[1]);
+        for (let i = N; i >= 0; i--) g.lineTo(bot[i][0], bot[i][1]);
+        g.lineTo(bot[0][0] + tw * 0.2, bot[0][1] + 6 * s);
+        g.closePath();
+        const bg = g.createLinearGradient(0, br.y0 - br.th0 * 0.8, 0, br.y0 + br.th0 * 0.8);
+        bg.addColorStop(0, '#cf9a6b');
+        bg.addColorStop(0.45, '#93603f');
+        bg.addColorStop(1, '#53351f');
+        g.fillStyle = bg;
+        g.fill();
+        g.strokeStyle = 'rgba(58,38,26,0.85)';
+        g.lineWidth = 1.8 * s;
+        g.stroke();
+        // 가지를 따라 난 결
+        g.save();
+        g.clip();
+        for (let j = 0; j < 4; j++) {
+          const off = -0.3 + j * 0.2;
+          g.strokeStyle = j % 2 ? 'rgba(52,30,18,0.35)' : 'rgba(240,196,156,0.22)';
+          g.lineWidth = 1.1 * s;
+          g.beginPath();
+          for (let i = 0; i <= N; i++) {
+            const x = top[i][0];
+            const y = MC.lerp(top[i][1], bot[i][1], 0.5 + off) + Math.sin(i * 1.7 + j) * 0.8 * s;
+            if (i === 0) g.moveTo(x, y);
+            else g.lineTo(x, y);
+          }
+          g.stroke();
+        }
+        g.restore();
+        // 윗면의 폭신한 이끼
+        for (let i = 0; i < 26; i++) {
+          const t = 0.04 + rnd() * 0.9;
+          const p = this.branchPoint(br, t);
+          g.fillStyle = rnd() < 0.5 ? '#86b45c' : '#6a9a48';
+          g.beginPath();
+          g.ellipse(p.x + (rnd() - 0.5) * 8 * s, p.y + (1 + rnd() * 2) * s, (3 + rnd() * 6) * s, (1.6 + rnd() * 2) * s, 0, 0, Math.PI * 2);
+          g.fill();
+        }
+        // 옹이
+        const kp = this.branchPoint(br, 0.18 + rnd() * 0.1);
+        g.fillStyle = 'rgba(60,36,22,0.55)';
+        g.beginPath();
+        g.ellipse(kp.x, kp.y + br.th0 * 0.45, 3.5 * s, 2.4 * s, 0, 0, Math.PI * 2);
+        g.fill();
+      });
+
+      // 가지 아래로 드리운 잎
+      branches.forEach((br) => {
+        for (let i = 0; i < 3; i++) {
+          const t = 0.2 + i * 0.3 + rnd() * 0.08;
+          const p = this.branchPoint(br, t);
+          spray(p.x, p.y + br.th0 * 0.6, Math.PI - 0.95 + (rnd() - 0.5) * 0.3, i + 1, 0.7 + rnd() * 0.25);
+        }
+      });
+      // 밑동: 뿌리 사이에 낀 이끼 (밑으로 갈수록 짙게)
+      for (let i = 0; i < 26; i++) {
+        const u = rnd();
+        const y = b.top + 6 * s + Math.pow(rnd(), 0.6) * (h - b.top);
+        const spread = tw * (0.5 + 0.35 * (y - b.top) / (h - b.top + 1));
+        const x = tx + (u - 0.5) * spread * 2;
+        g.fillStyle = rnd() < 0.5 ? 'rgba(111,157,76,0.85)' : 'rgba(85,127,58,0.85)';
+        g.beginPath();
+        g.ellipse(x, y, (5 + rnd() * 7) * s, (1.8 + rnd() * 2) * s, 0, Math.PI, 0);
+        g.fill();
+      }
+
+      // 가지 끝에서 살랑이는 잎은 따로 그린다
+      this.tips = [];
+      branches.forEach((br, bi) => {
+        const p = this.branchPoint(br, 1);
+        this.tips.push({ x: p.x + 3 * s, y: p.y + br.th1 * 0.5, a: Math.PI + 0.25, spr: this.sprays[bi], ph: rnd() * 6 });
+        this.tips.push({ x: p.x + 8 * s, y: p.y + br.th1 * 0.8, a: Math.PI - 0.55, spr: this.sprays[(bi + 1) % 3], ph: rnd() * 6 });
+      });
+    }
+
+    // 가지 윗면의 한 점 (t: 0 줄기 … 1 끝)
+    branchPoint(br, t) {
+      const u = 1 - t;
+      const x = u * u * br.x0 + 2 * u * t * br.cx + t * t * br.x1;
+      const y = u * u * br.y0 + 2 * u * t * br.cy + t * t * br.y1;
+      const th = MC.lerp(br.th0, br.th1, t);
+      return { x, y: y - th / 2, th };
+    }
+
+    drawTips(g) {
+      for (const tp of this.tips) {
+        const sway = Math.sin(this.t * 0.9 + tp.ph) * 0.05 + MC.fbm(this.t * 0.4 + tp.ph) * 0.04 + this.gust * 0.12 * Math.sin(this.t * 2.3 + tp.ph);
+        const sp = tp.spr;
+        g.save();
+        g.translate(tp.x, tp.y);
+        g.rotate(tp.a + sway);
+        g.drawImage(sp.c, -sp.ax, -sp.ay, sp.W, sp.H);
+        g.restore();
+      }
+    }
+
+    // 잎 사이로 들어와 일렁이는 햇빛 조각 (바닥, 줄기, 가지 위)
+    buildDapples() {
+      const rnd = MC.rng(4242);
+      const b = this.band();
+      const s = this.s;
+      this.dapples = [];
+      for (let i = 0; i < 16; i++) {
+        this.dapples.push({ on: 'floor', x: rnd() * this.w, y: MC.lerp(b.top - 4 * s, b.bot, rnd()), rx: (18 + rnd() * 30) * s, ry: (4 + rnd() * 6) * s, ph: rnd() * 6.28, sp: 0.15 + rnd() * 0.25 });
+      }
+      const T = this.tree;
+      for (let i = 0; i < 7; i++) {
+        this.dapples.push({ on: 'tree', x: T.x + (rnd() - 0.65) * T.w * 0.6, y: rnd() * b.top * 0.95, rx: (5 + rnd() * 6) * s, ry: (10 + rnd() * 16) * s, ph: rnd() * 6.28, sp: 0.15 + rnd() * 0.25 });
+      }
+      for (const br of T.branches) {
+        for (let i = 0; i < 3; i++) {
+          const p = this.branchPoint(br, 0.2 + i * 0.3 + rnd() * 0.1);
+          this.dapples.push({ on: 'tree', x: p.x, y: p.y + 2 * s, rx: (12 + rnd() * 10) * s, ry: (3 + rnd() * 2) * s, ph: rnd() * 6.28, sp: 0.15 + rnd() * 0.25 });
+        }
+      }
+    }
+
+    drawDapples(g, on) {
+      g.globalCompositeOperation = 'lighter';
+      for (const d of this.dapples) {
+        if (d.on !== on) continue;
+        const a = (0.09 + 0.09 * MC.fbm(this.t * d.sp + d.ph)) * (1 + this.gust * 0.6);
+        if (a <= 0.01) continue;
+        const ox = Math.sin(this.t * 0.35 + d.ph) * 5 * this.s * (1 + this.gust);
+        g.globalAlpha = Math.min(0.35, a);
+        g.drawImage(SPR.dapple, d.x + ox - d.rx, d.y - d.ry, d.rx * 2, d.ry * 2);
+      }
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+    }
+
+    // ── 올라앉는 자리 ─────────────────────────────────────────
+    seatOf(i, id) {
+      const sp = this.spots && this.spots[i];
+      if (i <= 1 || !sp) {
+        const st = this.stump;
+        return { x: st.x + (id ? (MC.hash(id.length * 7.3 + id.charCodeAt(id.length - 1)) - 0.5) * st.w * 0.5 : 0), y: st.top + 3 * this.s, k: this.s * 0.95 };
+      }
+      return { x: sp.x, y: sp.y + 3 * sp.k, k: sp.k };
+    }
+
+    // 그 자리 아래 바닥 (여기까지 걸어와서 폴짝)
+    footOf(i) {
+      const b = this.band();
+      const sp = this.spots && this.spots[i];
+      if (i <= 1 || !sp) return { X: (this.stump.x / this.w) * 1000, Z: ((this.stump.top + this.stump.h + 16 * this.s - b.top) / (b.bot - b.top)) * 1000 };
+      const bd = this.crowd.cfg.bounds();
+      return { X: MC.clamp((sp.x / this.w) * 1000, bd.x0 + 4, bd.x1 - 4), Z: 110 };
+    }
+
+    takenSpots() {
+      const taken = new Set();
+      if (this.crowd) for (const v of this.crowd.visitors.values()) if (!v.leaving && v.st.q) taken.add(v.st.l || 1);
+      return taken;
+    }
+
+    // 빈자리: 바라는 자리와 가까운 것부터 (나뭇가지를 바랐으면 나뭇가지부터)
+    freeSpot(want) {
+      const taken = this.takenSpots();
+      const order = [];
+      for (let i = 1; i < this.spots.length; i++) order.push(i);
+      order.sort((a, b) => ((a >= 2) === (want >= 2) ? 0 : 1) - ((b >= 2) === (want >= 2) ? 0 : 1) || Math.abs(a - want) - Math.abs(b - want));
+      for (const i of order) if (!taken.has(i)) return i;
+      return 0;
+    }
+
+    claimSpot() {
+      const spot = this.freeSpot(this.pendingSpot || this.spot || 1);
+      this.pendingSpot = 0;
+      if (!spot) return false;
+      this.spot = spot;
+      return true;
+    }
+
+    // 나뭇가지에서는 엎드려 다리를 늘어뜨리고 금세 꾸벅꾸벅, 그루터기에서는 앉는다
+    onSpot() {
+      const branch = this.spot >= 2;
+      this.pup.rest = branch ? 'branch' : null;
+      this.pup.setLie(branch);
+      if (branch) this.pup.sleepAfter = Math.min(this.pup.sleepAfter, 25);
+    }
+
+    leaveSpot() {
+      this.pup.rest = null;
+      this.pup.setLie(false);
+      this.spot = 0;
+    }
+
+    spotFull() {
+      if (this.onToast) this.onToast('나뭇가지가 꽉 찼어요');
+    }
+
+    // 누른 곳의 자리: 그루터기(1) 또는 가까운 가지 자리
+    spotAt(x, y) {
+      const st = this.stump;
+      if (Math.abs(x - st.x) < st.w * 0.7 && y > st.top - 16 * this.s && y < st.top + st.h + 4 * this.s) return 1;
+      let best = 0;
+      let bd = Infinity;
+      for (let i = 2; i < this.spots.length; i++) {
+        const sp = this.spots[i];
+        const dx = Math.abs(x - sp.x);
+        if (dx > 72 * sp.k || y < sp.y - 84 * sp.k || y > sp.y + 36 * sp.k) continue;
+        if (dx < bd) {
+          bd = dx;
+          best = i;
+        }
+      }
+      return best;
+    }
+
+    // 자리를 톡: 걸어가서 폴짝 올라간다. 이미 올라앉아 있으면 그 자리로 곧장 폴짝
+    tapSpot(want) {
+      const c = this.crowd;
+      const taken = this.takenSpots();
+      if (c.perched && this.spot) {
+        if (want === this.spot) return;
+        if (taken.has(want)) {
+          if (this.onToast) this.onToast('그 자리엔 친구가 있어요');
+          return;
+        }
+        this.moveToSpot(want);
+        return;
+      }
+      const spot = taken.has(want) ? this.freeSpot(want) : want;
+      if (!spot) {
+        this.spotFull();
+        return;
+      }
+      this.pendingSpot = spot;
+      c.go(this.footOf(spot), true);
+    }
+
+    moveToSpot(i) {
+      const c = this.crowd;
+      c.jumpFrom = { x: this.pup.x, y: this.pup.y };
+      c.jumpT = 0;
+      this.spot = i;
+      this.onSpot();
+      c.posed = false;
+      this.pup.hopV = -40;
+      this.pup.emit('hop');
+    }
+
     pointerDown(x, y) {
       if (this.pup.hit(x, y)) {
         this.pup.poke();
         return true;
       }
+      // 다람쥐를 톡: 열매를 든 채 귀를 쫑긋. 새를 톡: 짹 하고 날아간다
+      if (this.squirrel.hit(x, y, this) && this.squirrel.poke()) {
+        if (this.onSquirrel) this.onSquirrel();
+        return true;
+      }
+      for (const b of this.birds) {
+        if (b.hit(x, y, this) && b.leave()) {
+          if (this.onChirp) this.onChirp();
+          return true;
+        }
+      }
       if (this.crowd) {
-        // 함께 앉은 다른 멍이에게 하트, 숲 바닥이나 그루터기를 톡 하면 걸어간다
+        // 함께 앉은 다른 멍이에게 하트
         if (this.crowd.boopAt(x, y)) {
           if (this.onCute) this.onCute('boop');
           return true;
         }
+        // 그루터기나 나뭇가지를 톡: 그 자리로 가서 폴짝
+        const spot = this.spotAt(x, y);
+        if (spot) {
+          this.tapSpot(spot);
+          return true;
+        }
+        // 숲 바닥을 톡: 걸어간다
         if (this.crowd.walkTo(x, y)) return true;
       }
       this.gust = Math.min(1.2, this.gust + 0.75);
@@ -585,13 +1440,32 @@
       // 멍이는 두리번두리번, 나비가 가까이 오면 눈으로 따라간다
       const pup = this.pup;
       this.nextLook -= dt;
-      if (this.crowd) this.crowd.update(dt);
+      const c = this.crowd;
+      if (c) {
+        c.update(dt);
+        // 같은 자리에 둘이 올라앉으면 꼬리표가 앞선 사람이 그 자리를 갖고, 나는 다른 빈자리로 폴짝 (없으면 내려온다)
+        if (c.perched && this.spot && c.selfId) {
+          for (const v of c.visitors.values()) {
+            if (v.leaving || !v.st.q || (v.st.l || 1) !== this.spot || !(v.id < c.selfId)) continue;
+            const other = this.freeSpot(this.spot);
+            if (other) this.moveToSpot(other);
+            else {
+              c.hopDown();
+              c.makeRoom(true);
+            }
+            break;
+          }
+        }
+        if (c.perched && this.spot >= 2) pup.sleepAfter = Math.min(pup.sleepAfter, 25);
+      }
+      this.squirrel.update(dt);
+      for (const b of this.birds) b.update(dt, this, () => { if (this.onChirp) this.onChirp(); });
       if (this.nextLook <= 0 && !(this.crowd && this.crowd.moving)) {
         this.nextLook = MC.rand(7, 14);
         pup.baseTurn = MC.rand(-0.45, 0.45);
       }
       const head = pup.world(0, -72);
-      const perch = pup.world(6 + pup.turn * 3, -118 + pup.headDrop);
+      const perch = pup.world(6 + pup.turn * 3, -118 + pup.headDrop + pup.lieDrop);
       this.nextPerch -= dt;
       if (this.nextPerch <= 0 && this.flies.every((f) => f.mode === 'fly')) {
         this.nextPerch = MC.rand(25, 45);
@@ -719,6 +1593,8 @@
         g.restore();
       }
 
+      // 바닥에 일렁이는 햇빛
+      this.drawDapples(g, 'floor');
       // 그루터기 위의 멍이, 그리고 나비
       const sb = this.stumpBox;
       if (this.crowd) {
@@ -726,11 +1602,18 @@
         const zb = this.stumpBlock().z;
         this.crowd.draw(g, this.dpr, (Z, up) => !up && Z < zb, w);
         g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
-        this.crowd.draw(g, this.dpr, (Z, up) => up || Z >= zb, w);
+        this.crowd.draw(g, this.dpr, (Z, up, spot) => (up && spot <= 1) || (!up && Z >= zb), w);
       } else {
         g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
         this.pup.draw(g, this.dpr);
       }
+      // 큰 편백과 가지, 그 위에 엎드린 멍이들
+      g.drawImage(this.treeImg, 0, 0, w, h);
+      this.drawTips(g);
+      if (this.crowd) this.crowd.draw(g, this.dpr, (Z, up, spot) => up && spot >= 2, w);
+      this.drawDapples(g, 'tree');
+      this.squirrel.draw(g, this);
+      for (const b of this.birds) b.draw(g, this);
       for (const f of this.flies) f.draw(g, this.s * 1.05);
 
       for (const f of this.ferns) this.drawFern(g, f);

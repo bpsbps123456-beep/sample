@@ -22,7 +22,10 @@
       make: () => new MC.WaterScene({}),
       scape: MC.WaterScape,
       guidance: '파도에 숨을 맞춰요',
-      actions: [{ id: 'ripple', icon: 'i-drop', label: '물결', primary: true }],
+      actions: [
+        { id: 'ripple', icon: 'i-drop', label: '물결', primary: true },
+        { id: 'bottle', icon: 'i-bottle', label: '편지' },
+      ],
       space: 'ripple',
     },
     forest: {
@@ -515,6 +518,7 @@
       scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
       scene.onEnterTent = () => switchScene('tent');
     }
+    if (state.scene === 'water' || state.scene === 'forest') scene.onToast = (msg) => toast(msg);
     if (state.scene === 'tent') {
       scene.onExit = () => switchScene('fire');
       scene.onToggle = (id, on) => setPressed(id, on);
@@ -557,11 +561,16 @@
       scene.onPoke = () => scape.poke();
     } else if (state.scene === 'water') {
       scene.onRipple = (z, pan) => scape.plop(z, pan);
+      scene.onSplash = () => scape.splash();
+      scene.onWhale = (kind) => scape.whale(kind);
+      scene.onBottle = () => scape.bottle();
     } else if (state.scene === 'tent') {
       scene.events = () => scape.drain();
       scene.onLog = () => scape.log();
     } else {
       scene.onGust = () => scape.gust();
+      scene.onChirp = () => scape.chirp();
+      scene.onSquirrel = () => scape.squirrel();
     }
   }
 
@@ -744,6 +753,10 @@
     } else if (id === 'worry') {
       if (!sc.worry) togglePanel('worry');
     } else if (id === 'ripple') sc.rippleAt();
+    else if (id === 'bottle') {
+      if (sc.bottle) toast('병이 아직 떠가고 있어요');
+      else togglePanel('bottle');
+    }
     else if (id === 'breeze') sc.breeze();
     else if (id === 'stove') {
       if (!sc.addLog()) toast('난로가 따뜻해요');
@@ -850,6 +863,7 @@
     for (const p of $$('.panel')) p.hidden = p.id !== `panel-${name}`;
     wake();
     if (name === 'worry') setTimeout(() => $('#worryInput').focus(), 30);
+    if (name === 'bottle') setTimeout(() => $('#bottleInput').focus(), 30);
   }
   function togglePanel(name) {
     const p = $(`#panel-${name}`);
@@ -1065,6 +1079,17 @@
     const go = () => sc.burnWorry(text);
     if (document.fonts && document.fonts.load) document.fonts.load('34px "Gamja Flower"', text).then(go, go);
     else go();
+  });
+  // 유리병 편지: 적은 말은 남기지 않는다. 병만 바다로
+  $('#bottleForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('#bottleInput');
+    const sc = state.sceneObj;
+    if (!input.value.trim() || !sc || !sc.sendBottle) return;
+    input.value = '';
+    input.blur();
+    closePanels();
+    sc.sendBottle();
   });
   $('#worryThrow').addEventListener('click', () => {
     if (state.sceneObj && state.sceneObj.throwWorry) state.sceneObj.throwWorry();

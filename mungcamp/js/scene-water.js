@@ -1,4 +1,6 @@
-/* 멍캠프 — 물멍: 블루아워의 달빛 바다. 파도는 10초마다 밀려온다 */
+/* 멍캠프 — 물멍: 블루아워의 달빛 바다. 파도는 10초마다 밀려온다.
+   바다로 걸어 들어가면 털모자 빛깔의 튜브에 엎드려 둥실둥실 떠다닌다. 물을 저으면 야광 플랑크톤이 푸르게 반짝이고,
+   가끔 먼 바다에서 고래가 숨을 쉰다(보는 사람 모두에게 같은 때). 마음에 걸리는 말은 유리병에 넣어 달빛 쪽으로 띄워 보낸다 */
 (function (MC) {
   'use strict';
 
@@ -11,6 +13,8 @@
       lamp: MC.glow([255, 236, 190], 64, 0.15),
       star: MC.glow([226, 232, 255], 16, 0.22),
       glint: MC.glow([255, 244, 214], 32, 0.25),
+      plankton: MC.glow([110, 225, 255], 16, 0.3),
+      spout: MC.glow([214, 226, 255], 32, 0.3),
     };
     return SPR;
   }
@@ -163,6 +167,70 @@
     }
   }
   const easeInOut = (x) => 0.5 - 0.5 * Math.cos(Math.PI * x);
+  const INK = '#5b3d2c';
+
+  // ── 장면 좌표 ─────────────────────────────────────────────
+  // X: 화면 가로 천분율. Z: 0..1000 은 모래밭(클수록 앞), -ZW..0 은 젖은 물가,
+  // 그보다 작으면 바다(-ZFAR 가 헤엄쳐 갈 수 있는 가장 먼 곳)
+  const ZW = 70;
+  const ZFAR = 1000;
+  const ZMIN = 0.4; // 가장 먼 곳의 원근 (0 수평선 … 1 물가)
+  const SEA_Z = -ZW * 0.5; // 이보다 바다 쪽이면 튜브에 엎드려 둥실둥실
+  const WHALE_EVERY = 240; // 고래는 4분마다, 보는 사람 모두에게 같은 때 (벽시계)
+  const WHALE_DUR = 16;
+
+  // 사람마다 다른, 그러나 누구 화면에서나 같은 박자
+  const strHash = (id) => {
+    let h = 7;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return MC.hash(h * 0.0137);
+  };
+
+  // 줄무늬 고리 하나 (튜브). 옆에서 비스듬히 본 도넛
+  function ring(g, cx, cy, RX, RY, rx, ry, rot, col, n = 12) {
+    g.save();
+    g.translate(cx, cy);
+    g.rotate(rot);
+    for (let i = 0; i < n; i++) {
+      const a0 = (i / n) * Math.PI * 2 + 0.13;
+      const a1 = ((i + 1) / n) * Math.PI * 2 + 0.13;
+      g.beginPath();
+      g.ellipse(0, 0, RX, RY, 0, a0, a1);
+      g.ellipse(0, 0, rx, ry, 0, a1, a0, true);
+      g.closePath();
+      g.fillStyle = i % 2 ? '#fff4e6' : col;
+      g.fill();
+    }
+    // 둥근 몸통: 위는 밝게, 아래는 어둡게
+    g.save();
+    g.beginPath();
+    g.ellipse(0, 0, RX, RY, 0, 0, Math.PI * 2);
+    g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    g.clip('evenodd');
+    const sh = g.createLinearGradient(0, -RY, 0, RY);
+    sh.addColorStop(0, 'rgba(255,255,255,0.2)');
+    sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+    sh.addColorStop(1, 'rgba(10,20,60,0.38)');
+    g.fillStyle = sh;
+    g.fillRect(-RX, -RY, RX * 2, RY * 2);
+    g.restore();
+    g.strokeStyle = INK;
+    g.lineWidth = Math.max(1.2, RX * 0.034);
+    g.beginPath();
+    g.ellipse(0, 0, RX, RY, 0, 0, Math.PI * 2);
+    g.stroke();
+    g.lineWidth = Math.max(1, RX * 0.028);
+    g.beginPath();
+    g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    g.stroke();
+    // 달빛 반짝
+    g.strokeStyle = 'rgba(255,255,255,0.75)';
+    g.lineWidth = Math.max(1.2, RX * 0.045);
+    g.beginPath();
+    g.ellipse(0, 0, (RX + rx) / 2 + RX * 0.04, (RY + ry) / 2 + RY * 0.06, 0, Math.PI * 1.08, Math.PI * 1.34);
+    g.stroke();
+    g.restore();
+  }
 
   // 여럿이 오면 물가를 따라 나란히
   const WATER_SEATS = [
@@ -176,10 +244,23 @@
       this.quality = 1;
       this.t = 0;
       this.ripples = [];
+      this.plank = []; // 야광 플랑크톤 반짝임
       this.onRipple = null;
       this.onCute = null;
+      this.onSplash = null;
+      this.onWhale = null;
+      this.onBottle = null;
+      this.onToast = null;
       this.lastSplash = -1;
       this.crab = new Crab();
+      this.floating = false;
+      this.ph = [Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28];
+      this.star = null;
+      this.nextStar = MC.rand(12, 28);
+      this.whale = null;
+      this.whaleK = null;
+      this.whaleSpout = false;
+      this.bottle = null;
       // 멍이: 스카프를 두르고 바다를 바라보는 뒷모습
       this.pup = new MC.Pup({
         outfit: 'scarf',
@@ -187,31 +268,35 @@
         light: { ambient: 'rgba(22,32,80,0.3)', glow: [205, 218, 255], glowA: 0.2, from: 70 },
       });
       this.pup.onEvent = (kind) => { if (this.onCute) this.onCute(kind); };
-      // 함께 걷기: 모래밭을 걷다가 멈추면 바다를 바라보고 앉는다
+      // 함께 걷기: 모래밭을 걷다가 멈추면 바다를 바라보고 앉고, 바다로 들어가면 튜브를 탄다
       if (!this.preview && MC.Crowd) {
         this.crowd = new MC.Crowd(this.pup, {
           place: 'water',
           outfit: 'scarf',
           light: { ambient: 'rgba(22,32,80,0.3)', glow: [205, 218, 255], glowA: 0.2, from: 70 },
           start: { X: 290, Z: 340 },
-          toScreen: (X, Z) => {
-            const b = this.band();
-            return { x: (X / 1000) * this.w, y: b.top + (Z / 1000) * (b.bot - b.top), k: this.s * 0.95 * (0.9 + (0.22 * Z) / 1000) };
-          },
-          toCanon: (x, y) => {
-            const b = this.band();
-            return { X: (x / this.w) * 1000, Z: ((y - b.top) / (b.bot - b.top)) * 1000 };
-          },
+          toScreen: (X, Z) => this.toScreen(X, Z),
+          toCanon: (x, y) => this.toCanon(x, y),
           bounds: () => {
             const m = Math.min(200, ((44 * this.s) / this.w) * 1000);
-            return { x0: m, x1: 1000 - m, z0: 0, z1: 1000 };
+            return { x0: m, x1: 1000 - m, z0: -ZFAR, z1: 1000 };
           },
           blockers: () => [],
-          floor: (x, y) => y > this.sandTop + 2,
-          speed: () => 140 * this.s,
-          pose: () => ({ view: 'back', turn: 0, flip: 1, stick: false }),
+          floor: (x, y) => y > this.hy + 4,
+          speed: () => (this.crowd && this.crowd.me.Z < SEA_Z ? 72 : 140) * this.s,
+          pose: (X, Z) => ({ view: Z < SEA_Z ? 'front' : 'back', turn: 0, flip: 1, stick: false }),
           seats: () => WATER_SEATS,
-          env: () => ({ wind: 0.45 + 0.25 * Math.sin(this.t * 0.31), walkEps: 4 }),
+          env: () => ({
+            wind: 0.45 + 0.25 * Math.sin(this.t * 0.31),
+            walkEps: 4,
+            lieOf: (st) => st.y < SEA_Z,
+            restOf: (st) => (st.y < SEA_Z ? 'tube' : null),
+          }),
+          drifting: (X, Z) => Z < SEA_Z,
+          bob: (X, Z, id) => (Z < SEA_Z ? this.bobAt(X, Z, id) : 0),
+          tilt: (p, me, v) => (p.rest === 'tube' ? 0.045 * Math.sin(this.t * 1.1 + (v ? strHash(v.id) * 6.28 : 1.3)) : 0),
+          under: (g, p, me, v) => { if (p.rest === 'tube') this.drawTube(g, p, v); },
+          over: (g, p, me, v) => { if (p.rest === 'tube') this.drawLap(g, p, v); },
         });
       }
       sprites();
@@ -222,8 +307,44 @@
       return { top: this.sandTop + 14 * this.s, bot: this.h - 10 * this.s };
     }
 
+    // 바다의 원근: Z(<-ZW) → 0 수평선 … 1 물가
+    seaDepth(Z) {
+      return 1 - ((-Z - ZW) / (ZFAR - ZW)) * (1 - ZMIN);
+    }
+
+    toScreen(X, Z) {
+      const b = this.band();
+      const x = (X / 1000) * this.w;
+      if (Z >= 0) return { x, y: b.top + (Z / 1000) * (b.bot - b.top), k: this.s * 0.95 * (0.9 + (0.22 * Z) / 1000) };
+      const k0 = this.s * 0.95 * 0.9;
+      if (Z >= -ZW) return { x, y: this.sandTop + (b.top - this.sandTop) * (1 + Z / ZW), k: k0 };
+      const z = this.seaDepth(Z);
+      return { x, y: this.hy + (this.sandTop - this.hy) * Math.pow(z, 1.9), k: k0 * Math.pow(z, 0.9) };
+    }
+
+    toCanon(x, y) {
+      const b = this.band();
+      const X = (x / this.w) * 1000;
+      if (y >= b.top) return { X, Z: ((y - b.top) / (b.bot - b.top)) * 1000 };
+      if (y >= this.sandTop) return { X, Z: ZW * ((y - this.sandTop) / (b.top - this.sandTop) - 1) };
+      const z = Math.pow(MC.clamp((y - this.hy) / (this.sandTop - this.hy), 0, 1), 1 / 1.9);
+      return { X, Z: -ZW - ((1 - z) / (1 - ZMIN)) * (ZFAR - ZW) };
+    }
+
+    inSea(Z) {
+      return Z < SEA_Z;
+    }
+
+    // 둥실둥실: 10초 너울(호흡과 같은 박자)에 작은 출렁임을 얹는다. 너울은 옆으로 지나간다
+    bobAt(X, Z, id) {
+      const k = this.toScreen(X, Z).k;
+      const ph = id ? strHash(id) * 6.28 : 1.3;
+      const swell = Math.sin((2 * Math.PI * MC.clock()) / MC.WAVE_T - X * 0.004);
+      return (2.4 * Math.sin(this.t * 1.9 + ph) + 4.4 * swell) * k;
+    }
+
     audioParams() {
-      return null;
+      return { float: this.floating ? 1 : 0 };
     }
 
     resize(w, h, dpr) {
@@ -241,6 +362,9 @@
       pup.k = this.s * 0.95;
       pup.x = w * (portrait ? 0.27 : 0.3);
       pup.y = this.sandTop + (h - this.sandTop) * (portrait ? 0.3 : 0.45);
+      // 모래밭 뒤쪽, 물가 가까이 세워 둔 튜브 걸이
+      this.stand = { x: w * (portrait ? 0.86 : 0.88), y: this.band().top + 10 * this.s };
+      this.buildStand();
       if (this.crowd) this.crowd.layout();
       this.crab.place(this);
     }
@@ -347,6 +471,35 @@
         g.fillStyle = `rgba(${rnd() < 0.5 ? '0,0,0' : '200,205,230'},${0.04 + rnd() * 0.05})`;
         g.fillRect(rnd() * w, sandTop + rnd() * (h - sandTop), 1, 1);
       }
+      // 모래 위 조개껍데기와 불가사리 몇 개
+      for (let i = 0; i < 7; i++) {
+        const x = rnd() * w;
+        const y = sandTop + (0.25 + rnd() * 0.7) * (h - sandTop);
+        const r = (2.2 + rnd() * 2.2) * this.s;
+        g.save();
+        g.translate(x, y);
+        g.rotate(rnd() * 6.28);
+        if (i % 3 === 0) {
+          g.fillStyle = 'rgba(232,170,140,0.55)';
+          g.beginPath();
+          for (let a = 0; a < 5; a++) {
+            const t0 = (a / 5) * Math.PI * 2;
+            g.lineTo(Math.cos(t0) * r * 1.6, Math.sin(t0) * r * 1.6);
+            g.lineTo(Math.cos(t0 + Math.PI / 5) * r * 0.6, Math.sin(t0 + Math.PI / 5) * r * 0.6);
+          }
+          g.closePath();
+          g.fill();
+        } else {
+          g.fillStyle = 'rgba(226,218,236,0.5)';
+          g.beginPath();
+          g.ellipse(0, 0, r * 1.2, r * 0.9, 0, Math.PI, 0);
+          g.lineTo(r * 0.3, r * 0.5);
+          g.lineTo(-r * 0.3, r * 0.5);
+          g.closePath();
+          g.fill();
+        }
+        g.restore();
+      }
 
       const v = (this.vignette = MC.canvas(w * dpr, h * dpr));
       const vg = v.getContext('2d');
@@ -382,6 +535,51 @@
       }
     }
 
+    // 모래밭에 세워 둔 튜브 걸이: 나무 말뚝에 줄무늬 튜브 셋
+    buildStand() {
+      const { dpr, s } = this;
+      const W = 110 * s;
+      const H = 100 * s;
+      const c = (this.standImg = MC.canvas(W * dpr, H * dpr));
+      const g = c.getContext('2d');
+      g.scale(dpr, dpr);
+      g.translate(W / 2, H - 8 * s);
+      g.scale(s, s);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      g.fillStyle = 'rgba(0,0,0,0.3)';
+      g.beginPath();
+      g.ellipse(0, 2, 44, 7, 0, 0, Math.PI * 2);
+      g.fill();
+      // 바닥에 눕혀 둔 노란 튜브
+      ring(g, 4, -6, 30, 10, 16, 4.6, 0, '#ffd56b', 10);
+      // 말뚝
+      const post = g.createLinearGradient(-5, 0, 5, 0);
+      post.addColorStop(0, '#8a6a52');
+      post.addColorStop(1, '#5a4130');
+      g.fillStyle = post;
+      g.strokeStyle = INK;
+      g.lineWidth = 2;
+      MC.roundRect(g, -5, -78, 10, 76, 4);
+      g.fill();
+      g.stroke();
+      // 말뚝에 걸어 둔 둘
+      ring(g, -13, -44, 24, 23, 12, 11, -0.25, '#f2826a', 10);
+      ring(g, 15, -52, 22, 21, 11, 10, 0.3, '#86d6c4', 10);
+      // 말뚝 머리
+      g.fillStyle = '#9b7a60';
+      g.beginPath();
+      g.ellipse(0, -78, 6, 2.6, 0, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      this.standBox = { W, H, ox: W / 2, oy: H - 8 * s };
+    }
+
+    hitStand(x, y) {
+      const st = this.stand;
+      return Math.abs(x - st.x) < 40 * this.s && y > st.y - 84 * this.s && y < st.y + 8 * this.s;
+    }
+
     waveY(r, x) {
       const t = this.t;
       return r.y + r.amp * (0.6 * Math.sin(r.k * x + r.sp * t + r.ph) + 0.4 * Math.sin(1.73 * r.k * x - 0.7 * r.sp * t + r.ph2));
@@ -402,41 +600,326 @@
         if (this.onCute) this.onCute('boop');
         return true;
       }
+      // 튜브 걸이를 톡: 튜브를 들고 바다로
+      if (this.crowd && this.hitStand(x, y)) {
+        this.usePortal();
+        return true;
+      }
       // 모래밭을 톡: 그쪽으로 걸어간다
       if (y > this.sandTop - 2) return !!(this.crowd && this.crowd.walkTo(x, y));
       if (y < this.hy + 4) return false;
+      // 바다를 톡: 동그랗게 물결이 퍼지고, 멍이는 그쪽으로 헤엄쳐 간다
+      this.ripple(x, y);
+      if (this.crowd) this.crowd.walkTo(x, y);
+      return true;
+    }
+
+    ripple(x, y) {
       const z = (y - this.hy) / (this.sandTop - this.hy);
       this.ripples.push({ x, y, z, age: 0 });
       if (this.ripples.length > 12) this.ripples.shift();
+      this.spark(x, y, 14, 26 * this.s * (0.3 + 1.2 * z), this.s * (0.4 + 0.8 * z));
       if (this.onRipple) this.onRipple(z, (x / this.w) * 2 - 1);
-      return true;
     }
 
     rippleAt() {
       const x = this.w * MC.rand(0.25, 0.75);
       const y = MC.lerp(this.hy, this.sandTop, MC.rand(0.35, 0.8));
-      return this.pointerDown(x, y);
+      this.ripple(x, y);
+      return true;
+    }
+
+    // 야광 플랑크톤: 물이 흔들린 자리에서 푸르게 반짝이다 스러진다
+    spark(x, y, n, spread, k) {
+      const max = Math.round(300 * MC.clamp(this.quality, 0.4, 1));
+      for (let i = 0; i < n; i++) {
+        if (this.plank.length >= max) this.plank.shift();
+        this.plank.push({
+          x: x + MC.rand(-spread, spread),
+          y: y + MC.rand(-spread, spread) * 0.3,
+          vx: MC.rand(-7, 7) * k,
+          vy: MC.rand(-2, 2) * k,
+          age: 0,
+          life: MC.rand(1.3, 2.8),
+          r: MC.rand(1, 2.3) * k,
+          ph: Math.random() * 6.28,
+        });
+      }
+    }
+
+    // ── 튜브 걸이 앞의 '튜브 타기' ───────────────────────────────
+    portalHint() {
+      const c = this.crowd;
+      if (!c || this.floating || c.moving || c.target || c.portal || this.bottle) return null;
+      const st = this.stand;
+      return { x: st.x, y: st.y - 86 * this.s, label: '튜브 타기' };
+    }
+
+    usePortal() {
+      const c = this.crowd;
+      if (!c) return;
+      const X = MC.clamp(c.me.X, 150, 850);
+      c.go(c.clampIn({ X, Z: -240 - Math.random() * 160 }));
+    }
+
+    // ── 유리병 편지 ─────────────────────────────────────────────
+    // 적은 말은 어디에도 남지 않는다. 병만 달빛 기둥을 따라 멀어진다
+    sendBottle() {
+      if (this.bottle) return false;
+      const p = this.pup;
+      const from = { x: p.x + 10 * p.k, y: p.y - 70 * p.k };
+      const entryY = this.floating ? p.y + 4 * p.k : MC.lerp(this.hy, this.sandTop, 0.9);
+      const entry = { x: p.x + (this.floating ? 70 : 30) * p.k, y: entryY };
+      this.bottle = {
+        t: 0,
+        from,
+        entry,
+        end: { x: this.moon.x + MC.rand(-24, 24) * this.s, y: this.hy + (this.sandTop - this.hy) * 0.02 },
+        splashed: false,
+      };
+      return true;
+    }
+
+    bottleState(b) {
+      const THROW = 0.7;
+      const DUR = 22;
+      if (b.t < THROW) {
+        const u = b.t / THROW;
+        return { x: MC.lerp(b.from.x, b.entry.x, u), y: MC.lerp(b.from.y, b.entry.y, u) - 60 * this.s * Math.sin(Math.PI * u), rot: u * 5, k: this.s * 0.9, air: true };
+      }
+      const u = MC.clamp((b.t - THROW) / DUR, 0, 1);
+      const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      const x = MC.lerp(b.entry.x, b.end.x, e);
+      const y0 = MC.lerp(b.entry.y, b.end.y, Math.pow(e, 0.8));
+      const z = Math.pow(MC.clamp((y0 - this.hy) / (this.sandTop - this.hy), 0.001, 1), 1 / 1.9);
+      const k = this.s * 0.9 * Math.pow(z, 0.9);
+      return { x, y: y0 + Math.sin(b.t * 1.9) * 2.2 * k, rot: 0.25 * Math.sin(b.t * 1.3), k, air: false, u, done: u >= 1 };
+    }
+
+    drawBottle(g) {
+      const b = this.bottle;
+      const q = this.bottleState(b);
+      const fade = q.air ? 1 : MC.clamp((1 - q.u) * 6, 0, 1);
+      g.save();
+      g.globalAlpha = fade;
+      g.translate(q.x, q.y);
+      g.rotate(q.rot);
+      g.scale(q.k, q.k);
+      g.lineJoin = 'round';
+      if (!q.air) {
+        g.fillStyle = 'rgba(3,8,26,0.35)';
+        g.beginPath();
+        g.ellipse(0, 6, 24, 5, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 유리 몸통과 목
+      g.fillStyle = 'rgba(170,226,214,0.6)';
+      g.strokeStyle = 'rgba(40,70,80,0.9)';
+      g.lineWidth = 1.8;
+      MC.roundRect(g, -17, -8, 26, 16, 7);
+      g.fill();
+      g.stroke();
+      MC.roundRect(g, 8, -4, 9, 8, 2.5);
+      g.fill();
+      g.stroke();
+      // 코르크
+      g.fillStyle = '#c9925e';
+      MC.roundRect(g, 16, -3.4, 5, 6.8, 1.6);
+      g.fill();
+      g.stroke();
+      // 안에 말아 넣은 편지
+      g.fillStyle = '#fff1d6';
+      MC.roundRect(g, -12, -4.2, 17, 8.4, 3);
+      g.fill();
+      g.strokeStyle = 'rgba(180,120,80,0.6)';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(-3, -4);
+      g.lineTo(-3, 4);
+      g.stroke();
+      // 달빛 반짝
+      g.strokeStyle = 'rgba(255,255,255,0.85)';
+      g.lineWidth = 1.8;
+      g.beginPath();
+      g.moveTo(-12, -5);
+      g.lineTo(2, -5);
+      g.stroke();
+      if (!q.air) {
+        g.strokeStyle = 'rgba(200,215,255,0.35)';
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.ellipse(0, 5, 26 + Math.sin(b.t * 2) * 2, 5, 0, 0, Math.PI);
+        g.stroke();
+      }
+      g.restore();
+    }
+
+    // ── 움직임 ─────────────────────────────────────────────
+    // 물 위에서 가만히 있으면 잔잔한 물살을 따라 천천히 떠다닌다. 물가와 먼 끝, 다른 튜브는 살며시 비켜 간다
+    drift(dt) {
+      const c = this.crowd;
+      if (!c || !this.inSea(c.me.Z) || c.target || c.keys.x || c.keys.y || c.portal) return;
+      const t = this.t;
+      const [p1, p2, p3] = this.ph;
+      let vx = 7 * Math.sin(t * 0.071 + p1) + 4 * Math.sin(t * 0.163 + p2);
+      let vz = 5 * Math.sin(t * 0.053 + p3) + 2.5 * Math.sin(t * 0.21 + p1);
+      const shore = -ZW - 110;
+      if (c.me.Z > shore) vz -= (c.me.Z - shore) * 0.12;
+      const far = -ZFAR + 90;
+      if (c.me.Z < far) vz += (far - c.me.Z) * 0.12;
+      const b = c.cfg.bounds();
+      if (c.me.X < b.x0 + 70) vx += (b.x0 + 70 - c.me.X) * 0.12;
+      if (c.me.X > b.x1 - 70) vx -= (c.me.X - (b.x1 - 70)) * 0.12;
+      for (const v of c.visitors.values()) {
+        if (v.leaving || !(v.st.y < SEA_Z)) continue;
+        const dx = c.me.X - v.x;
+        const dz = c.me.Z - v.y;
+        const d = Math.hypot(dx, dz);
+        if (d < 130 && d > 0.01) {
+          vx += (dx / d) * (130 - d) * 0.3;
+          vz += (dz / d) * (130 - d) * 0.3;
+        }
+      }
+      c.me.X = MC.clamp(c.me.X + vx * dt, b.x0, b.x1);
+      c.me.Z = MC.clamp(c.me.Z + vz * dt, b.z0, SEA_Z - 1);
+    }
+
+    // 먼 바다의 고래: 벽시계로 정해 두어 같은 곳의 모두가 같은 때 본다
+    whaleNow() {
+      const now = Date.now() / 1000;
+      const k = Math.floor(now / WHALE_EVERY);
+      const u = now - k * WHALE_EVERY;
+      if (u > WHALE_DUR) return null;
+      return { k, u, x: this.moon.x + (MC.hash(k * 7.31 + 3) - 0.5) * this.w * 0.42, dir: MC.hash(k * 3.1) < 0.5 ? -1 : 1 };
     }
 
     update(dt) {
       this.t += dt;
+      const s = this.s;
       for (const r of this.ripples) r.age += dt;
       this.ripples = this.ripples.filter((r) => r.age < 4.5);
+      for (const q of this.plank) {
+        q.age += dt;
+        q.x += q.vx * dt;
+        q.y += q.vy * dt;
+        q.vx *= 1 - dt * 0.8;
+        q.vy *= 1 - dt * 0.8;
+      }
+      this.plank = this.plank.filter((q) => q.age < q.life);
       this.crab.update(dt);
-      if (this.crowd) this.crowd.update(dt);
-      this.pup.update(dt, { wind: 0.45 + 0.25 * Math.sin(this.t * 0.31), walking: !!(this.crowd && this.crowd.moving) });
-      // 파도가 발끝까지 오면 멍이가 폴짝 (함께 앉은 멍이들도)
+      const c = this.crowd;
+      if (c) {
+        this.drift(dt);
+        c.update(dt);
+      }
+      // 내 멍이: 바다에 들어가면 튜브에 엎드리고, 나오면 일어나 앉는다
+      const pup = this.pup;
+      const floating = !!(c && this.inSea(c.me.Z));
+      if (floating !== this.floating) {
+        this.floating = floating;
+        pup.rest = floating ? 'tube' : null;
+        pup.setLie(floating);
+        if (floating) {
+          pup.sleepAfter = Math.min(pup.sleepAfter, 30);
+          this.splashAt(pup.x, pup.y, pup.k);
+          if (this.onSplash) this.onSplash();
+        }
+      }
+      pup.paddle += ((floating && c.moving ? 1 : 0) - pup.paddle) * Math.min(1, dt * 5);
+      // 다른 사람 멍이: 바다에 들어오면 첨벙, 저으면 앞발이 움직인다
+      if (c) {
+        for (const v of c.visitors.values()) {
+          const sea = v.st.y < SEA_Z;
+          if (v.sea !== sea) {
+            if (v.sea !== undefined && sea && v.fade > 0.5) this.splashAt(v.pup.x, v.pup.y, v.pup.k);
+            v.sea = sea;
+          }
+          v.pup.paddle += ((sea && v.st.w ? 1 : 0) - v.pup.paddle) * Math.min(1, dt * 5);
+        }
+      }
+      // 튜브가 지나간 자리에 남는 푸른 반짝임
+      const trail = (p) => {
+        if (p.rest !== 'tube') {
+          p.trailAt = null;
+          return;
+        }
+        if (p.trailAt) {
+          const d = Math.hypot(p.x - p.trailAt.x, p.y - p.trailAt.y);
+          p.trailAcc = (p.trailAcc || 0) + dt * (1 + (d / Math.max(dt, 1e-3)) * 0.12) * MC.clamp(this.quality, 0.4, 1);
+          while (p.trailAcc >= 1) {
+            p.trailAcc -= 1;
+            this.spark(p.x + MC.rand(-60, 60) * p.k, p.y + 18 * p.k, 1, 0, p.k);
+          }
+        }
+        p.trailAt = { x: p.x, y: p.y };
+      };
+      if (c) c.each((p) => trail(p));
+      // 부서지는 파도 끝에도 옅은 푸른빛
       const sw = this.swash(MC.clock());
+      const bb = Math.exp(-Math.pow((sw.p - 0.33) / 0.07, 2)) * sw.amp;
+      if (bb > 0.25 && Math.random() < bb * dt * 30 * MC.clamp(this.quality, 0.4, 1)) {
+        this.spark(Math.random() * this.w, this.sandTop - (3 + 4 * bb) * s, 2, 6 * s, s);
+      }
+      // 별똥별
+      this.nextStar -= dt;
+      if (this.nextStar <= 0) {
+        this.nextStar = MC.rand(30, 70);
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        const a = MC.rand(0.35, 0.6);
+        this.star = { x: this.w * MC.rand(0.15, 0.85), y: this.hy * MC.rand(0.06, 0.3), dx: dir * Math.cos(a), dy: Math.sin(a), t: 0, dur: MC.rand(0.8, 1.2), len: MC.rand(80, 140) * s, speed: MC.rand(240, 340) * s };
+      }
+      if (this.star) {
+        this.star.t += dt;
+        if (this.star.t > this.star.dur) this.star = null;
+      }
+      // 고래
+      const wh = this.whaleNow();
+      if (wh) {
+        if (this.whaleK !== wh.k) {
+          this.whaleK = wh.k;
+          this.whaleSpout = false;
+          if (wh.u < 3 && this.onWhale) this.onWhale('song');
+        }
+        if (!this.whaleSpout && wh.u >= 2.6) {
+          this.whaleSpout = true;
+          if (wh.u < 4 && this.onWhale) this.onWhale('spout');
+        }
+      }
+      this.whale = wh;
+      // 유리병
+      if (this.bottle) {
+        const b = this.bottle;
+        b.t += dt;
+        const q = this.bottleState(b);
+        if (!q.air && !b.splashed) {
+          b.splashed = true;
+          this.ripple(q.x, q.y);
+          if (this.onBottle) this.onBottle();
+        }
+        if (q.done) {
+          this.spark(q.x, q.y, 10, 8 * s, s * 0.5);
+          this.bottle = null;
+          if (this.onToast) this.onToast('달빛을 따라 멀리 떠나갔어요');
+        }
+      }
+      pup.update(dt, { wind: 0.45 + 0.25 * Math.sin(this.t * 0.31), walking: !!(c && c.moving) });
+      // 파도가 발끝까지 오면 멍이가 폴짝 (함께 앉은 멍이들도). 튜브 위의 멍이는 그대로 둥실
       if (sw.adv > 0.05) {
         const reach = this.sandTop + sw.reach * sw.adv;
         const wet = (p, who) => {
-          if (who.lastSplash === sw.k || reach < p.y - 3 * this.s) return;
+          if (p.rest || who.lastSplash === sw.k || reach < p.y - 3 * s) return;
           who.lastSplash = sw.k;
           p.splash();
         };
-        if (this.crowd) this.crowd.each((p, me, v) => wet(p, me ? this : v));
+        if (c) c.each((p, me, v) => wet(p, me ? this : v));
         else wet(this.pup, this);
       }
+    }
+
+    splashAt(x, y, k) {
+      this.ripples.push({ x, y: y + 10 * k, z: MC.clamp((y - this.hy) / (this.sandTop - this.hy), 0, 1), age: 0 });
+      if (this.ripples.length > 12) this.ripples.shift();
+      this.spark(x, y + 12 * k, 22, 50 * k, k);
     }
 
     // 한 파도의 진행 상태. 소리와 같은 시계(MC.clock)를 쓴다
@@ -452,9 +935,156 @@
       return { k, p, amp, reach, adv };
     }
 
+    // ── 그리기 ─────────────────────────────────────────────
+    // 튜브: 멍이 털모자 빛깔과 하얀 줄무늬. 멍이는 그 위에 엎드려 있다
+    drawTube(g, p, v) {
+      const k = p.k;
+      const hat = p.hat || { top: '#f27c5e' };
+      const t = this.t + (v ? strHash(v.id) * 9 : 0);
+      g.save();
+      g.translate(p.x, p.y + 4 * k);
+      g.scale(k, k);
+      // 뒤쪽으로 퍼지는 물결 (앞쪽 반은 멍이 위에 그린다)
+      const u = (t * 0.4) % 1;
+      g.strokeStyle = `rgba(200,215,255,${0.26 * (1 - u)})`;
+      g.lineWidth = 1.3;
+      g.beginPath();
+      g.ellipse(0, 11, 78 + u * 46, 18 + u * 10, 0, Math.PI, Math.PI * 2);
+      g.stroke();
+      g.fillStyle = 'rgba(3,8,26,0.4)';
+      g.beginPath();
+      g.ellipse(0, 12, 84, 21, 0, 0, Math.PI * 2);
+      g.fill();
+      ring(g, 0, 0, 70, 25, 38, 11, 0, hat.top);
+      g.restore();
+    }
+
+    // 물에 잠긴 튜브 아랫부분과 물가에 닿는 물결
+    drawLap(g, p, v) {
+      const k = p.k;
+      const t = this.t + (v ? strHash(v.id) * 9 : 0);
+      g.save();
+      g.translate(p.x, p.y + 4 * k);
+      g.scale(k, k);
+      g.save();
+      g.beginPath();
+      g.ellipse(0, 0, 72, 27, 0, 0, Math.PI * 2);
+      g.clip();
+      g.fillStyle = 'rgba(20,32,76,0.5)';
+      g.fillRect(-80, 12, 160, 30);
+      g.restore();
+      g.strokeStyle = 'rgba(205,220,255,0.42)';
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.ellipse(0, 12, 74 + Math.sin(t * 2) * 2, 15, 0, 0.12, Math.PI - 0.12);
+      g.stroke();
+      const u = (t * 0.4) % 1;
+      g.strokeStyle = `rgba(200,215,255,${0.26 * (1 - u)})`;
+      g.lineWidth = 1.3;
+      g.beginPath();
+      g.ellipse(0, 11, 78 + u * 46, 18 + u * 10, 0, 0, Math.PI);
+      g.stroke();
+      g.restore();
+    }
+
+    drawWhale(g, wh) {
+      const { s, hy, sandTop } = this;
+      const u = wh.u;
+      const ws = s * 1.25;
+      const wy = hy + (sandTop - hy) * 0.06;
+      const x = wh.x + wh.dir * u * 3.2 * ws;
+      const rise = u < 2.2 ? easeInOut(u / 2.2) : u < 8 ? 1 : u < 10 ? 1 - easeInOut((u - 8) / 2) : 0;
+      const dark = '#0b1431';
+      const rim = 'rgba(196,210,255,0.6)';
+      // 물결 고리
+      const rings = u < 13.5 ? Math.min(1, u / 1.5) : Math.max(0, 1 - (u - 13.5) / 2.5);
+      for (let i = 0; i < 2; i++) {
+        const ph = ((u * 0.35 + i * 0.5) % 1);
+        g.strokeStyle = `rgba(200,214,255,${0.28 * rings * (1 - ph)})`;
+        g.lineWidth = 1;
+        g.beginPath();
+        g.ellipse(x, wy + 1, (40 + ph * 50) * ws, (2.4 + ph * 2.4) * ws, 0, 0, Math.PI * 2);
+        g.stroke();
+      }
+      // 등: 물 위로 떠올랐다 가라앉는다
+      if (rise > 0.01) {
+        const hh = 13 * ws * rise;
+        g.fillStyle = dark;
+        g.beginPath();
+        g.moveTo(x - 50 * ws, wy);
+        g.bezierCurveTo(x - 30 * ws, wy - hh * 1.1, x + 26 * ws, wy - hh * 1.15, x + 46 * ws, wy);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = rim;
+        g.lineWidth = 1.2 * ws;
+        g.beginPath();
+        g.moveTo(x - 44 * ws, wy - hh * 0.25);
+        g.bezierCurveTo(x - 28 * ws, wy - hh * 1.02, x + 22 * ws, wy - hh * 1.06, x + 40 * ws, wy - hh * 0.25);
+        g.stroke();
+        // 등지느러미
+        const fx = x - wh.dir * 22 * ws;
+        g.fillStyle = dark;
+        g.beginPath();
+        g.moveTo(fx - 5 * ws, wy - hh * 0.82);
+        g.quadraticCurveTo(fx - wh.dir * 1 * ws, wy - hh * 0.82 - 7 * ws * rise, fx + wh.dir * 4 * ws, wy - hh * 0.9 - 6 * ws * rise);
+        g.lineTo(fx + 5 * ws, wy - hh * 0.8);
+        g.closePath();
+        g.fill();
+      }
+      // 물줄기: 달빛을 받은 하얀 숨
+      if (u > 2.6 && u < 6.6) {
+        const v = (u - 2.6) / 4;
+        const bx = x + wh.dir * 28 * ws;
+        const by = wy - 11 * ws;
+        g.globalCompositeOperation = 'lighter';
+        // 가는 기둥으로 솟았다가 위에서 뭉게뭉게 퍼진다
+        for (let i = 0; i < 18; i++) {
+          const f = i / 17;
+          const hgt = Math.min(1, v * 3) * (8 + 40 * f) * ws;
+          const a = 0.13 * (1 - v) * (1 - f * 0.35);
+          for (const off of [-1, 0, 1]) {
+            const spread = off * (0.5 + 9 * f * f * Math.min(1, v * 2.2)) * ws;
+            const r = (5 + 10 * f * f) * ws;
+            g.globalAlpha = a * (off ? 0.7 : 1);
+            g.drawImage(SPR.spout, bx + spread - r, by - hgt - r, r * 2, r * 2);
+          }
+        }
+        g.globalAlpha = 1;
+        g.globalCompositeOperation = 'source-over';
+      }
+      // 꼬리: 마지막으로 꼬리를 들어 올렸다가 미끄러지듯 들어간다
+      if (u > 10 && u < 13.5) {
+        const v = (u - 10) / 3.5;
+        const lift = Math.sin(Math.PI * v);
+        const tx = x - wh.dir * 20 * ws;
+        const top = wy - 26 * ws * lift;
+        g.fillStyle = dark;
+        g.beginPath();
+        g.moveTo(tx - 3.2 * ws, wy);
+        g.lineTo(tx - 2.4 * ws, top + 7 * ws);
+        g.quadraticCurveTo(tx - 12 * ws, top + 6.5 * ws, tx - 22 * ws, top - 7 * ws * lift);
+        g.quadraticCurveTo(tx - 12 * ws, top - 3.5 * ws, tx, top + 1 * ws);
+        g.quadraticCurveTo(tx + 12 * ws, top - 3.5 * ws, tx + 22 * ws, top - 7 * ws * lift);
+        g.quadraticCurveTo(tx + 12 * ws, top + 6.5 * ws, tx + 2.4 * ws, top + 7 * ws);
+        g.lineTo(tx + 3.2 * ws, wy);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = rim;
+        g.lineWidth = 1 * ws;
+        g.stroke();
+        // 꼬리에서 떨어지는 물방울
+        g.fillStyle = 'rgba(214,226,255,0.7)';
+        for (let i = 0; i < 6; i++) {
+          const dx = (MC.hash(i + wh.k) - 0.5) * 34 * ws;
+          const fall = ((v * 3 + MC.hash(i * 3.3)) % 1) * (wy - top);
+          g.fillRect(tx + dx, top + fall, 1.2 * ws, 2 * ws);
+        }
+      }
+    }
+
     draw(g) {
       if (!this.bg) return;
-      const { w, h, s, hy, sandTop, t } = this;
+      const { w, h, s, hy, t } = this;
       g.drawImage(this.bg, 0, 0, w, h);
 
       g.globalCompositeOperation = 'lighter';
@@ -471,6 +1101,30 @@
       g.globalAlpha = 0.12 + 0.25 * flash;
       g.drawImage(SPR.lamp, L.x - 3 * s, hy, 6 * s, 50 * s);
       g.globalAlpha = 1;
+      // 별똥별
+      const st = this.star;
+      if (st) {
+        const u = st.t / st.dur;
+        const hx = st.x + st.dx * st.speed * st.t;
+        const hy2 = st.y + st.dy * st.speed * st.t;
+        if (hy2 < hy - 6) {
+          const a = Math.sin(Math.PI * u) * 0.75;
+          const tx = hx - st.dx * st.len;
+          const ty = hy2 - st.dy * st.len;
+          const grd = g.createLinearGradient(tx, ty, hx, hy2);
+          grd.addColorStop(0, 'rgba(220,230,255,0)');
+          grd.addColorStop(1, `rgba(244,248,255,${a})`);
+          g.strokeStyle = grd;
+          g.lineWidth = 1.5 * s;
+          g.beginPath();
+          g.moveTo(tx, ty);
+          g.lineTo(hx, hy2);
+          g.stroke();
+          g.globalAlpha = a;
+          g.drawImage(SPR.star, hx - 5 * s, hy2 - 5 * s, 10 * s, 10 * s);
+          g.globalAlpha = 1;
+        }
+      }
       g.globalCompositeOperation = 'source-over';
 
       // 물결 줄
@@ -518,6 +1172,9 @@
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
 
+      // 먼 바다의 고래
+      if (this.whale) this.drawWhale(g, this.whale);
+
       // 물수제비 같은 동심원
       for (const rp of this.ripples) {
         const scale = (0.3 + 1.2 * rp.z) * s;
@@ -535,7 +1192,27 @@
         }
       }
 
+      // 야광 플랑크톤
+      if (this.plank.length) {
+        g.globalCompositeOperation = 'lighter';
+        for (const q of this.plank) {
+          const life = 1 - q.age / q.life;
+          const a = Math.pow(life, 1.4) * (0.55 + 0.45 * Math.sin(q.age * 4 + q.ph)) * 0.85;
+          if (a <= 0.01) continue;
+          const r = q.r * 3;
+          g.globalAlpha = a;
+          g.drawImage(SPR.plankton, q.x - r, q.y - r, r * 2, r * 2);
+        }
+        g.globalAlpha = 1;
+        g.globalCompositeOperation = 'source-over';
+      }
+
       this.drawShore(g);
+      if (this.bottle) this.drawBottle(g);
+      if (this.crowd) {
+        const sb = this.standBox;
+        g.drawImage(this.standImg, this.stand.x - sb.ox, this.stand.y - sb.oy, sb.W, sb.H);
+      }
       this.crab.draw(g);
       if (this.crowd) this.crowd.draw(g, this.dpr, null, w);
       else this.pup.draw(g, this.dpr);

@@ -657,6 +657,20 @@
       const dsend = snd.gain(0.5);
       this.dropBus.connect(dsend);
       dsend.connect(snd.verbIn);
+      // 튜브 위에서 들리는 찰랑임: 물에 떠 있을 때만
+      this.lap = this.noiseLayer('pink', [['bandpass', 560, 1.1], ['lowpass', 1500, 0.5]], 0.0001, this.layers.waves);
+      this.lapLevel = 0;
+      this.nextLap = MC.clock();
+      // 먼 바다의 고래: 낮은 노래와 물줄기 숨
+      this.deep = snd.gain(1);
+      this.deep.connect(this.layers.waves);
+      const wsend = snd.gain(0.8);
+      this.deep.connect(wsend);
+      wsend.connect(snd.verbIn);
+    }
+
+    setParams(p) {
+      this.lapLevel = p.float ? 1 : 0;
     }
 
     schedule() {
@@ -669,6 +683,99 @@
       if (now > this.nextGust) {
         this.wind.gain.gain.setTargetAtTime(0.02 + Math.random() * 0.05, this.snd.ctx.currentTime, 2.5);
         this.nextGust = now + MC.rand(4, 9);
+      }
+      // 찰랑, 찰랑: 고르지 않게 튜브를 두드리는 잔물결
+      if (now > this.nextLap) {
+        const ct = this.snd.ctx.currentTime;
+        const on = this.lapLevel > 0;
+        this.lap.gain.gain.setTargetAtTime(on ? MC.rand(0.035, 0.1) : 0.0001, ct, on ? 0.16 : 0.6);
+        this.nextLap = now + MC.rand(0.45, 1.25);
+        if (on && Math.random() < 0.3) {
+          const f = MC.rand(700, 1100);
+          this.blip(ct + MC.rand(0.05, 0.3), this.dropBus, f, f * 1.7, 0.05, 0.012);
+        }
+      }
+    }
+
+    // 바다에 들어가 튜브에 올라탈 때: 첨벙
+    splash() {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = ctx.currentTime + 0.01;
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.pink;
+      const bp = s.filter('bandpass', 1300, 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.08, at + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.55);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.dropBus);
+      src.start(at, Math.random() * 2, 0.6);
+      this.blip(at + 0.02, this.dropBus, 300, 540, 0.12, 0.06);
+      this.blip(at + 0.16, this.dropBus, 720, 1300, 0.07, 0.022);
+    }
+
+    // 유리병이 물에 닿는 소리: 퐁당, 그리고 유리가 살짝 쨍
+    bottle() {
+      const at = this.snd.ctx.currentTime + 0.01;
+      this.blip(at, this.dropBus, 380, 780, 0.1, 0.07);
+      this.blip(at + 0.12, this.dropBus, 2600, 2560, 0.26, 0.012, 'triangle');
+      this.blip(at + 0.13, this.dropBus, 3900, 3860, 0.2, 0.006);
+    }
+
+    // 고래: 멀리서 길게 미끄러지는 노래, 그리고 물줄기를 뿜는 숨
+    whale(kind) {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = ctx.currentTime + 0.05;
+      if (kind === 'song') {
+        let t = at;
+        for (const [f0, f1, dur] of [[176, 296, 2.6], [262, 205, 3]]) {
+          const o = ctx.createOscillator();
+          o.frequency.setValueAtTime(f0, t);
+          o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.7);
+          o.frequency.exponentialRampToValueAtTime(f1 * 0.93, t + dur);
+          const vib = ctx.createOscillator();
+          vib.frequency.value = 5;
+          const vd = ctx.createGain();
+          vd.gain.value = f0 * 0.012;
+          vib.connect(vd);
+          vd.connect(o.frequency);
+          const h = ctx.createOscillator();
+          h.frequency.setValueAtTime(f0 * 2.01, t);
+          h.frequency.exponentialRampToValueAtTime(f1 * 2.01, t + dur * 0.7);
+          const hg = ctx.createGain();
+          hg.gain.value = 0.22;
+          const lp = s.filter('lowpass', 900, 0.7);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.05, t + dur * 0.35);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          o.connect(g);
+          h.connect(hg);
+          hg.connect(g);
+          g.connect(lp);
+          lp.connect(this.deep);
+          for (const n of [o, vib, h]) {
+            n.start(t);
+            n.stop(t + dur + 0.05);
+          }
+          t += dur * 0.85;
+        }
+      } else if (kind === 'spout') {
+        const src = ctx.createBufferSource();
+        src.buffer = s.noise.pink;
+        const bp = s.filter('bandpass', 650, 0.6);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.05, at + 0.18);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 1.7);
+        src.connect(bp);
+        bp.connect(g);
+        g.connect(this.deep);
+        src.start(at, Math.random() * 2, 1.9);
       }
     }
 
@@ -843,6 +950,22 @@
           t += durs[i] + (i === 1 ? 0.35 : 0.08);
         }
       }
+    }
+
+    // 가까이 내려앉은 오목눈이의 짧은 지저귐
+    chirp() {
+      const ct = this.snd.ctx.currentTime;
+      const p = this.snd.pan(MC.rand(0.1, 0.6));
+      p.connect(this.birdBus);
+      const f = MC.rand(3400, 4200);
+      const n = 2 + ((Math.random() * 3) | 0);
+      for (let i = 0; i < n; i++) this.tweet(ct + 0.02 + i * MC.rand(0.08, 0.12), p, f * MC.rand(0.95, 1.05), f * 1.15, 0.06, 0.035);
+    }
+
+    // 다람쥐: 짧고 높게 딸깍딸깍
+    squirrel() {
+      const ct = this.snd.ctx.currentTime;
+      for (let i = 0; i < 4; i++) this.blip(ct + 0.02 + i * 0.07, this.birdBus, MC.rand(2600, 3100), MC.rand(2000, 2300), 0.035, 0.02, 'triangle');
     }
 
     gust() {
