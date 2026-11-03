@@ -261,9 +261,17 @@ mungcamp/
 ├── js/app.js           화면 흐름, 소리 깨우기, 캠프 마을 조작, 단축키
 ├── sw.js               오프라인 캐시
 ├── server/presence.js  함께 모이기 서버 + 사이트 파일 (의존성 없음)
-├── package.json        `npm start` 로 위 서버 실행 (Render 등)
+├── tests/              실제 브라우저로 확인하는 시험 모음 (npm test, tests/README.md)
+├── package.json        `npm start` 로 위 서버 실행 (Render 등), `npm test` 로 시험
 └── manifest.webmanifest, icon*.png, icon.svg
 ```
+
+## 이어서 작업하기 (새 세션, 다른 계정)
+
+- 모든 작업은 이 저장소의 `main`에 있습니다. 새 Claude 세션에서는 먼저 "`mungcamp/README.md`를 읽고 이어서 작업해 줘"라고 하면 지금까지의 기능과 구조를 알고 시작합니다.
+- 고친 뒤에는 `cd mungcamp && npm test`로 시험을 돌려 확인합니다(`tests/README.md`).
+- JS·CSS를 바꿨으면 `sw.js`의 `CACHE` 숫자를 올립니다.
+- Render에 올렸다면, Render 서비스의 브랜치를 작업하는 브랜치(보통 `main`)로 맞춰 두면 푸시할 때마다 저절로 다시 배포되고, 열려 있는 페이지도 알맞은 때에 새로 고칩니다.
 
 ## 단축키
 
