@@ -136,8 +136,26 @@
       }
       for (const id of Array.from(net.peers.keys())) if (!seen.has(id)) net.drop(id);
     };
-    room.onPeers(sync, () => net.clear());
-    if (room.onConnection) room.onConnection((on) => { net.online = !!on; }, () => { net.online = false; });
+    // 방에 들어올 수 없는 사람(로그인하지 않았거나 공개 링크로 온 사람)은
+    // 혼자 보는 화면으로 두고, 같은 브라우저의 탭끼리만 이어 준다
+    let gone = false;
+    const lost = () => {
+      net.clear();
+      net.online = false;
+      if (gone) return;
+      gone = true;
+      // start() 가 방 연결을 다 받아 둔 뒤에 바꾼다
+      setTimeout(() => {
+        const ch = channelLink(net);
+        if (!ch) return;
+        net.link = ch;
+        net.kind = ch.kind;
+        net.hello = true;
+        net.flush(true);
+      }, 0);
+    };
+    room.onPeers(sync, lost);
+    if (room.onConnection) room.onConnection((on) => { if (!gone) net.online = !!on; }, lost);
     return {
       kind: 'room',
       send(st) {

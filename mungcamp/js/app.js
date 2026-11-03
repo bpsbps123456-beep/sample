@@ -29,7 +29,7 @@
       place: '편백 숲',
       make: () => new MC.ForestScene({}),
       scape: MC.ForestScape,
-      guidance: '빛을 따라가 봐요',
+      guidance: '숲 소리에 귀 기울여요',
       actions: [{ id: 'breeze', icon: 'i-wind', label: '바람', primary: true }],
       space: 'breeze',
     },
