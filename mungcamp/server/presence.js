@@ -2,7 +2,7 @@
 /* 멍캠프 — 함께 있는 사람들 서버 (의존성 없음, Node 18+)
 
    하는 일은 하나: 같은 장소에 있는 사람들끼리 서로의 멍이 자리를 나눠 준다.
-   이름, 글, 기록은 받지도 남기지도 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
+   닉네임(열 글자) 말고는 글을 받지 않고, 아무것도 남기지 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
 
    - 장소(map, fire, water, forest)마다 방을 나누고, 한 방이 차면 다음 방을 연다
      (모닥불·바다·숲은 ROOM_CAP=16, 텐트 안은 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
@@ -38,6 +38,27 @@ const MAX_FRAME = 2048;
 function num(v, lo, hi) {
   return typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 }
+// 닉네임: js/net.js 와 같은 규칙 (열 글자, 보이지 않는 글자 빼기, 험한 말이면 비우기)
+const NAME_MAX = 10;
+const BAD_WORDS = [
+  '시발', '씨발', '씨빨', '씨팔', '시팔', '쉬발', '슈발', '씨바', 'ㅅㅂ', 'ㅆㅂ', 'ㅄ', 'ㅂㅅ', '병신', '븅신', '빙신',
+  '개새', '개색', '개세끼', '새끼', '쌔끼', 'ㅅㄲ', '좆', '조까', '존나', '졸라', '존내', 'ㅈㄴ', 'ㅈㄹ', '지랄',
+  '닥쳐', '꺼져', '미친', 'ㅁㅊ', '염병', '엠창', '느금', '니미', '애미', '애비', '섹스', '섹시', '야동', '보지',
+  '자지', '강간', '자살', '뒤져', '뒤질', '일베', '틀딱', '찐따', '장애새',
+  'fuck', 'shit', 'bitch', 'sex', 'porn', 'dick', 'pussy', 'cunt', 'whore', 'slut', 'rape', 'nigg', 'fagg', 'asshol',
+];
+function cleanName(v) {
+  if (typeof v !== 'string' || v.length > 200) return '';
+  let s = v.normalize('NFC')
+    .replace(/[\p{C}\u115F\u1160\u3164\uFFA0\u2800]/gu, '')
+    .replace(/(\p{M}{2})\p{M}+/gu, '$1')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  s = Array.from(s).slice(0, NAME_MAX).join('').trim();
+  const flat = s.toLowerCase().replace(/[\s\p{P}\p{S}\d_]/gu, '');
+  return s && !BAD_WORDS.some((w) => flat.includes(w)) ? s : '';
+}
+
 function clean(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const p = PLACES.includes(raw.p) ? raw.p : null;
@@ -64,6 +85,7 @@ function clean(raw) {
     bp,
     g: gx != null && gy != null ? [Math.round(gx), Math.round(gy)] : null,
     l: num(raw.l, 0, 9) | 0,
+    n: cleanName(raw.n),
   };
 }
 

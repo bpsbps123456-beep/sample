@@ -795,14 +795,14 @@
 
     tap(sx, sy) {
       const p = this.toWorld(sx, sy);
-      if (this.pup.hit(p.x, p.y)) {
-        this.pup.poke();
-        return 'pup';
-      }
-      // 다른 사람의 멍이를 톡 하면 하트를 보낸다
+      // 다른 사람의 멍이를 톡 하면 하트를 보낸다. 겹쳐 있으면 앞에 있는 멍이가 먼저
       let hit = null;
       for (const v of this.visitors.values()) {
         if (!v.leaving && v.fade > 0.3 && v.pup.hit(p.x, p.y) && (!hit || v.pup.y > hit.pup.y)) hit = v;
+      }
+      if (this.pup.hit(p.x, p.y) && (!hit || hit.pup.y <= this.pup.y)) {
+        this.pup.poke();
+        return 'pup';
       }
       if (hit) {
         hit.pup.addHearts(2);

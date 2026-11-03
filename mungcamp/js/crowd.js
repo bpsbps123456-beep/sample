@@ -169,9 +169,10 @@
     }
 
     // 막 들어왔는데 내 자리에 누가 앉아 있으면, 가까운 빈자리로 살짝 옮겨 앉는다
-    makeRoom() {
+    makeRoom(force) {
       this.roomMade = true;
-      if (this.wandered || this.target) return;
+      if (!force && (this.wandered || this.target)) return;
+      if (this.target) return;
       let hopped = false;
       if (this.perched) {
         // 그루터기에 누가 먼저 앉아 있으면 내려와서 빈자리를 찾는다
@@ -545,7 +546,29 @@
         }
       }
       this.moving = moved;
-      if (!this.roomMade && this.t > 1.3) this.makeRoom();
+      // 자리 고르기는 사람마다 조금씩 늦춰서, 같이 들어와도 먼저 고른 사람의 자리가 전해진 뒤에 고른다
+      if (this.roomAt == null) this.roomAt = 1.3 + Math.random() * 1.4;
+      if (!this.roomMade && this.t > this.roomAt) this.makeRoom();
+      // 둘이 같이 와서 같은 자리에 겹쳐 앉았으면, 꼬리표가 큰 쪽이 빈자리로 옮긴다 (양쪽이 같은 규칙으로 정한다)
+      this.clashT = (this.clashT || 0) + dt;
+      if (this.clashGap == null) this.clashGap = 1 + Math.random() * 1.2;
+      if (this.clashT > this.clashGap) {
+        this.clashT = 0;
+        this.clashGap = 1 + Math.random() * 1.2;
+        if (!moved && !keyed && !this.target && !this.perched && !this.portal && this.roomMade && this.selfId && (this.clashes || 0) < 3) {
+          const me = cfg.toScreen(this.me.X, this.me.Z);
+          const near = 50 * me.k;
+          for (const v of this.visitors.values()) {
+            if (v.leaving || v.fade < 0.5 || v.st.w || v.st.q || !(v.id < this.selfId)) continue;
+            if (Math.hypot(v.pup.x - me.x, (v.pup.y - me.y) * 1.8) < near) {
+              this.clashes = (this.clashes || 0) + 1; // 몇 번 해 봐도 안 되면 그대로 둔다
+              this.makeRoom(true);
+              break;
+            }
+          }
+        }
+      }
+      if (keyed) this.clashes = 0;
       if (moved) {
         this.wandered = true;
         this.still = 0;
@@ -622,7 +645,8 @@
         q: this.perched ? 1 : 0,
         z: p.sleeping ? 1 : 0,
         hp: p.heartBursts || 0,
-        g: this.target ? [Math.round(this.target.X), Math.round(this.target.Z)] : null,
+        // 가려는 자리: 돌아가는 디딤돌이 아니라 마지막에 앉을 곳 (다른 사람이 그 자리를 피한다)
+        g: this.target ? ((q) => [Math.round(q.X), Math.round(q.Z)])(this.path && this.path.length ? this.path[this.path.length - 1] : this.target) : null,
         l: this.cfg.extra ? this.cfg.extra().l || 0 : 0,
       };
     }

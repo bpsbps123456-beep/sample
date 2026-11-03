@@ -1,6 +1,6 @@
 /* 멍캠프 — 함께 있는 사람들
-   지금 같은 곳에 있는 다른 사람의 멍이를 보여 준다. 이름도 글도 오가지 않는다.
-   나누는 것은 어디에 섰는지, 털빛과 모자, 걷는지 앉았는지, 하트를 날렸는지뿐이다.
+   지금 같은 곳에 있는 다른 사람의 멍이를 보여 준다. 처음 들어올 때 적은 마음 단어(닉네임) 말고는 글이 오가지 않는다.
+   나누는 것은 닉네임(멍이를 눌러야 보인다), 어디에 섰는지, 털빛과 모자, 걷는지 앉았는지, 하트를 날렸는지뿐이다.
 
    연결은 있는 것을 쓴다.
    1) <meta name="mc-presence" content="wss://..."> 가 있으면 함께 쓰는 서버 (server/presence.js).
@@ -24,6 +24,31 @@
       MC.store.set('look', look);
     }
     return look;
+  }
+
+  // 닉네임: 열 글자까지, 보이지 않는 글자와 줄바꿈은 빼고, 험한 말이면 비운다.
+  // server/presence.js 에도 같은 규칙이 있다 (받는 쪽에서도 다시 다듬는다)
+  const NAME_MAX = 10;
+  const BAD_WORDS = [
+    '시발', '씨발', '씨빨', '씨팔', '시팔', '쉬발', '슈발', '씨바', 'ㅅㅂ', 'ㅆㅂ', 'ㅄ', 'ㅂㅅ', '병신', '븅신', '빙신',
+    '개새', '개색', '개세끼', '새끼', '쌔끼', 'ㅅㄲ', '좆', '조까', '존나', '졸라', '존내', 'ㅈㄴ', 'ㅈㄹ', '지랄',
+    '닥쳐', '꺼져', '미친', 'ㅁㅊ', '염병', '엠창', '느금', '니미', '애미', '애비', '섹스', '섹시', '야동', '보지',
+    '자지', '강간', '자살', '뒤져', '뒤질', '일베', '틀딱', '찐따', '장애새',
+    'fuck', 'shit', 'bitch', 'sex', 'porn', 'dick', 'pussy', 'cunt', 'whore', 'slut', 'rape', 'nigg', 'fagg', 'asshol',
+  ];
+  function badName(s) {
+    const flat = s.toLowerCase().replace(/[\s\p{P}\p{S}\d_]/gu, '');
+    return BAD_WORDS.some((w) => flat.includes(w));
+  }
+  function cleanName(v) {
+    if (typeof v !== 'string') return '';
+    let s = v.normalize('NFC')
+      .replace(/[\p{C}\u115F\u1160\u3164\uFFA0\u2800]/gu, '') // 보이지 않는 글자 (빈칸처럼 보이는 한글 채움 문자 포함)
+      .replace(/(\p{M}{2})\p{M}+/gu, '$1') // 겹겹이 쌓은 꾸밈표
+      .replace(/\s+/gu, ' ')
+      .trim();
+    s = Array.from(s).slice(0, NAME_MAX).join('').trim();
+    return s && !badName(s) ? s : '';
   }
 
   // 받은 것은 믿지 않는다: 아는 칸만, 숫자는 범위 안으로
@@ -53,6 +78,7 @@
       bp, // 누구에게 하트를 보냈는지 [그 사람, 몇 번째]
       g, // 걸어가는 중이면 가려는 자리
       l: num(raw.l, 0, 9) | 0, // 침대 몇 번 자리에 엎드려 누웠는지 (0이면 아님)
+      n: cleanName(raw.n), // 닉네임 (멍이를 눌러야 보인다)
     };
   }
 
@@ -209,6 +235,7 @@
     constructor() {
       this.id = null; // 다른 사람이 나를 가리키는 꼬리표 (화면에는 나오지 않는다)
       this.look = myLook();
+      this.name = cleanName(MC.store.get('nick', '')); // 처음 들어올 때 지은 닉네임
       this.mine = {};
       this.peers = new Map(); // id → { s, at, n }
       this.counts = null; // 서버가 알려 주는 장소별 사람 수
@@ -242,6 +269,7 @@
       for (const k of Object.keys(KEYS)) next[k] = st[k] != null ? st[k] : KEYS[k];
       next.c = this.look.c;
       next.h = this.look.h;
+      next.n = this.name || '';
       next.bp = this.bp || null;
       let changed = false;
       for (const k of Object.keys(next)) {
@@ -300,6 +328,13 @@
       this.peers.clear();
     }
 
+    // 닉네임을 정한다 (처음 들어올 때). 다듬은 이름을 돌려준다
+    setName(v) {
+      this.name = cleanName(v);
+      if (this.mine.p) this.set(Object.assign({}, this.mine));
+      return this.name;
+    }
+
     // 다른 사람 멍이에게 하트 보내기
     boop(id) {
       this.boops = (this.boops || 0) + 1;
@@ -325,4 +360,6 @@
 
   MC.Net = Net;
   MC.netClean = clean;
+  MC.cleanName = cleanName;
+  MC.badName = (v) => typeof v === 'string' && badName(v.normalize('NFC'));
 })(window.MC = window.MC || {});

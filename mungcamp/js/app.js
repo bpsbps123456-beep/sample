@@ -146,7 +146,7 @@
   camp.onMoktak = () => sound.moktak();
 
   // ── 함께 ─────────────────────────────────────────────
-  // 같은 곳에 있는 다른 사람들의 멍이가 보인다. 이름도 글도 오가지 않는다
+  // 같은 곳에 있는 다른 사람들의 멍이가 보인다. 처음에 적은 마음 단어 말고는 글이 오가지 않는다
   const net = new MC.Net();
   net.start();
   setInterval(() => net.tick(), 1000);
@@ -155,7 +155,86 @@
     const sc = state.view === 'session' ? state.sceneObj : null;
     (sc && sc.pup ? sc.pup : camp.pup).poke();
   };
-  camp.onBoop = (id) => net.boop(id);
+  camp.onBoop = (id) => {
+    net.boop(id);
+    const v = camp.visitors.get(id);
+    if (v) showName(campName, v.pup, v.st.n, false, () => camp.visitors.get(id) === v && !v.leaving);
+  };
+
+  // ── 닉네임: 지금 마음을 나타내는 단어 ─────────────────────
+  // 처음 들어올 때 한 번만 묻는다. 다른 사람의 단어는 그 멍이를 눌러야 머리 위에 잠깐 뜬다
+  const MOODS = ['포근함', '나른함', '설렘', '몽글몽글', '노곤노곤', '차분함', '잔잔함', '싱숭생숭', '두근두근', '홀가분',
+    '고요', '뭉게구름', '말랑말랑', '복잡함', '지침', '멍', '느긋함', '보송보송', '따끈따끈', '살랑살랑'];
+  const nickCard = $('#nickCard');
+  const nickForm = $('#nickForm');
+  const nickInput = $('#nickInput');
+  const nickFine = $('#nickFine');
+  const nickOpen = () => !nickCard.hidden;
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+
+  function askNick() {
+    nickInput.value = '';
+    nickInput.placeholder = pick(MOODS);
+    nickFine.textContent = '누가 내 멍이를 누르면 보여요';
+    nickFine.classList.remove('is-warn');
+    nickCard.hidden = false;
+    // 휴대폰에서는 자판이 갑자기 올라오지 않게, 누를 때 연다
+    if (window.matchMedia && matchMedia('(pointer: fine)').matches) {
+      setTimeout(() => { try { nickInput.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }, 80);
+    }
+  }
+
+  nickForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    // 한글을 마무리하는 Enter 와 겹쳐도 마지막 글자까지 받도록 한 박자 뒤에 읽는다
+    setTimeout(() => {
+      const raw = nickInput.value.trim();
+      if (raw && MC.badName(raw)) {
+        nickFine.textContent = '다른 단어는 어때요?';
+        nickFine.classList.add('is-warn');
+        try { nickInput.select(); } catch (err) { /* 무시 */ }
+        return;
+      }
+      const name = MC.cleanName(raw) || MC.cleanName(nickInput.placeholder) || '멍이';
+      MC.store.set('nick', name);
+      net.setName(name);
+      nickCard.hidden = true;
+      if (state.view === 'home') {
+        try { campCanvas.focus({ preventScroll: true }); } catch (err) { /* 무시 */ }
+      }
+    }, 0);
+  });
+
+  // 머리 위 닉네임: 한 번에 하나, 3초쯤 떠 있다가 사라진다
+  const campName = $('#campName');
+  const sceneName = $('#sceneName');
+  const tag = { el: null, pup: null, until: 0, alive: null };
+  function showName(el, pup, name, me, alive) {
+    if (!name) return;
+    for (const other of [campName, sceneName]) if (other !== el) other.classList.remove('is-on');
+    el.textContent = name;
+    el.classList.toggle('is-me', !!me);
+    Object.assign(tag, { el, pup, until: MC.clock() + 3.2, alive: alive || null });
+    placeName(el === campName ? (x, y) => camp.toScreen(x, y) : (x, y) => ({ x, y }));
+    el.classList.add('is-on');
+  }
+  function hideName() {
+    campName.classList.remove('is-on');
+    sceneName.classList.remove('is-on');
+    tag.pup = null;
+  }
+  function placeName(toScreen) {
+    const p = tag.pup;
+    if (!p) return;
+    if (MC.clock() > tag.until || (tag.alive && !tag.alive())) {
+      hideName();
+      return;
+    }
+    // 머리(모자) 꼭대기 조금 위. 엎드려 있으면 더 낮게, 폴짝 뛰면 함께
+    const up = (p.lie >= 0.5 ? 104 : 152) - (p.hop || 0);
+    const q = toScreen(p.x, p.y - up * p.k);
+    tag.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) translate(-50%, -100%)`;
+  }
 
   // ── 새 버전 ───────────────────────────────────────────
   // 이 페이지를 건넨 서버(server/presence.js)가 다시 배포되어 내용이 바뀌면, 다시 이어질 때 알려 준다.
@@ -278,6 +357,7 @@
       MC.store.set('walked', true);
       hint.classList.add('is-off');
     }
+    if (tag.el === campName) placeName((x, y) => camp.toScreen(x, y));
     // 함께 있는 사람들에게 내 자리를 알리고, 그들의 멍이를 데려온다
     net.set(camp.netState());
     camp.syncVisitors(net.list('map'));
@@ -356,7 +436,7 @@
 
   campCanvas.addEventListener('click', (e) => {
     const r = campCanvas.getBoundingClientRect();
-    camp.tap(e.clientX - r.left, e.clientY - r.top);
+    if (camp.tap(e.clientX - r.left, e.clientY - r.top) === 'pup') showName(campName, camp.pup, net.name, true);
   });
 
   // 방향키·WASD로 걷기
@@ -441,7 +521,14 @@
       scene.onToast = (msg) => toast(msg);
     }
     scene.onCute = (kind) => sound.cute(kind);
-    if (scene.crowd) scene.crowd.onBoop = (id) => net.boop(id);
+    if (scene.crowd) {
+      const crowd = scene.crowd;
+      crowd.onBoop = (id) => {
+        net.boop(id);
+        const v = crowd.visitors.get(id);
+        if (v) showName(sceneName, v.pup, v.st.n, false, () => crowd.visitors.get(id) === v && !v.leaving);
+      };
+    }
     if (scene.pup) scene.pup.setLook(net.look.c, net.look.h);
     state.started = true;
     state.startAt = keep ? keep.startAt : Date.now();
@@ -492,6 +579,7 @@
   }
 
   function teardown() {
+    hideName();
     held.clear();
     if (state.runner) state.runner.stop();
     if (state.scape) state.scape.end();
@@ -515,6 +603,7 @@
 
   function closeSession() {
     if (state.view !== 'session') return;
+    hideName();
     const from = state.scene;
     // 새 버전이 와 있으면 마을로 돌아오는 이 틈에 새로 고친다
     if (freshen(state.lastSpot || (from === 'tent' ? 'fire' : from))) return;
@@ -569,6 +658,7 @@
       updateTogether();
     }
     placeSceneAct(sc);
+    if (tag.el === sceneName) placeName((x, y) => ({ x, y }));
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
       const st = sc.status();
@@ -840,6 +930,16 @@
       return;
     }
     const [x, y] = stagePoint(e);
+    if (sc.pup && sc.crowd && sc.pup.hit(x, y)) {
+      // 다른 멍이가 내 멍이 앞에 겹쳐 앉아 있으면 앞의 멍이를 누른 것으로
+      const v = sc.crowd.hitVisitor(x, y);
+      if (v && v.pup.y > sc.pup.y) {
+        sc.crowd.boopAt(x, y);
+        if (sc.onCute) sc.onCute('boop');
+        return;
+      }
+      showName(sceneName, sc.pup, net.name, true);
+    }
     if (sc.pointerDown(x, y)) {
       try { stage.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
     }
@@ -871,6 +971,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
+    if (nickOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
     if (state.view === 'home') {
@@ -987,6 +1088,7 @@
   route();
   backToSpot();
   if (state.view === 'home') startCamp();
+  if (!net.name) askNick();
   const afterFonts = () => renderThumbs();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(afterFonts, afterFonts);
   else setTimeout(afterFonts, 100);

@@ -50,7 +50,7 @@
   <div id="home">
     <header class="camp" id="camp">
       <canvas class="camp-canvas" id="campCanvas" tabindex="0" aria-label="캠프 마을. 방향키나 클릭으로 멍이를 걷게 해요"></canvas>
-      <div class="camp-layer" id="campLayer" aria-hidden="false"></div>
+      <div class="camp-layer" id="campLayer" aria-hidden="false"><p class="name-tag" id="campName" aria-live="polite"></p></div>
       <h1 class="camp-title">멍 때리고 가요.</h1>
       <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>함께 <b></b></span></p>
       <p class="camp-hint" id="campHint"></p>
@@ -82,6 +82,7 @@
   <div class="session" id="session" hidden>
     <canvas class="stage" id="stage" aria-label="장면"></canvas>
     <div class="scene-act-wrap" id="sceneActWrap" hidden><button class="scene-act" id="sceneAct" type="button"></button></div>
+    <p class="name-tag" id="sceneName" aria-live="polite"></p>
     <div class="curtain" id="curtain" aria-hidden="true"></div>
     <div class="ui" id="ui">
       <div class="topbar">
@@ -153,6 +154,23 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- 처음 들어올 때 한 번만: 지금 마음을 나타내는 단어 (닉네임) -->
+  <div class="modal modal-fixed" id="nickCard" hidden>
+    <form class="modal-card nick-card" id="nickForm" role="dialog" aria-modal="true" aria-labelledby="nick-title" novalidate>
+      <svg class="pup-face" viewBox="0 0 120 104" aria-hidden="true">
+        <use href="#pup-face"/>
+        <ellipse cx="47" cy="44" rx="4.2" ry="5.2" fill="#2a1a13"/>
+        <ellipse cx="73" cy="44" rx="4.2" ry="5.2" fill="#2a1a13"/>
+        <circle cx="48.4" cy="42.2" r="1.5" fill="#fff"/>
+        <circle cx="74.4" cy="42.2" r="1.5" fill="#fff"/>
+      </svg>
+      <h2 id="nick-title">당신의 현재 마음을 잘 표현할 단어를 떠올려 적어주세요.</h2>
+      <input class="text-input nick-input" id="nickInput" type="text" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-labelledby="nick-title" aria-describedby="nickFine">
+      <p class="nick-fine" id="nickFine">누가 내 멍이를 누르면 보여요</p>
+      <button class="btn btn-ember btn-block" type="submit">들어가기</button>
+    </form>
   </div>
 
   <script src="js/util.js" defer></script>
