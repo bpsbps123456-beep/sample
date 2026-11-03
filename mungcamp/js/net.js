@@ -3,7 +3,8 @@
    나누는 것은 어디에 섰는지, 털빛과 모자, 걷는지 앉았는지, 하트를 날렸는지뿐이다.
 
    연결은 있는 것을 쓴다.
-   1) <meta name="mc-presence" content="wss://..."> 가 있으면 함께 쓰는 서버 (server/presence.js)
+   1) <meta name="mc-presence" content="wss://..."> 가 있으면 함께 쓰는 서버 (server/presence.js).
+      그 서버가 페이지까지 건넸으면 content="auto" 로 바뀌어 같은 주소로 모인다
    2) Claude 아티팩트로 열렸으면 그 방(room)
    3) 둘 다 없으면 같은 브라우저의 다른 탭끼리만 */
 (function (MC) {
@@ -217,7 +218,10 @@
 
     async start() {
       const meta = document.querySelector('meta[name="mc-presence"]');
-      const url = meta && meta.content && /^wss?:\/\//.test(meta.content) ? meta.content : null;
+      let url = meta && meta.content;
+      // 'auto': 이 페이지를 건네준 서버가 곧 함께 모이는 서버 (server/presence.js)
+      if (url === 'auto') url = /^https?:$/.test(location.protocol) ? (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/' : null;
+      url = url && /^wss?:\/\//.test(url) ? url : null;
       if (url && 'WebSocket' in window) this.link = socketLink(this, url);
       if (!this.link) this.link = await roomLink(this);
       if (!this.link) this.link = channelLink(this);

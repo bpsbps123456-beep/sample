@@ -46,7 +46,7 @@
   - 둘 이상 모이면 '함께 N'이 살며시 뜨고, 마을 지도의 자리 이름 옆에는 그 안에 몇 명이 앉아 있는지 작게 나옵니다. 여럿 중 내 멍이는 발밑이 은은하게 빛납니다.
 - **이름도 글도 오가지 않습니다.** 나누는 것은 자리, 털빛과 모자, 걷는지 앉았는지, 졸고 있는지, 하트뿐입니다. 서버에도 아무것도 남지 않습니다.
 - 연결은 있는 것을 씁니다.
-  1. `index.html`의 `<meta name="mc-presence" content="wss://...">`에 주소가 있으면 함께 쓰는 서버(`server/presence.js`)
+  1. `index.html`의 `<meta name="mc-presence" content="wss://...">`에 주소가 있으면 함께 쓰는 서버(`server/presence.js`). 이 서버가 사이트까지 건네주면 알아서 같은 주소로 모입니다(`content="auto"`)
   2. Claude 아티팩트로 열렸으면 아티팩트의 방(room). 지금 그 페이지를 보고 있는 사람들끼리 보입니다. 방에는 claude.ai에 로그인한 같은 조직 사람(과 초대받은 사람)만 들어옵니다. 들어올 수 없는 사람은 혼자 보는 화면으로 열리고, 3번으로 넘어갑니다
   3. 둘 다 없으면 같은 브라우저의 다른 탭끼리만(BroadcastChannel)
 
@@ -154,9 +154,28 @@ PORT=8787 ALLOWED_ORIGINS=https://내-사이트 node server/presence.js
 
 Fly.io, Render, Railway 같은 곳에 그대로 올릴 수 있습니다. 앞에 TLS(https)를 붙여 `wss://`로 열어 주세요. 한 프로세스로 수천 명은 충분하고, 더 커지면 장소별로 서버를 나누면 됩니다. 서버 주소를 비워 두면 함께 모이기 없이도 사이트는 그대로 동작합니다.
 
-### 배포
+### 누구나, 로그인 없이 함께: 서버 하나로 올리기
 
-빌드 과정이 없습니다. `mungcamp/` 폴더를 그대로 올리면 됩니다.
+`server/presence.js`는 사이트 파일도 함께 건네줍니다. 이 서버 하나만 올리면 그 주소로 들어온 사람은 누구나 서로의 멍이를 봅니다. claude.ai 로그인도, 가입도 필요 없습니다.
+
+**Render 무료 플랜** (저장소에 `render.yaml`이 있습니다)
+
+1. [render.com](https://render.com)에 GitHub 계정으로 로그인합니다.
+2. **New → Blueprint**에서 이 저장소를 고르고, `render.yaml`이 있는 브랜치를 고릅니다. `mungcamp` 서비스가 잡히면 **Apply**.
+3. 몇 분 뒤 `https://mungcamp-….onrender.com` 같은 주소가 생깁니다. 이 주소를 나누면 됩니다.
+
+직접 만들 때는 **New → Web Service**에서 Root Directory `mungcamp`, Start Command `node server/presence.js`, Instance Type `Free`로 두면 같습니다.
+
+- 무료 플랜은 15분 동안 아무도 없으면 잠들고, 다음 사람이 들어오면 1분쯤 걸려 깨어납니다. 서버는 아무것도 저장하지 않으니 잠들어도 잃는 것이 없습니다.
+- 다른 곳(Fly.io, Railway, 내 컴퓨터)에서도 `node server/presence.js` 한 줄이면 됩니다. Node 18 이상, 의존성 없음. `PORT`를 따릅니다.
+
+```bash
+cd mungcamp && PORT=8787 node server/presence.js   # → http://localhost:8787/
+```
+
+### 정적 사이트로만 올리기
+
+빌드 과정이 없습니다. `mungcamp/` 폴더를 그대로 올리면 됩니다. 이때 함께 모이기는 서버 주소를 `mc-presence`에 넣어야 켜지고, 비워 두면 같은 브라우저의 탭끼리만 보입니다.
 
 - **Cloudflare Pages / Netlify**: 배포 폴더를 `mungcamp`로 지정합니다. 캐시 헤더는 `_headers`에 있습니다.
 - **Vercel**: Root Directory를 `mungcamp`로 지정합니다. 헤더는 `vercel.json`에 있습니다.
@@ -194,7 +213,8 @@ mungcamp/
 ├── js/breath.js        호흡 안내
 ├── js/app.js           화면 흐름, 소리 깨우기, 캠프 마을 조작, 단축키
 ├── sw.js               오프라인 캐시
-├── server/presence.js  함께 모이기 서버 (의존성 없음)
+├── server/presence.js  함께 모이기 서버 + 사이트 파일 (의존성 없음)
+├── package.json        `npm start` 로 위 서버 실행 (Render 등)
 └── manifest.webmanifest, icon*.png, icon.svg
 ```
 

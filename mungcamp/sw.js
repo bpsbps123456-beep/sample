@@ -1,5 +1,5 @@
 /* 멍캠프 오프라인 캐시. 파일을 바꾸면 CACHE 이름의 숫자를 올린다 */
-const CACHE = 'mungcamp-v7';
+const CACHE = 'mungcamp-v8';
 const ASSETS = [
   './',
   'index.html',

@@ -9,12 +9,19 @@
    - 받은 값은 아는 칸만, 숫자는 범위 안으로 다듬고, 너무 잦은 메시지는 버린다.
    - 바뀐 것만 모아서 1초에 TICK_HZ번 보낸다. 장소별 사람 수는 2초마다.
 
-   실행:  PORT=8787 node server/presence.js
-   연결:  index.html 의 <meta name="mc-presence" content="wss://내-주소/"> */
+   사이트 파일(index.html, js, css …)도 함께 건네준다. 그래서 이 서버 하나만 올리면
+   그 주소로 들어온 누구나, 로그인 없이, 서로의 멍이를 본다.
+
+   실행:  PORT=8787 node server/presence.js   → http://localhost:8787/
+   따로 둔 정적 사이트에 붙일 때: index.html 의 <meta name="mc-presence" content="wss://내-주소/">
+   웹소켓만 쓰려면 STATIC=0 */
 'use strict';
 
 const http = require('http');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
 
 const PORT = +(process.env.PORT || 8787);
 // 마을 지도는 넉넉하게, 모닥불·바다·숲은 오붓하게
@@ -252,11 +259,103 @@ function onData(c, chunk) {
   }
 }
 
+// ── 사이트 파일 ───────────────────────────────────────────
+// mungcamp/ 폴더의 파일을 그대로 건넨다. 정해 둔 종류만, 숨김 파일과 server/ 는 빼고.
+// 한 번 읽은 파일은 gzip 까지 해서 메모리에 둔다 (배포하면 프로세스가 새로 뜬다)
+const STATIC = process.env.STATIC !== '0';
+const ROOT = path.resolve(__dirname, '..');
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+const HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+};
+const files = new Map();
+
+function cacheFor(rel) {
+  if (rel === 'index.html' || rel === 'sw.js') return 'public, max-age=0, must-revalidate';
+  if (/^(css|js)\//.test(rel)) return 'public, max-age=3600, stale-while-revalidate=86400';
+  return 'public, max-age=604800';
+}
+
+function loadFile(rel) {
+  if (files.has(rel)) return files.get(rel);
+  const type = TYPES[path.extname(rel)];
+  const abs = path.resolve(ROOT, rel);
+  if (!type || !abs.startsWith(ROOT + path.sep) || rel.split('/').some((seg) => !seg || seg[0] === '.') || /^server\//.test(rel)) return null;
+  let body;
+  try {
+    body = fs.readFileSync(abs);
+  } catch (e) {
+    return null;
+  }
+  // 이 서버에서 연 페이지는 이 서버로 모인다
+  if (rel === 'index.html') body = Buffer.from(body.toString('utf8').replace('<meta name="mc-presence" content="">', '<meta name="mc-presence" content="auto">'));
+  const text = !/^image\/(png|x-icon)/.test(type);
+  const f = {
+    body,
+    gz: text ? zlib.gzipSync(body, { level: 9 }) : null,
+    type,
+    etag: '"' + crypto.createHash('sha1').update(body).digest('base64url').slice(0, 16) + '"',
+    cache: cacheFor(rel),
+  };
+  files.set(rel, f);
+  return f;
+}
+
+function serveFile(req, res) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, Object.assign({ allow: 'GET, HEAD' }, HEADERS));
+    res.end();
+    return;
+  }
+  let rel = null;
+  try {
+    rel = decodeURIComponent((req.url || '/').split('?')[0]);
+  } catch (e) {
+    rel = null;
+  }
+  if (rel != null) {
+    rel = rel.replace(/^\/+/, '');
+    if (rel === '' || rel.endsWith('/')) rel += 'index.html';
+  }
+  const f = rel != null && rel.length < 200 && !rel.includes('\0') ? loadFile(rel) : null;
+  if (!f) {
+    res.writeHead(404, Object.assign({ 'content-type': 'text/plain; charset=utf-8' }, HEADERS));
+    res.end('없는 곳이에요');
+    return;
+  }
+  const head = Object.assign({ 'content-type': f.type, 'cache-control': f.cache, etag: f.etag, vary: 'accept-encoding' }, HEADERS);
+  if (req.headers['if-none-match'] === f.etag) {
+    res.writeHead(304, head);
+    res.end();
+    return;
+  }
+  const gz = f.gz && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  const body = gz ? f.gz : f.body;
+  if (gz) head['content-encoding'] = 'gzip';
+  head['content-length'] = body.length;
+  res.writeHead(200, head);
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+
 // ── 서버 ───────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'application/json' });
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify({ ok: true, clients: clients.size }));
+    return;
+  }
+  if (STATIC) {
+    serveFile(req, res);
     return;
   }
   res.writeHead(426, { 'content-type': 'text/plain; charset=utf-8' });
@@ -302,5 +401,5 @@ setInterval(() => {
 }, 20000).unref();
 
 server.listen(PORT, () => {
-  console.log(`mungcamp presence on :${PORT} (room cap ${ROOM_CAP}, map cap ${MAP_CAP})`);
+  console.log(`mungcamp on :${PORT}${STATIC ? ' (site + presence)' : ' (presence only)'} (room cap ${ROOM_CAP}, map cap ${MAP_CAP})`);
 });
