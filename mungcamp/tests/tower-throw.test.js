@@ -23,7 +23,7 @@ main(async ({check, staticServer, person, enter, sleep, shot, cleanup}) => {
     const s = MC.app.state.sceneObj, f = s.flying[0];
     return {held: f.held, above: (s.pup.y - f.from.y) / s.pup.k};
   });
-  check(lifted.held && lifted.above > 100, '앞발로 장작을 머리 위까지 들어 올린다', lifted);
+  check(lifted.held && lifted.above > 20 && lifted.above < 42, '앞발은 가슴 앞에서 짧게 움직이고 머리 위로 늘어나지 않는다', lifted);
   await shot(A, 'tower-throw-lift');
   const follows = await A.evaluate(() => {
     const s = MC.app.state.sceneObj, before = s.flying[0].from.x;
@@ -35,7 +35,7 @@ main(async ({check, staticServer, person, enter, sleep, shot, cleanup}) => {
   check(await A.evaluate(() => {
     const s = MC.app.state.sceneObj, f = s.flying[0];
     return !f.held && f.t > 0 && !!s.pup.logThrow;
-  }), '장작을 놓으면서 강아지가 앞발을 뻗는다');
+  }), '장작을 놓으면서 강아지가 몸을 살짝 움직인다');
   await shot(A, 'tower-throw-release');
   await advance(A, 25);
   check(await A.evaluate(() => {
@@ -60,8 +60,9 @@ main(async ({check, staticServer, person, enter, sleep, shot, cleanup}) => {
   await A.click('[data-act=log]'); await advance(A, 15);
   check(await A.evaluate(() => {
     const s = MC.app.state.sceneObj, f = s.flying[0];
-    return s.pup.chair > .9 && f.from.x > s.cx && s.pup.logThrow.side === -1 && f.from.y < s.pup.y - 100 * s.pup.k;
-  }), '불 오른쪽 의자에 앉아서도 불 쪽으로 장작을 들어 올린다');
+    const above = (s.pup.y - f.from.y) / s.pup.k - s.pup.seatLift;
+    return s.pup.chair > .9 && f.from.x > s.cx && s.pup.logThrow.side === -1 && above > 20 && above < 42;
+  }), '불 오른쪽 의자에서도 앞발을 길게 늘리지 않고 장작을 툭 보낸다');
   await shot(A, 'tower-throw-chair');
   await advance(A, 75);
   check(await A.evaluate(() => {

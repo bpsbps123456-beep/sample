@@ -742,7 +742,7 @@
         this.pup.lookUpT = 1.2;
         this.pup.logThrow = { time: 0, side: this.pup.x < this.cx ? 1 : -1 };
         const f = this.flying[this.flying.length - 1];
-        Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.7 });
+        Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.38 });
       }
       return true;
     }
@@ -1101,7 +1101,7 @@
           const side = this.pup.logThrow?.side || (this.pup.x < this.cx ? 1 : -1);
           this.pup.logThrow = { time: Math.min(f.elapsed, 0.4), side };
           if (f.held) {
-            Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.7 });
+            Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.38 });
             if (f.elapsed >= 0.4) {
               f.held = false;
               f.origin = { x: (f.from.x - this.cx) / this.s, y: (f.from.y - this.by) / this.s, k: f.from.k / this.s };
@@ -1462,6 +1462,8 @@
       g.globalCompositeOperation = 'source-over';
       for (const st of this.stones) if (st.front) this.drawStone(g, st, lit);
 
+      // 뒷모습일 때 들고 있는 장작은 가슴 쪽에 가린다.
+      this.drawFlying(g, true);
       if (this.crowd) this.crowd.draw(g, this.dpr, (Z) => Z >= 14, w);
       else {
         this.pup.light.glowA = 0.42 * Math.min(1, E) * flick;
@@ -1538,15 +1540,18 @@
       g.restore();
     }
 
-    drawFlying(g) {
+    drawFlying(g, behind = false) {
       const S = SPR;
       const s = this.s;
       // 날아가는 장작
       for (const f of this.flying) {
+        const hiddenByPup = f.held && this.pup.view === 'back' && this.pup.chair <= 0.01;
+        if (!!hiddenByPup !== behind) continue;
         const { x, y, a, k } = this.flyingPose(f);
         const sprite = f.worry ? (f.t < 0.85 ? f.worry.made.sprite : f.worry.made.plain) : f.log.sprite || (f.log.sprite = this.logSprites[f.log.kind][f.log.v % this.logSprites[f.log.kind].length]);
         this.drawPlacedLog(g, f.log, sprite, x, y, a, k);
       }
+      if (behind) return;
       // 손에 든 걱정 장작
       const wy = this.worry;
       if (wy && wy.phase !== 'fly') {
