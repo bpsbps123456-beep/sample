@@ -294,6 +294,7 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.mp3': 'audio/mpeg',
 };
 const HEADERS = {
   'x-content-type-options': 'nosniff',
@@ -324,9 +325,11 @@ function siteVersion() {
 }
 const VERSION = STATIC ? siteVersion() : '';
 
-// 페이지와 코드는 매번 확인한다 (바뀐 게 없으면 304 로 짧게). 아이콘만 오래 둔다
+// 페이지와 코드는 매번 확인한다 (바뀐 게 없으면 304 로 짧게). 아이콘은 일주일, 녹음은 하루 둔다
 function cacheFor(rel) {
-  return /^icon/.test(rel) ? 'public, max-age=604800' : 'no-cache';
+  if (/^icon/.test(rel)) return 'public, max-age=604800';
+  if (/^sounds\//.test(rel)) return 'public, max-age=86400';
+  return 'no-cache';
 }
 
 function loadFile(rel) {
@@ -344,7 +347,8 @@ function loadFile(rel) {
   if (rel === 'index.html') {
     body = Buffer.from(body.toString('utf8').replace('<meta name="mc-presence" content="">', `<meta name="mc-presence" content="auto">\n  <meta name="mc-version" content="${VERSION}">`));
   }
-  const text = !/^image\/(png|x-icon)/.test(type);
+  // 그림과 소리는 이미 눌러 담은 것이라 gzip 하지 않는다
+  const text = !/^(image\/(png|x-icon)|audio\/)/.test(type);
   const f = {
     body,
     gz: text ? zlib.gzipSync(body, { level: 9 }) : null,

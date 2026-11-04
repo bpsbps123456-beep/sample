@@ -189,4 +189,119 @@
       }
     }
   };
+
+  // 별똥별: 천천히 미끄러지며 길고 옅은 꼬리를 끌다가 스르르 사라진다. 지나간 자리엔 작은 반짝임이 잠깐 남고,
+  // 가끔은 같은 쪽 하늘에서 한두 개가 뒤따른다 (유성우). 불멍과 물멍이 함께 쓴다
+  MC.Meteors = class {
+    constructor() {
+      this.list = [];
+      this.follow = null;
+    }
+
+    // x, y: 시작점, dir: 왼쪽(-1)/오른쪽(1), s: 화면 크기 비율, a: 내려가는 각도
+    spawn(x, y, dir, s, a = MC.rand(0.3, 0.52), shower = 0) {
+      this.list.push({
+        x, y, s,
+        dx: dir * Math.cos(a),
+        dy: Math.sin(a),
+        L: MC.rand(230, 360) * s,
+        dur: MC.rand(2.8, 3.8),
+        t: 0,
+        tail: MC.rand(105, 165) * s,
+        w: MC.rand(1.15, 1.6) * s,
+        dust: [],
+      });
+      // 같은 쪽에서 한두 개 더
+      if (Math.random() < shower) this.follow = { n: Math.random() < 0.4 ? 2 : 1, x, y, dir, a, s, at: MC.rand(3.5, 7) };
+    }
+
+    get busy() {
+      return this.list.length > 0 || !!this.follow;
+    }
+
+    update(dt) {
+      const f = this.follow;
+      if (f) {
+        f.at -= dt;
+        if (f.at <= 0) {
+          f.n--;
+          // 처음 자리에서 조금 비켜서, 거의 같은 방향으로
+          this.spawn(f.x + MC.rand(-90, 90) * f.s, f.y + MC.rand(-30, 40) * f.s, f.dir, f.s, f.a + MC.rand(-0.06, 0.06));
+          this.follow = f.n > 0 ? Object.assign(f, { at: MC.rand(3, 6) }) : null;
+        }
+      }
+      for (const m of this.list) {
+        m.t += dt;
+        if (m.t < m.dur * 0.8 && Math.random() < dt * 7) {
+          const p = this.pos(m);
+          const back = MC.rand(0, m.tail * 0.6);
+          m.dust.push({ x: p.x - m.dx * back, y: p.y - m.dy * back + MC.rand(-2, 2) * m.s, t: 0, life: MC.rand(0.7, 1.5), r: MC.rand(0.5, 1.1) * m.s });
+        }
+        for (const d of m.dust) d.t += dt;
+        if (m.dust.length && m.dust[0].t > m.dust[0].life) m.dust = m.dust.filter((d) => d.t < d.life);
+      }
+      this.list = this.list.filter((m) => m.t < m.dur + 1.6);
+    }
+
+    // 거의 고르게, 끝에서만 살짝 느려진다
+    pos(m) {
+      const u = Math.min(1, m.t / m.dur);
+      const p = m.L * (0.78 * u + 0.22 * (1 - (1 - u) * (1 - u)));
+      return { x: m.x + m.dx * p, y: m.y + m.dy * p, p, u };
+    }
+
+    // sprite: 둥근 빛 그림
+    draw(g, sprite) {
+      for (const m of this.list) {
+        const { x, y, p, u } = this.pos(m);
+        const a = m.t < m.dur ? MC.smooth(0, 0.16, u) * (1 - MC.smooth(0.45, 1, u)) : 0;
+        if (a > 0.004) {
+          // 길고 옅은 잔광, 그 안에 또렷한 꼬리
+          const t2 = Math.min(p, m.tail * 2.6);
+          const t1 = Math.min(p, m.tail * (0.55 + 0.45 * u));
+          g.globalAlpha = 1;
+          for (const [len, w, rgb, k] of [[t2, m.w * 3, '190,205,255', 0.13], [t1, m.w, '255,250,238', 0.85]]) {
+            const ex = x - m.dx * len;
+            const ey = y - m.dy * len;
+            const grd = g.createLinearGradient(x, y, ex, ey);
+            grd.addColorStop(0, `rgba(${rgb},${k * a})`);
+            grd.addColorStop(1, `rgba(${rgb},0)`);
+            g.strokeStyle = grd;
+            g.lineWidth = w;
+            g.lineCap = 'round';
+            g.beginPath();
+            g.moveTo(x, y);
+            g.lineTo(ex, ey);
+            g.stroke();
+          }
+          const r = 5.5 * m.s;
+          g.globalAlpha = a;
+          g.drawImage(sprite, x - r, y - r, r * 2, r * 2);
+          g.globalAlpha = 0.3 * a;
+          g.drawImage(sprite, x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2);
+        }
+        for (const d of m.dust) {
+          g.globalAlpha = 0.45 * (1 - d.t / d.life);
+          g.drawImage(sprite, d.x - d.r * 2, d.y - d.r * 2, d.r * 4, d.r * 4);
+        }
+      }
+      g.globalAlpha = 1;
+      g.lineCap = 'butt';
+    }
+
+    // 물 위에 비친 별똥별: 수평선(hy)을 축으로 뒤집고 k 만큼 눌러, 세로로 길쭉하게 일렁이는 옅은 빛
+    drawReflection(g, sprite, hy, k) {
+      for (const m of this.list) {
+        if (m.t >= m.dur) continue;
+        const { x, y, u } = this.pos(m);
+        const a = MC.smooth(0, 0.16, u) * (1 - MC.smooth(0.45, 1, u));
+        if (a < 0.004 || y >= hy) continue;
+        const ry = hy + (hy - y) * k;
+        const r = 5.5 * m.s;
+        g.globalAlpha = 0.18 * a;
+        g.drawImage(sprite, x - r * 0.9, ry - r * 2.6, r * 1.8, r * 5.2);
+      }
+      g.globalAlpha = 1;
+    }
+  };
 })(window.MC = window.MC || {});

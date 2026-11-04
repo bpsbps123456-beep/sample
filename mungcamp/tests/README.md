@@ -7,7 +7,7 @@
 
 ```bash
 cd mungcamp
-npm test                      # 모두 (3~4분)
+npm test                      # 모두 (4~5분)
 node tests/run.js sea forest  # 이름에 sea, forest 가 들어간 것만
 node tests/sea.test.js        # 하나만
 ```
@@ -33,6 +33,7 @@ node tests/sea.test.js        # 하나만
 | `time.test.js` | 벽시계를 앞당기면 달·별하늘·빛줄기가 움직이고, 오래 머문 모닥불에 반딧불이 |
 | `worry.test.js` | 걱정 태우기 예시 말 고르기(휴대폰에서 자판 안 뜸), 장작에 적어 불에 넣기 |
 | `refresh.test.js` | 다시 배포되면 마을에서는 바로, 쉬는 중에는 마을로 돌아올 때 새 버전으로 |
+| `sound.test.js` | 장면마다 녹음 줄기가 흐르고 알맞은 크기, 모닥불 타닥에 맞춘 불티, 텐트 빗소리, 녹음이 없을 때 합성으로, 천천히 미끄러지는 별똥별과 유성우 |
 
 ## 시험 쓰기
 

@@ -306,7 +306,7 @@
       this.onWorryBurned = null;
       this.worry = null;
       this.nextShoot = MC.rand(20, 45);
-      this.shoot = null;
+      this.meteors = new MC.Meteors();
       // 밤이 깊어 간다: 오래 머물수록 별똥별이 조금 잦아지고 반딧불이가 하나둘 나온다 (낮이 되지는 않는다)
       this.age = null; // 앱이 '이번 쉼에 머문 초'를 알려 준다
       this.bugs = [];
@@ -1222,16 +1222,15 @@
       }
       if (!this.calm && !this.preview) {
         this.nextShoot -= dt;
-        if (this.nextShoot <= 0) {
+        if (this.nextShoot <= 0 && !this.meteors.busy) {
           this.nextShoot = MC.rand(70, 160) * (1 - 0.55 * depth);
+          // 천천히 미끄러지는 별똥별. 밤이 깊을수록 한두 개가 뒤따르는 일이 잦다
           const dir = Math.random() < 0.5 ? -1 : 1;
-          this.shoot = { x: MC.rand(0.2, 0.8) * this.w, y: MC.rand(0.05, 0.3) * this.ground, vx: dir * 780, vy: 300, t: 0, dur: 0.7 };
+          const x = (dir > 0 ? MC.rand(0.08, 0.55) : MC.rand(0.45, 0.92)) * this.w;
+          this.meteors.spawn(x, MC.rand(0.05, 0.24) * this.ground, dir, this.s, undefined, 0.2 + 0.45 * depth);
         }
       }
-      if (this.shoot) {
-        this.shoot.t += dt;
-        if (this.shoot.t > this.shoot.dur) this.shoot = null;
-      }
+      this.meteors.update(dt);
     }
 
     // 반딧불이: 불 바로 위는 비우고 양옆 풀밭과 소나무 아래에서, 천천히 깜빡이며 떠다닌다
@@ -1460,21 +1459,13 @@
         g.globalAlpha = a;
         g.drawImage(S.star, x - st.r * 2.5, y - st.r * 2.5, st.r * 5, st.r * 5);
       }
-      if (this.shoot) {
-        const sh = this.shoot;
-        const u = sh.t / sh.dur;
-        const x = sh.x + sh.vx * sh.t;
-        const y = sh.y + sh.vy * sh.t;
-        const grd = g.createLinearGradient(x, y, x - sh.vx * 0.16, y - sh.vy * 0.16);
-        grd.addColorStop(0, `rgba(255,255,255,${0.8 * (1 - u)})`);
-        grd.addColorStop(1, 'rgba(255,255,255,0)');
-        g.globalAlpha = 1;
-        g.strokeStyle = grd;
-        g.lineWidth = 1.4;
+      if (this.meteors.list.length) {
+        g.save();
         g.beginPath();
-        g.moveTo(x, y);
-        g.lineTo(x - sh.vx * 0.16, y - sh.vy * 0.16);
-        g.stroke();
+        g.rect(0, 0, w, hide);
+        g.clip();
+        this.meteors.draw(g, S.star);
+        g.restore();
       }
       // 불 위로 번지는 따뜻한 기운
       g.globalAlpha = 0.11 * E * flick;
