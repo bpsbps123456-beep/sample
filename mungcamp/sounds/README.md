@@ -18,6 +18,7 @@
 | `stream.mp3` | 2초부터 36초 | 140Hz 아래 (마이크 바람), 한 번 크게 튀는 물소리는 `alimiter`(-6dBFS)로 누름 | 스테레오 64k, 32kHz |
 | `rain.mp3` | 58초부터 32초 | 120Hz 아래 | 스테레오 56k, 32kHz |
 | `sea.mp3` | 처음 48초 | 60Hz 아래, `dynaudnorm`으로 크기를 고르게 눌러 물의 결만 남김 | 스테레오 64k, 32kHz |
+| `wood-land-1.mp3`, `wood-land-2.mp3` | Kenney Impact Sounds 1.0의 `impactWood_medium_000.ogg`, `001.ogg` (각 0.33초) | 65Hz 아래와 2.4kHz 위를 덜고 마지막 0.1초를 페이드아웃. 추가 타닥·잡음·잔향 없음 | 모노 64k, 32kHz |
 
 ```bash
 # 예: 풀벌레

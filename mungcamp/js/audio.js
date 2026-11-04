@@ -30,6 +30,8 @@
     kettle: { url: 'sounds/kettle.mp3' }, // 끓는 물 (Moodist 소리 모음, Pixabay 콘텐츠 라이선스·CC0): 숙소 난로 위 주전자
     bubbles: { url: 'sounds/bubbles.mp3' }, // 보글보글 거품 (Moodist 소리 모음, Pixabay 콘텐츠 라이선스·CC0)
     wind: { url: 'sounds/wind.mp3' }, // 바람 (felix.blume, CC0): 숙소 창밖
+    wood1: { url: 'sounds/wood-land-1.mp3' }, // Kenney Impact Sounds, CC0: 짧은 나무 충돌음 두 가지
+    wood2: { url: 'sounds/wood-land-2.mp3' },
   };
   // 풀어 둘 때의 표본률. 전체 소리가 10.5kHz 아래로 걸러지니 낮춰서 메모리를 아낀다
   const DECODE_RATE = 22050;
@@ -720,6 +722,9 @@
       ];
       this.nextGust = now;
       this.visual = [];
+      // 착지 순간에 바로 쓰도록 작은 효과음을 미리 받는다. 늦게 도착해도 뒤늦게 재생하지 않는다.
+      this.woodImpacts = [];
+      for (const name of ['wood1', 'wood2']) s.sample(name).then(buf => { if (buf) this.woodImpacts.push(buf); });
       this.realFire(this.layers.fire, 1);
       // 진짜 풀벌레: 넓게 퍼져 우는 여름밤. 녹음 속 공간이 있어 울림은 조금만
       const cr = s.gain(1);
@@ -981,8 +986,41 @@
       o.stop(at + 0.16);
     }
 
-    // 장작이 떨어질 때: 툭 + 불이 옮겨붙는 화르륵
+    // 장작끼리 부딪히는 낮고 짧은 툭. 긴 잔향이나 불붙는 잡음을 덧붙이지 않는다.
+    woodLanding() {
+      const s = this.snd, ctx = s.ctx;
+      let buffer;
+      if (this.woodImpacts.length) {
+        this.woodTake = ((this.woodTake ?? -1) + 1) % this.woodImpacts.length;
+        buffer = this.woodImpacts[this.woodTake];
+      } else {
+        // 파일이 아직 없거나 오프라인이면, 음높이를 미끄러뜨리지 않는 짧은 나무 울림.
+        if (!s.woodFallback) {
+          const b = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * .28), ctx.sampleRate), d = b.getChannelData(0);
+          const modes = [[145, .42, 24], [337, .22, 38], [581, .13, 52], [893, .06, 75]];
+          let grain = 0;
+          for (let i = 0; i < d.length; i++) {
+            const t = i / ctx.sampleRate, attack = Math.min(1, t / .0025);
+            let v = 0;
+            for (const [f, amp, decay] of modes) v += Math.sin(2 * Math.PI * f * t) * amp * Math.exp(-t * decay);
+            grain += .14 * ((Math.random() * 2 - 1) - grain);
+            d[i] = (v + grain * .12 * Math.exp(-t * 160)) * attack * Math.min(1, (.28 - t) / .025);
+          }
+          s.woodFallback = b;
+        }
+        buffer = s.woodFallback;
+      }
+      const src = ctx.createBufferSource(), gain = s.gain(.64);
+      src.buffer = buffer;
+      src.playbackRate.value = MC.rand(.97, 1.03);
+      src.connect(gain); gain.connect(this.layers.fire);
+      src.onended = () => { src.disconnect(); gain.disconnect(); };
+      src.start(ctx.currentTime + .005);
+    }
+
+    // 걱정 장작을 태울 때만 불이 옮겨붙는 화르륵. 일반 장작은 착지 소리 한 번.
     thud(isWorry) {
+      if (!isWorry) { this.woodLanding(); return; }
       const s = this.snd;
       const ctx = s.ctx;
       const at = ctx.currentTime + 0.01;

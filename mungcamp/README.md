@@ -188,6 +188,7 @@
 | `sounds/stream.mp3` | Stream | gluckose | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [Freesound #333987](https://freesound.org/people/gluckose/sounds/333987/) (Blanket) |
 | `sounds/rain.mp3` | Rain | alex36917 | [CC BY](https://creativecommons.org/licenses/by/3.0/) | [Freesound #524605](https://freesound.org/people/alex36917/sounds/524605/) (Blanket) |
 | `sounds/sea.mp3` | Ocean waves | Luftrum | [CC BY](https://creativecommons.org/licenses/by/3.0/) | [Freesound #48412](https://freesound.org/people/Luftrum/sounds/48412/) (Blanket) |
+| `sounds/wood-land-1.mp3`, `wood-land-2.mp3` | Impact Sounds 1.0, `impactWood_medium_000/001` (GameSynth 나무 충돌 효과음) | Kenney | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [Kenney Impact Sounds](https://kenney.nl/assets/impact-sounds) |
 
 Blanket(GNOME, [저장소](https://github.com/rafaelmardojai/blanket))과 Noice([저장소](https://github.com/trynoice/android-app))가 정리해 둔 출처와 허락을 따랐습니다. 녹음을 바꿀 때는 이 표도 함께 고쳐 주세요.
 `fire.mp3`의 허락은 작업 환경에서 Freesound 페이지를 직접 열 수 없어, Noice의 출처 목록과 다른 곳의 표기(CC BY 4.0)를 따랐습니다. 한 번 [원래 페이지](https://freesound.org/s/189237/)에서 확인해 두면 좋습니다.
