@@ -164,7 +164,14 @@ a { color: inherit; }
 }
 .camp-tool[hidden] { display: none; }
 .camp-suggest { left: max(14px, env(safe-area-inset-left, 0px)); }
-.camp-chair { right: max(14px, env(safe-area-inset-right, 0px)); }
+.camp-tools-right {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 8px;
+}
+.camp-tools-right .camp-tool { position: static; }
 .camp-chair[aria-pressed="true"] { color: var(--on-ember); background: var(--ember); border-color: var(--ember); }
 .camp-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .spot {
@@ -619,7 +626,37 @@ a { color: inherit; }
 .nick-fine { margin: 10px 0 0; min-height: 1.3em; font-size: var(--step--1); color: var(--ink-dim); }
 .nick-fine.is-warn { color: var(--ember-hi); }
 .nick-card .btn-block { margin-top: 16px; }
-.modal-buttons .btn { flex: 1; }
+.modal-buttons .btn { flex: 1; white-space: nowrap; min-height: 48px; }
+/* 내 멍이 꾸미기 */
+.dress-card { width: min(440px, 100%); padding-top: 20px; background: rgba(12, 14, 28, 0.96); }
+.dress-card h2 { margin-bottom: 0; font-size: var(--step-2); }
+.dress-preview { display: block; width: 150px; height: 132px; margin: 0 auto 2px; }
+.dress-label { margin: 10px 0 5px; font-size: var(--step--1); color: var(--ink-dim); text-align: left; }
+.dress-name { margin-top: 0; }
+.swatches { margin: 0; }
+.swatch-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.swatch {
+  width: 40px;
+  height: 40px;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.swatch i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(91, 61, 44, 0.85);
+  background: var(--sw);
+}
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--ember-hi); }
+.swatch:focus-visible { outline: 2px solid var(--ember-hi); outline-offset: 1px; }
+.swatch-default i { position: relative; }
+.swatch-default i::after { content: '기본'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; color: rgba(60, 40, 30, 0.85); }
+
 /* 건의하기 */
 .suggest-card { width: min(480px, 100%); text-align: left; background: rgba(12, 14, 28, 0.96); }
 .suggest-card h2 { text-align: center; }
@@ -631,6 +668,18 @@ a { color: inherit; }
 
 @media (max-width: 420px) {
   .dock-btn { min-width: 48px; padding: 8px 4px 6px; }
+  .modal-card { padding: 20px 16px 16px; border-radius: 28px; }
+  .dress-preview { width: 120px; height: 104px; }
+  .dress-card .nick-input { font-size: var(--step-1); padding: 6px 12px 3px; }
+  .dress-card .nick-fine { margin-top: 6px; }
+  .swatch { width: 36px; height: 36px; padding: 3px; }
+  .swatch-row { gap: 3px; }
+  .modal-buttons .btn { min-height: 46px; font-size: var(--step-0); }
+}
+/* 키가 낮은 휴대폰(가로 모드 포함)에서는 미리보기를 더 작게 */
+@media (max-height: 700px) {
+  .dress-preview { width: 104px; height: 90px; }
+  .dress-label { margin-top: 7px; }
 }
 
 /* 좁은 화면에서는 제목 아래로 */

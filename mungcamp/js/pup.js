@@ -5,15 +5,38 @@
   'use strict';
 
   const INK = '#5b3d2c';
-  // 털빛: 0번이 멍이. 함께 온 사람마다 하나씩 골라 입는다
-  const COATS = [
-    { hi: '#fffbf4', fur: '#fff3e3', lo: '#ecd4b6', earHi: '#e8ab70', earLo: '#bd7b43' },
-    { hi: '#ffffff', fur: '#fbf8f6', lo: '#e3dad7', earHi: '#f6e2d9', earLo: '#d6b3a6' },
-    { hi: '#fff1d8', fur: '#ffe1b0', lo: '#e9bd81', earHi: '#ea9b50', earLo: '#b8692c' },
-    { hi: '#f6e6d6', fur: '#ebcdae', lo: '#d1a982', earHi: '#9c653c', earLo: '#734421' },
-    { hi: '#f7f8fb', fur: '#e9ebf2', lo: '#c8ccd9', earHi: '#a9aebf', earLo: '#7f8598' },
-    { hi: '#fffbf4', fur: '#fff3e3', lo: '#ecd4b6', earHi: '#62565c', earLo: '#3b3137' },
+  // 털빛: 몸 빛깔(BODIES)과 귀 빛깔(EARS)을 따로 골라 입는다. 함께 나누는 값은 c = 몸 + 10 × 귀
+  // (귀 0은 그 몸에 어울리는 기본 귀). 예전의 털빛 번호(0~5)는 그대로 같은 모습이 된다
+  const BODIES = [
+    { name: '크림', hi: '#fffbf4', fur: '#fff3e3', lo: '#ecd4b6', earHi: '#e8ab70', earLo: '#bd7b43' },
+    { name: '눈송이', hi: '#ffffff', fur: '#fbf8f6', lo: '#e3dad7', earHi: '#f6e2d9', earLo: '#d6b3a6' },
+    { name: '버터', hi: '#fff1d8', fur: '#ffe1b0', lo: '#e9bd81', earHi: '#ea9b50', earLo: '#b8692c' },
+    { name: '라떼', hi: '#f6e6d6', fur: '#ebcdae', lo: '#d1a982', earHi: '#9c653c', earLo: '#734421' },
+    { name: '구름', hi: '#f7f8fb', fur: '#e9ebf2', lo: '#c8ccd9', earHi: '#a9aebf', earLo: '#7f8598' },
+    { name: '크림', hi: '#fffbf4', fur: '#fff3e3', lo: '#ecd4b6', earHi: '#62565c', earLo: '#3b3137', legacy: true },
+    { name: '복숭아', hi: '#fff5ef', fur: '#ffe4d6', lo: '#efc0a8', earHi: '#f0a07c', earLo: '#c9714d' },
+    { name: '벚꽃', hi: '#fff6f8', fur: '#ffe7ee', lo: '#efc4d0', earHi: '#ef9fb4', earLo: '#c97088' },
+    { name: '코코아', hi: '#f2dfcf', fur: '#dfbfa2', lo: '#bb9474', earHi: '#8a5a3a', earLo: '#64391f' },
+    { name: '민트', hi: '#f4fbf8', fur: '#e1f3ec', lo: '#b9dccd', earHi: '#8fc4ae', earLo: '#5f9a82' },
   ];
+  const EARS = [
+    null,
+    { name: '캐러멜', earHi: '#e8ab70', earLo: '#bd7b43' },
+    { name: '하양', earHi: '#f6e2d9', earLo: '#d6b3a6' },
+    { name: '귤빛', earHi: '#ea9b50', earLo: '#b8692c' },
+    { name: '초코', earHi: '#9c653c', earLo: '#734421' },
+    { name: '은회색', earHi: '#a9aebf', earLo: '#7f8598' },
+    { name: '먹빛', earHi: '#62565c', earLo: '#3b3137' },
+    { name: '분홍', earHi: '#f2a7b8', earLo: '#cf7c90' },
+    { name: '모래', earHi: '#e8cfa6', earLo: '#c4a173' },
+    { name: '하늘', earHi: '#a9c8ea', earLo: '#7f9fc8' },
+  ];
+  function coatOf(c) {
+    c = c | 0;
+    const body = BODIES[c % 10] || BODIES[0];
+    const ear = EARS[Math.floor(c / 10)] || null;
+    return { hi: body.hi, fur: body.fur, lo: body.lo, earHi: ear ? ear.earHi : body.earHi, earLo: ear ? ear.earLo : body.earLo };
+  }
   // 모자와 목도리 빛깔. 0번이 멍이(빨간 비니, 파란 목도리)
   const HATS = [
     { top: '#f27c5e', bot: '#d0533a', band: '#e4664b', line: 'rgba(120,30,18,0.28)', scarf: '#6f9fe2' },
@@ -137,9 +160,9 @@
     }
 
     setLook(coat, hat) {
-      this.coatId = COATS[coat] ? coat | 0 : 0;
+      this.coatId = coat >= 0 && coat < 100 ? coat | 0 : 0;
       this.hatId = HATS[hat] ? hat | 0 : 0;
-      this.coat = COATS[this.coatId];
+      this.coat = coatOf(this.coatId);
       this.hat = HATS[this.hatId];
       this.paintedAt = -9;
     }
@@ -1701,7 +1724,27 @@
     }
   }
 
-  Pup.COATS = COATS.length;
   Pup.HATS = HATS.length;
+  // 꾸미기에서 고를 수 있는 빛깔들 (예전 번호 5는 고르는 목록에서 뺀다: 크림 몸 + 먹빛 귀와 같다)
+  Pup.BODIES = BODIES.map((b, i) => ({ i, name: b.name, fur: b.fur, lo: b.lo })).filter((b) => !BODIES[b.i].legacy);
+  Pup.EARS = EARS.map((e, i) => (e ? { i, name: e.name, hi: e.earHi, lo: e.earLo } : null)).filter(Boolean);
+  Pup.HATS_LIST = HATS.map((h, i) => ({ i, top: h.top, bot: h.bot }));
+  // 몸·귀 번호 ↔ 함께 나누는 털빛 값
+  Pup.splitCoat = (c) => {
+    c = c | 0;
+    let body = c % 10;
+    let ear = Math.floor(c / 10);
+    if (BODIES[body] && BODIES[body].legacy) {
+      body = 0;
+      if (!ear) ear = 6;
+    }
+    return { body, ear };
+  };
+  // 귀 0(기본)일 때 그 몸에 어울리는 귀 빛깔
+  Pup.defaultEar = (body) => {
+    const b = BODIES[body] || BODIES[0];
+    return { hi: b.earHi, lo: b.earLo };
+  };
+  Pup.joinCoat = (body, ear) => (body % 10) + 10 * (ear % 10);
   MC.Pup = Pup;
 })(window.MC = window.MC || {});

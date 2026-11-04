@@ -33,6 +33,7 @@
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 18.5h5M10.5 21h3"/><path d="M12 3.5a5.6 5.6 0 0 0-3.3 10.1c.8.6 1.2 1.5 1.2 2.4v.5h4.2V16c0-.9.4-1.8 1.2-2.4A5.6 5.6 0 0 0 12 3.5z"/></symbol>
     <symbol id="i-bottle" viewBox="0 0 24 24"><path d="M10 3h4v3.2c0 .6.3 1.1.8 1.5A5 5 0 0 1 17 11.8V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-7.2a5 5 0 0 1 2.2-4.1c.5-.4.8-.9.8-1.5z"/><path d="M9.5 13.5h5M9.5 16.5h3.5"/></symbol>
     <symbol id="i-chair" viewBox="0 0 24 24"><path d="M6.5 4v8.5M17.5 4v8.5M6.5 7.5h11M5 12.5h14"/><path d="M7.5 12.5l9 8M16.5 12.5l-9 8"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2.1-.9 2.1-1.9 0-1.3-1.1-1.6-1.1-2.7 0-1 .8-1.7 1.9-1.7h2.1a3.9 3.9 0 0 0 3.9-3.9c0-3.9-3.9-6.8-8.9-6.8z"/><circle cx="7.6" cy="11.2" r="1.15"/><circle cx="10.4" cy="7.5" r="1.15"/><circle cx="15" cy="7.6" r="1.15"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12.5" rx="2.5"/><path d="M4.6 7.6l7.4 5.8 7.4-5.8"/></symbol>
     <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 14.5a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.2 7a3.8 3.8 0 0 1 .3 7.5z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/></symbol>
     <symbol id="pup-face" viewBox="0 0 120 104">
@@ -58,7 +59,10 @@
       <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>마을 <b data-n="here"></b></span><span class="together-sep" aria-hidden="true"></span><span>모두 <b data-n="all"></b></span></p>
       <p class="camp-hint" id="campHint"></p>
       <button class="chip camp-tool camp-suggest" id="suggestBtn" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg><span>건의하기</span></button>
-      <button class="chip camp-tool camp-chair" id="chairBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-chair"/></svg><span>의자</span></button>
+      <div class="camp-tools-right">
+        <button class="chip camp-tool" id="dressBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-palette"/></svg><span>꾸미기</span></button>
+        <button class="chip camp-tool camp-chair" id="chairBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-chair"/></svg><span>의자</span></button>
+      </div>
       <p class="toast toast-camp" id="campToast" role="status" aria-live="polite"></p>
     </header>
 
@@ -166,6 +170,24 @@
       <input class="text-input nick-input" id="nickInput" type="text" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-labelledby="nick-title" aria-describedby="nickFine">
       <p class="nick-fine" id="nickFine">누가 내 멍이를 누르면 보여요</p>
       <button class="btn btn-ember btn-block" type="submit">들어가기</button>
+    </form>
+  </div>
+
+  <!-- 내 멍이 꾸미기: 마음 단어, 몸·귀 빛깔, 모자 -->
+  <div class="modal modal-fixed" id="dressCard" hidden>
+    <form class="modal-card dress-card" id="dressForm" role="dialog" aria-modal="true" aria-labelledby="dress-title" novalidate>
+      <h2 id="dress-title">내 멍이</h2>
+      <canvas class="dress-preview" id="dressPreview" aria-hidden="true"></canvas>
+      <label class="dress-label" for="dressName">마음 단어</label>
+      <input class="text-input nick-input dress-name" id="dressName" type="text" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-describedby="dressFine">
+      <p class="nick-fine" id="dressFine">누가 내 멍이를 누르면 보여요</p>
+      <div class="swatches"><p class="dress-label" id="swBodyLabel">몸</p><div class="swatch-row" id="swBody" role="radiogroup" aria-labelledby="swBodyLabel"></div></div>
+      <div class="swatches"><p class="dress-label" id="swEarLabel">귀</p><div class="swatch-row" id="swEar" role="radiogroup" aria-labelledby="swEarLabel"></div></div>
+      <div class="swatches"><p class="dress-label" id="swHatLabel">모자</p><div class="swatch-row" id="swHat" role="radiogroup" aria-labelledby="swHatLabel"></div></div>
+      <div class="modal-buttons">
+        <button class="btn btn-ghost" type="button" id="dressCancel">닫기</button>
+        <button class="btn btn-ember" type="submit">다 됐어요</button>
+      </div>
     </form>
   </div>
 

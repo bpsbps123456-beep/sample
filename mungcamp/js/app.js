@@ -230,6 +230,142 @@
     }, 0);
   });
 
+  // ── 내 멍이 꾸미기: 마음 단어, 몸·귀 빛깔, 모자 ─────────────
+  const dressCard = $('#dressCard');
+  const dressName = $('#dressName');
+  const dressFine = $('#dressFine');
+  const dressCanvas = $('#dressPreview');
+  const dress = { body: 0, ear: 0, hat: 0, raf: 0, pup: null, back: null };
+  const dressOpen = () => !dressCard.hidden;
+  function swatch(row, value, color, name, onPick, cls) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch' + (cls ? ' ' + cls : '');
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-label', name);
+    b.title = name;
+    b.dataset.v = String(value);
+    const dot = document.createElement('i');
+    dot.style.setProperty('--sw', color);
+    b.appendChild(dot);
+    b.addEventListener('click', () => onPick(value));
+    row.appendChild(b);
+    return b;
+  }
+  function markSwatches() {
+    for (const [id, v] of [['#swBody', dress.body], ['#swEar', dress.ear], ['#swHat', dress.hat]]) {
+      for (const b of $(id).children) b.setAttribute('aria-checked', String(b.dataset.v === String(v)));
+    }
+    // '기본' 귀는 고른 몸에 어울리는 빛깔로
+    const de = MC.Pup.defaultEar(dress.body);
+    const first = $('#swEar').firstChild;
+    if (first) first.firstChild.style.setProperty('--sw', `radial-gradient(circle at 35% 30%, ${de.hi}, ${de.lo})`);
+    if (dress.pup) dress.pup.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat);
+  }
+  function buildSwatches() {
+    if ($('#swBody').children.length) return;
+    for (const b of MC.Pup.BODIES) swatch($('#swBody'), b.i, `radial-gradient(circle at 35% 30%, ${b.fur}, ${b.lo})`, b.name, (v) => { dress.body = v; markSwatches(); });
+    swatch($('#swEar'), 0, '#fff', '기본', (v) => { dress.ear = v; markSwatches(); }, 'swatch-default');
+    for (const e of MC.Pup.EARS) swatch($('#swEar'), e.i, `radial-gradient(circle at 35% 30%, ${e.hi}, ${e.lo})`, e.name, (v) => { dress.ear = v; markSwatches(); });
+    const HAT_NAMES = ['빨강', '파랑', '초록', '노랑', '보라', '분홍'];
+    for (const h of MC.Pup.HATS_LIST) swatch($('#swHat'), h.i, `linear-gradient(${h.top}, ${h.bot})`, HAT_NAMES[h.i] || '모자', (v) => { dress.hat = v; markSwatches(); });
+    // 방향키로 고르기 (radiogroup)
+    for (const row of [$('#swBody'), $('#swEar'), $('#swHat')]) {
+      row.addEventListener('keydown', (e) => {
+        const items = [...row.children];
+        const i = items.indexOf(document.activeElement);
+        if (i < 0) return;
+        const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        const n = items[(i + d + items.length) % items.length];
+        n.focus();
+        n.click();
+      });
+    }
+  }
+  function drawDress(ts) {
+    if (!dressOpen()) return;
+    const c = dressCanvas;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = c.clientWidth || 168;
+    const H = c.clientHeight || 150;
+    if (c.width !== Math.round(W * dpr)) {
+      c.width = Math.round(W * dpr);
+      c.height = Math.round(H * dpr);
+    }
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    // 바닥에 은은한 빛
+    const grd = g.createRadialGradient(W / 2, H - 14, 4, W / 2, H - 14, W * 0.42);
+    grd.addColorStop(0, 'rgba(255,214,160,0.35)');
+    grd.addColorStop(1, 'rgba(255,214,160,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, W, H);
+    const p = dress.pup;
+    const now = ts || performance.now();
+    const dt = Math.min(0.05, (now - (dress.last || now)) / 1000);
+    dress.last = now;
+    p.update(dt, { E: 0.8, noSleep: true });
+    // 모자 꼭대기까지 캔버스 안에 들도록
+    p.k = Math.min(0.92, (H - 16) / 156);
+    p.x = W / 2;
+    p.y = H - 10;
+    p.draw(g, dpr);
+    dress.raf = requestAnimationFrame(drawDress);
+  }
+  function openDress() {
+    buildSwatches();
+    const sp = MC.Pup.splitCoat(net.look.c);
+    Object.assign(dress, { body: sp.body, ear: sp.ear, hat: net.look.h, back: document.activeElement, last: 0 });
+    if (!dress.pup) dress.pup = new MC.Pup({ outfit: 'beanie' });
+    dressName.value = net.name || '';
+    dressName.placeholder = pick(MOODS);
+    dressFine.textContent = '누가 내 멍이를 누르면 보여요';
+    dressFine.classList.remove('is-warn');
+    markSwatches();
+    dressCard.hidden = false;
+    cancelAnimationFrame(dress.raf);
+    dress.raf = requestAnimationFrame(drawDress);
+  }
+  function closeDress() {
+    dressCard.hidden = true;
+    cancelAnimationFrame(dress.raf);
+    try { if (dress.back && dress.back.focus) dress.back.focus({ preventScroll: true }); } catch (e) { /* 무시 */ }
+  }
+  $('#dressBtn').addEventListener('click', openDress);
+  $('#dressCancel').addEventListener('click', closeDress);
+  dressCard.addEventListener('click', (e) => { if (e.target === dressCard) closeDress(); });
+  dressCard.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeDress();
+    }
+  });
+  $('#dressForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    // 한글을 마무리하는 Enter 와 겹쳐도 마지막 글자까지 받도록 한 박자 뒤에 읽는다
+    setTimeout(() => {
+      const raw = dressName.value.trim();
+      if (raw && MC.badName(raw)) {
+        dressFine.textContent = '다른 단어는 어때요?';
+        dressFine.classList.add('is-warn');
+        try { dressName.select(); } catch (err) { /* 무시 */ }
+        return;
+      }
+      const name = MC.cleanName(raw) || net.name || MC.cleanName(dressName.placeholder) || '멍이';
+      MC.store.set('nick', name);
+      net.setName(name);
+      const look = net.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat);
+      camp.pup.setLook(look.c, look.h);
+      if (state.sceneObj && state.sceneObj.pup) state.sceneObj.pup.setLook(look.c, look.h);
+      closeDress();
+      camp.pup.poke();
+      toast(`'${name}' 멍이, 새 모습이에요`);
+    }, 0);
+  });
+
   // ── 건의하기 ─────────────────────────────────────────
   // 이 사이트를 건네준 서버(server/presence.js)가 있을 때만 보인다. 보낸 건의는 운영자만 본다
   const suggestCard = $('#suggestCard');
@@ -1156,7 +1292,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (nickOpen() || suggestOpen()) return;
+    if (nickOpen() || suggestOpen() || dressOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
     if (state.view === 'home') {

@@ -20,7 +20,8 @@
   function myLook() {
     let look = MC.store.get('look', null);
     if (!look || typeof look.c !== 'number' || typeof look.h !== 'number') {
-      look = { c: (Math.random() * MC.Pup.COATS) | 0, h: (Math.random() * MC.Pup.HATS) | 0 };
+      const bodies = MC.Pup.BODIES;
+      look = { c: bodies[(Math.random() * bodies.length) | 0].i, h: (Math.random() * MC.Pup.HATS) | 0 };
       MC.store.set('look', look);
     }
     return look;
@@ -330,6 +331,13 @@
     }
 
     // 닉네임을 정한다 (처음 들어올 때). 다듬은 이름을 돌려준다
+    // 꾸미기에서 고른 털빛과 모자. 저장하고, 다음 알림부터 함께 있는 사람들에게도 보인다
+    setLook(c, h) {
+      this.look = { c: Math.max(0, Math.min(99, c | 0)), h: Math.max(0, Math.min(MC.Pup.HATS - 1, h | 0)) };
+      MC.store.set('look', this.look);
+      return this.look;
+    }
+
     setName(v) {
       this.name = cleanName(v);
       if (this.mine.p) this.set(Object.assign({}, this.mine));
