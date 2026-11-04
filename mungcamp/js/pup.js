@@ -603,7 +603,7 @@
       return { x0: -78, y0: this.chair > 0 ? -170 : -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 42 : 14 };
     }
 
-    draw(g, dpr, bodyOnly) {
+    draw(g, dpr, bodyOnly, rowing = false) {
       const B = this.bounds();
       const k = this.k;
       const sc = k * Math.min(dpr || 1, 2);
@@ -615,8 +615,9 @@
         this.cg = this.cv.getContext('2d');
         fresh = true;
       }
-      if (fresh || !this.paintEvery || this.t - this.paintedAt >= this.paintEvery || this.t < this.paintedAt) {
+      if (fresh || this.paintedRowing !== rowing || !this.paintEvery || this.t - this.paintedAt >= this.paintEvery || this.t < this.paintedAt) {
         this.paintedAt = this.t;
+        this.paintedRowing = rowing;
         const o = this.cg;
         o.setTransform(1, 0, 0, 1, 0, 0);
         o.globalCompositeOperation = 'source-over';
@@ -625,7 +626,7 @@
         o.setTransform(sc, 0, 0, sc, -B.x0 * sc, -B.y0 * sc);
         o.lineJoin = 'round';
         o.lineCap = 'round';
-        this.paint(o);
+        this.paint(o, rowing);
         this.applyLight(o, B);
       }
       if (this.flip < 0) {
@@ -642,7 +643,7 @@
       return Math.sin((2 * Math.PI * MC.clock()) / MC.WAVE_T) * (this.mood === 'asleep' ? 1.5 : 1);
     }
 
-    paint(o) {
+    paint(o, rowing = false) {
       const b = this.breath();
       // 바닥 그림자 (튜브나 나뭇가지 위에서는 장면이 따로 그린다)
       if (!this.rest) {
@@ -671,12 +672,12 @@
         const lift = this.seatLift;
         o.save();
         o.translate(0, -lift);
-        this.paintFront(o, b);
+        this.paintFront(o, b, rowing);
         o.restore();
         this.paintChairFront(o, C, lift);
       } else if (L >= 0.5) this.paintLying(o, b);
       else if (this.view === 'back') this.paintBack(o, b);
-      else this.paintFront(o, b);
+      else this.paintFront(o, b, rowing);
       o.restore();
     }
 
@@ -1027,18 +1028,18 @@
       }
     }
 
-    paintFront(o, b) {
+    paintFront(o, b, rowing = false) {
       this.paintTail(o, 21, -11, 1);
       o.save();
       o.scale(1 + 0.012 * b, 1 + 0.024 * b);
       this.paintBody(o, false);
       o.restore();
       if (this.outfit === 'scarf') this.paintScarf(o, false);
-      const reading = this.chair > 0.72 && !this.logThrow;
-      if (this.stick && !reading && !this.snack && !this.logThrow) this.paintStick(o);
+      const reading = this.chair > 0.72 && !this.logThrow && !rowing;
+      if (this.stick && !reading && !this.snack && !this.logThrow && !rowing) this.paintStick(o);
       if (reading) this.paintBook(o);
-      else if (this.snack && !this.logThrow) this.paintMandarin(o);
-      if (!this.logThrow) this.paintPaws(o);
+      else if (this.snack && !this.logThrow && !rowing) this.paintMandarin(o);
+      if (!this.logThrow && !rowing) this.paintPaws(o);
       this.paintHeadGroup(o, b);
       if (this.logThrow) this.paintThrowPaws(o);
     }

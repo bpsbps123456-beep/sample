@@ -30,6 +30,7 @@
       this.catch = null;
       this.onToast = null;
       this.time = 0;
+      this.rowers = new WeakMap();
     }
 
     note(text) { if (this.onToast) this.onToast(text); }
@@ -252,10 +253,10 @@
         hullPath(o, .965, .91); o.strokeStyle = 'rgba(255,231,186,.67)'; o.lineWidth = .9; o.stroke();
         // 선수의 작은 황동 고리와 양옆 노 받침.
         for (const side of [-1, 1]) {
-          o.fillStyle = '#6a5140'; MC.roundRect(o, -22, side * 31 - 3.5, 12, 7, 2); o.fill();
+          o.fillStyle = '#6a5140'; MC.roundRect(o, -6, side * 31 - 3.5, 12, 7, 2); o.fill();
           o.strokeStyle = '#d3b77c'; o.lineWidth = 2.1;
-          o.beginPath(); o.ellipse(-16, side * 31, 4.2, 3.1, 0, 0, Math.PI * 2); o.stroke();
-          o.fillStyle = '#f1d99e'; o.beginPath(); o.arc(-21, side * 31, .9, 0, Math.PI * 2); o.fill();
+          o.beginPath(); o.ellipse(0, side * 31, 4.2, 3.1, 0, 0, Math.PI * 2); o.stroke();
+          o.fillStyle = '#f1d99e'; o.beginPath(); o.arc(-5, side * 31, .9, 0, Math.PI * 2); o.fill();
         }
         o.strokeStyle = '#c9b07c'; o.lineWidth = 2;
         o.beginPath(); o.moveTo(65, -3.5); o.lineTo(69, 0); o.lineTo(65, 3.5); o.stroke();
@@ -330,16 +331,15 @@
       };
     }
 
-    drawOar(g, side, moving) {
-      const stroke = moving ? Math.sin(this.time * 3.4) : -.45;
-      g.save(); g.translate(-16, side * 31); g.rotate(side * stroke * .38);
+    drawOar(g, side, stroke, occupied) {
+      g.save(); g.translate(0, side * 31); g.rotate(side * stroke * .38);
       g.scale(1, side);
       // 노 받침을 중심으로 한 자루가 회전하고, 끝에는 넓은 노깃이 이어진다.
       g.strokeStyle = '#654730'; g.lineWidth = 4.8;
-      g.beginPath(); g.moveTo(0, -18); g.lineTo(0, 57); g.stroke();
+      g.beginPath(); g.moveTo(0, occupied ? 0 : -18); g.lineTo(0, 57); g.stroke();
       g.strokeStyle = '#d6b483'; g.lineWidth = 2.6; g.stroke();
       g.strokeStyle = '#eed7aa'; g.lineWidth = .7;
-      g.beginPath(); g.moveTo(-.7, -15); g.lineTo(-.7, 54); g.stroke();
+      g.beginPath(); g.moveTo(-.7, occupied ? 0 : -15); g.lineTo(-.7, 54); g.stroke();
       const blade = g.createLinearGradient(-7, 0, 7, 0);
       blade.addColorStop(0, '#8b603f'); blade.addColorStop(.45, '#d5b17b'); blade.addColorStop(1, '#aa7c4f');
       g.fillStyle = blade; g.strokeStyle = '#755034'; g.lineWidth = 1.2;
@@ -354,8 +354,46 @@
       g.restore();
     }
 
+    rowingRig(pup, angle, moving) {
+      let row = this.rowers.get(pup);
+      if (!row) { row = {effort: 0, time: this.time}; this.rowers.set(pup, row); }
+      const dt = MC.clamp(this.time - row.time, 0, .05);
+      row.time = this.time;
+      row.effort += ((moving ? 1 : 0) - row.effort) * (1 - Math.exp(-dt * 12));
+      const stroke = MC.lerp(-.45, Math.sin(this.time * 3.4), row.effort);
+      const project = (x, y) => ({x: x * Math.cos(angle) - y * Math.sin(angle), y: (x * Math.sin(angle) + y * Math.cos(angle)) * .65});
+      const hands = [-1, 1].map(side => {
+        const swing = side * stroke * .38, length = 18 + 7 * row.effort;
+        const grip = project(length * side * Math.sin(swing), side * (31 - length * Math.cos(swing)));
+        grip.y -= 24 * row.effort;
+        return {lock: project(0, side * 31), grip};
+      });
+      return {effort: row.effort, stroke, hands};
+    }
+
+    drawOarGrips(g, rig, paws) {
+      for (const {lock, grip} of rig.hands) {
+        g.strokeStyle = '#6b4a30'; g.lineWidth = 4.8; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(lock.x, lock.y); g.lineTo(grip.x, grip.y); g.stroke();
+        g.strokeStyle = '#d9b983'; g.lineWidth = 2.8; g.stroke();
+        g.strokeStyle = '#f1d9a9'; g.lineWidth = .7;
+        g.beginPath(); g.moveTo(lock.x - .6, lock.y); g.lineTo(grip.x - .6, grip.y); g.stroke();
+        if (paws) {
+          const a = Math.atan2(grip.y - lock.y, grip.x - lock.x);
+          g.save(); g.translate(grip.x, grip.y); g.rotate(a);
+          g.fillStyle = '#fffaf1'; g.strokeStyle = '#5a4031'; g.lineWidth = 1.35;
+          g.beginPath(); g.ellipse(-1.2, 0, 4.6, 3.8, .25, 0, Math.PI * 2); g.fill(); g.stroke();
+          g.strokeStyle = 'rgba(91,61,44,.48)'; g.lineWidth = .7;
+          g.beginPath(); g.moveTo(.6, -1.3); g.lineTo(2.2, -1.1); g.moveTo(.5, 1); g.lineTo(2.1, 1.4); g.stroke();
+          g.restore();
+        }
+      }
+    }
+
     drawBoat(g, x, y, angle, moving, pup, alpha = 1) {
       if (!this.boatArt) this.buildBoatArt();
+      const rig = pup ? this.rowingRig(pup, angle, moving) : null;
+      const rowing = !!rig && rig.effort > .03;
       const bob = Math.sin(this.time * 1.7 + x * .02) * 1.7;
       g.save(); g.globalAlpha *= alpha;
       g.translate(x, y + bob);
@@ -375,11 +413,17 @@
       }
       g.save(); g.scale(1, .65); g.rotate(angle);
       g.drawImage(this.boatArt.hull, -92, -52, 192, 112);
-      for (const side of [-1, 1]) this.drawOar(g, side, moving);
+      for (const side of [-1, 1]) this.drawOar(g, side, rig ? rig.stroke : -.45, !!pup);
       g.restore();
       if (pup) {
-        g.save(); g.translate(-x, -y - 12);
-        pup.draw(g, this.camp.z * (this.camp.dpr || 1)); g.restore();
+        // 앞발은 몸 가까이서 노 손잡이를 잡는다. 몸과 노는 같은 박자에 앞뒤로 움직인다.
+        const back = pup.view === 'back';
+        if (back) this.drawOarGrips(g, rig, rowing);
+        const rock = Math.sin(this.time * 3.4) * rig.effort;
+        g.save(); g.translate(Math.cos(angle) * rock, -12 + Math.sin(angle) * rock * .7);
+        g.rotate(Math.cos(angle) * rock * .035); g.translate(-x, -y);
+        pup.draw(g, this.camp.z * (this.camp.dpr || 1), false, rowing); g.restore();
+        if (!back) this.drawOarGrips(g, rig, rowing);
         // 배가 돌아도 화면 앞쪽 뱃전만 강아지 발 앞에 겹친다.
         g.save(); g.beginPath(); g.rect(-115, 0, 230, 110); g.clip();
         g.scale(1, .65); g.rotate(angle);
