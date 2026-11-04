@@ -16,6 +16,11 @@
   const FIRE = { x: 1120, y: 1060 };
   const TOWER = { x: 1640, y: 1320 };
   const PAVILION = { x: 1480, y: 520 };
+  const PAVILION_SCALE = 1.55;
+  const PAVILION_HEIGHT = 1.35;
+  const pavilionPoint = (x, y) => ({ x: PAVILION.x + x * PAVILION_SCALE, y: PAVILION.y - 17 + y * PAVILION_HEIGHT });
+  const PAVILION_SEATS = [-48, 0, 48].map((x, i) => ({ ...pavilionPoint(x, -46), id: i + 1 }));
+  const PAVILION_ENTRY = { x: PAVILION.x, y: PAVILION.y + 66 };
   const STUMP = { x: 600, y: 600 };
   // 글램핑장: 모닥불에서 남쪽으로 내려간 끝. 나무 데크 위 벨텐트 셋, 줄전구, 가운데 작은 화로
   const GLAMP = { x: 1290, y: 1690 }; // 가운데 큰 텐트 (들어가는 곳)
@@ -55,7 +60,7 @@
     { id: 'forest', label: '편백 숲', tone: 'moss', x: STUMP.x + 20, y: STUMP.y + 30, r: 140, act: '들어가기', ax: STUMP.x, ay: STUMP.y - 110 },
     { id: 'tent', label: '글램핑', tone: 'glamp', x: GLAMP.x, y: GLAMP.y + 46, r: 135, act: '들어가기', ax: GLAMP.x, ay: GLAMP.y - 152 },
     { id: 'lodge', label: '숙소', tone: 'lodge', x: LODGE.x, y: LODGE.y + 64, r: 125, act: '들어가기', ax: LODGE.x, ay: LODGE.y - 220 },
-    { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 120, act: '똑', ax: PAVILION.x + 64, ay: PAVILION.y - 240 },
+    { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 175, act: '똑', ax: PAVILION.x + 175, ay: PAVILION.y + 65 },
   ];
 
   // 오솔길: 몇 개의 점을 부드럽게 잇는다.
@@ -103,7 +108,7 @@
     { x: FIRE.x, y: FIRE.y + 33, rx: 158, ry: 105, seed: 2 },
     { x: TOWER.x, y: TOWER.y + 40, rx: 123, ry: 94, seed: 7 },
     { x: STUMP.x + 16, y: STUMP.y + 35, rx: 93, ry: 66, seed: 12 },
-    { x: PAVILION.x, y: PAVILION.y + 43, rx: 132, ry: 67, seed: 16 },
+    { x: PAVILION.x, y: PAVILION.y + 20, rx: 198, ry: 87, seed: 16 },
   ];
   const beachWidth = y => 133 + 20 * Math.sin(y * .004 + .6) + 28 * Math.exp(-(((y - DOCK_Y) / 340) ** 2));
 
@@ -217,6 +222,9 @@
       this.onMoktak = null;
       this.fireEvents = null;
       this.moktakHit = 0;
+      this.pavilionSeat = 0;
+      this.pavilionPending = 0;
+      this.pavilionMove = null;
       this.chime = 0;
       this.sparks = [];
       this.pup = new MC.Pup({ outfit: 'beanie', light: { ambient: null, glow: [255, 170, 90], glowA: 0, from: 70 } });
@@ -277,7 +285,7 @@
     clearOf(x, y, d) {
       if (this.nearPath(x, y, d) || this.inClearing(x, y, 25)) return false;
       if (x > shoreX(y) - 190) return false;
-      for (const [ox, oy, r] of [[FIRE.x, FIRE.y, 190], [TOWER.x, TOWER.y, 170], [PAVILION.x, PAVILION.y - 40, 170], [STUMP.x, STUMP.y, 110], [BRAZIER.x, BRAZIER.y, 120]]) {
+      for (const [ox, oy, r] of [[FIRE.x, FIRE.y, 190], [TOWER.x, TOWER.y, 170], [PAVILION.x, PAVILION.y - 80, 245], [STUMP.x, STUMP.y, 110], [BRAZIER.x, BRAZIER.y, 120]]) {
         if ((x - ox) ** 2 + (y - oy) ** 2 < r * r) return false;
       }
       // 글램핑장 마당과 텐트
@@ -385,7 +393,7 @@
       this.blockers = [
         { x: FIRE.x, y: FIRE.y, r: 52, sy: 1.6 },
         { x: TOWER.x, y: TOWER.y, r: 54, sy: 1.6 },
-        { x: PAVILION.x, y: PAVILION.y - 26, r: 84, sy: 1.6 },
+        { ...pavilionPoint(0, -26), r: 84 * PAVILION_SCALE, sy: 1.6 },
         { x: STUMP.x, y: STUMP.y - 6, r: 30, sy: 1.6 },
         { x: BRAZIER.x, y: BRAZIER.y - 4, r: 26, sy: 1.6 },
         { x: LODGE.x, y: LODGE.y - 34, r: 122, sy: 3 },
@@ -460,11 +468,6 @@
       this.dpr = dpr;
       // 세로 화면(휴대폰)은 지도를 조금 당겨 보여 준다: 멍이가 크게 보이고, 위아래로도 끌어 둘러볼 수 있다
       this.z = w < h * 0.9 ? MC.clamp(h / 1050, 0.7, 1.05) : MC.clamp(Math.min(w / 1150, h / 820), 0.62, 1.25);
-      // 낮은 가로 창에서는 이름과 목탁 단추를 처마 옆으로 내려 화면 위에 잘리지 않게 한다.
-      const pavilionLabel = SPOTS.find(q => q.id === 'moktak');
-      const lowWindow = w >= h * 0.9 && h < 600;
-      pavilionLabel.ax = PAVILION.x + (lowWindow ? 180 : 64);
-      pavilionLabel.ay = PAVILION.y - (lowWindow ? 110 : 240);
       // 땅 그림은 지도 전체 크기라 메모리를 아끼려고 1.1배까지만
       const gs = Math.min(1.1, this.z * dpr);
       if (!this.ground || Math.abs(gs - this.gs) / this.gs > 0.15) {
@@ -1003,7 +1006,9 @@
       });
       // 정자: 곡선 기와와 단청, 짜 맞춘 목재와 빛이 머무는 우물마루.
       // 기와·나뭇결·꽃은 크기가 바뀔 때만 그려 두어 지도 이동 중에는 한 장으로 그린다.
-      sp.pavilion = sprite(310, 280, 155, 238, ss, (g) => {
+      sp.pavilion = sprite(310 * PAVILION_SCALE, 280 * PAVILION_HEIGHT + 17, 155 * PAVILION_SCALE, 238 * PAVILION_HEIGHT + 17, ss, (g) => {
+        g.translate(0, -17);
+        g.scale(PAVILION_SCALE, PAVILION_HEIGHT);
         const rnd = MC.rng(8216);
         const edge = '#493d32';
         const poly = (points, fill, stroke = edge, width = 1) => {
@@ -1099,7 +1104,7 @@
         };
         column(-49,-139,-60,true); column(49,-139,-60,true);
         // 린넨 방석과 작은 찻상. 차분한 쑥빛과 말린 장미빛을 쓴다.
-        for(const [x,y,color] of [[-37,-48,'#8b9d7a'],[30,-49,'#b68071']]) {
+        for(const [x,y,color] of [[-48,-46,'#8b9d7a'],[0,-46,'#b9a47c'],[48,-46,'#b68071']]) {
           ellipse(g,x,y+3,18,5); g.fillStyle='rgba(43,34,23,0.2)'; g.fill();
           MC.roundRect(g,x-16,y-5,32,9,4); g.fillStyle=color; g.fill();
           g.strokeStyle='#665746'; g.lineWidth=.8; g.stroke();
@@ -1823,10 +1828,89 @@
     }
 
     // ── 조작 ─────────────────────────────────────────────
+    pavilionSeatAt(x, y) {
+      return PAVILION_SEATS.find(q => Math.abs(x - q.x) < 29 && Math.abs(y - q.y) < 19)?.id || 0;
+    }
+
+    freePavilionSeat(want) {
+      const taken = new Set();
+      for (const v of this.visitors.values()) if (!v.leaving && v.st.q) taken.add(v.st.l);
+      return [...PAVILION_SEATS].sort((a, b) => Math.abs(a.id - want) - Math.abs(b.id - want)).find(q => !taken.has(q.id))?.id || 0;
+    }
+
+    sitPavilion(want) {
+      if (this.sea.boating || this.sea.fishing) { this.sea.note('낚싯대나 노를 내려놓은 뒤 정자에서 쉬어요.'); return; }
+      const seat = this.freePavilionSeat(want);
+      if (!seat) { this.sea.note('방석이 모두 차 있어요. 잠시만 기다려 주세요.'); return; }
+      if (seat === this.pavilionSeat) return;
+      this.pup.wake();
+      this.pup.setChair(false);
+      this.pavilionPending = seat;
+      if (this.pavilionSeat || this.pavilionMove) this.leavePavilion(null, seat);
+      else this.walkTo(PAVILION_ENTRY);
+      this.sea.note('잠시 쉬어 가요.');
+    }
+
+    walkTo(point) {
+      const tgt = { ...point };
+      this.collide(tgt, 1.3);
+      this.route = this.sea.walkRoute(tgt);
+      this.target = this.route.shift();
+      this.lastDist = Infinity;
+      this.stuck = 0;
+    }
+
+    leavePavilion(goal = null, nextSeat = 0) {
+      this.pavilionPending = 0;
+      this.pavilionSeat = 0;
+      this.target = null;
+      this.route = [];
+      this.pup.wake();
+      this.pavilionMove = { phase: 'out', from: { x: this.pup.x, y: this.pup.y }, to: PAVILION_ENTRY, t: 0, goal, nextSeat };
+    }
+
+    updatePavilion(dt) {
+      // 동시에 같은 방석을 눌렀을 때도 같은 순서로 자리를 나눈다.
+      const selfId = MC.app?.net?.id;
+      if (this.pavilionSeat && selfId && [...this.visitors.values()].some(v => !v.leaving && v.st.q && v.st.l === this.pavilionSeat && v.id < selfId)) {
+        const seat = this.freePavilionSeat(this.pavilionSeat);
+        this.leavePavilion(null, seat);
+        if (!seat) this.sea.note('방석이 모두 차 있어요.');
+      }
+      if (this.pavilionPending && !this.pavilionMove && Math.hypot(this.pup.x - PAVILION_ENTRY.x, this.pup.y - PAVILION_ENTRY.y) < 12 && this.pup.chair < .25) {
+        const seat = this.freePavilionSeat(this.pavilionPending);
+        this.pavilionPending = 0;
+        this.target = null;
+        this.route = [];
+        if (seat) {
+          this.pavilionSeat = seat;
+          this.pavilionMove = { phase: 'in', from: { x: this.pup.x, y: this.pup.y }, to: PAVILION_SEATS[seat - 1], t: 0 };
+        } else this.sea.note('방석이 모두 차 있어요.');
+      }
+      const move = this.pavilionMove;
+      if (!move) return;
+      move.t += dt;
+      const u = MC.clamp(move.t / 1.1, 0, 1), e = u * u * (3 - 2 * u);
+      this.pup.x = MC.lerp(move.from.x, move.to.x, e);
+      this.pup.y = MC.lerp(move.from.y, move.to.y, e) - Math.sin(Math.PI * u) * 5;
+      this.pup.view = this.pup.restView = move.phase === 'in' && u < .85 ? 'back' : 'front';
+      this.pup.baseTurn = 0;
+      if (u < 1) return;
+      this.pavilionMove = null;
+      if (move.phase === 'out') {
+        this.pavilionPending = move.nextSeat || 0;
+        if (this.pavilionPending) this.walkTo(PAVILION_ENTRY);
+        else if (move.goal) this.walkTo(move.goal);
+      }
+    }
+
     setKeys(x, y) {
       this.keys.x = x;
       this.keys.y = y;
       if (x || y) {
+        if (this.pavilionSeat || (this.pavilionMove && this.pavilionMove.phase === 'in')) this.leavePavilion();
+        this.pavilionPending = 0;
+        if (this.pavilionMove) { this.pavilionMove.goal = null; this.pavilionMove.nextSeat = 0; }
         this.target = null;
         this.route = [];
         this.camFree = false;
@@ -1837,6 +1921,11 @@
       // 톡 하면 카메라는 다시 내 멍이를 따라간다
       this.camFree = false;
       const p = this.toWorld(sx, sy);
+      const seat = this.pavilionSeatAt(p.x, p.y);
+      if (seat && ![...this.visitors.values()].some(v => !v.leaving && v.st.q && v.st.l === seat)) {
+        this.sitPavilion(seat);
+        return 'seat';
+      }
       // 다른 사람의 멍이를 톡 하면 하트를 보낸다. 겹쳐 있으면 앞에 있는 멍이가 먼저
       let hit = null;
       for (const v of this.visitors.values()) {
@@ -1853,24 +1942,27 @@
         if (this.onCute) this.onCute('boop');
         return 'boop';
       }
+      if (seat) { this.sitPavilion(seat); return 'seat'; }
       const mk = this.moktakPos();
       if (this.near && this.near.id === 'moktak' && Math.hypot(p.x - mk.x, p.y - (mk.y - 10)) < 30) {
         this.hitMoktak();
         return 'moktak';
       }
+      if (this.pavilionSeat || this.pavilionMove) {
+        if (this.pavilionMove?.phase === 'out') { this.pavilionMove.goal = p; this.pavilionMove.nextSeat = 0; }
+        else this.leavePavilion(p);
+        return 'walk';
+      }
+      this.pavilionPending = 0;
       const water = this.sea.poke(p.x, p.y);
       if (water && !this.sea.boating) return 'sea';
-      const tgt = { x: p.x, y: p.y };
-      this.collide(tgt, 1.3);
-      this.route = this.sea.walkRoute(tgt);
-      this.target = this.route.shift();
-      this.lastDist = Infinity;
-      this.stuck = 0;
+      this.walkTo(p);
       return 'walk';
     }
 
     // 의자: 펴고 앉아 책 읽기 ↔ 접고 일어서기. 걷기 시작하면 저절로 접는다
     toggleChair() {
+      if (this.pavilionSeat || this.pavilionMove || this.pavilionPending) { this.sea.note('정자에서는 방석에 편하게 앉아 쉬어요.'); return false; }
       if (this.sea.boating || this.sea.fishing) { this.sea.note('낚싯대나 노를 내려놓은 뒤 의자를 펼 수 있어요.'); return false; }
       const on = !this.pup.chairOn;
       this.pup.setChair(on);
@@ -1883,7 +1975,7 @@
     }
 
     moktakPos() {
-      return { x: PAVILION.x, y: PAVILION.y - 34 };
+      return pavilionPoint(62, -6);
     }
 
     hitMoktak() {
@@ -1903,6 +1995,8 @@
       this.sea.boating = false;
       this.sea.stopFishing(true);
       this.route = [];
+      this.pavilionSeat = this.pavilionPending = 0;
+      this.pavilionMove = null;
       this.pup.x = s.x;
       this.pup.y = s.y + 24;
       this.pup.view = 'front';
@@ -1911,7 +2005,7 @@
       this.target = null;
       this.camFree = false;
       this.cam.x = this.pup.x;
-      this.cam.y = this.pup.y - 40;
+      this.cam.y = id === 'moktak' ? PAVILION.y - 70 : this.pup.y - 40;
       this.clampCam();
     }
 
@@ -1926,12 +2020,14 @@
         p: 'map',
         x: Math.round(p.x),
         y: Math.round(p.y),
-        w: this.moving ? 1 : 0,
+        w: this.moving || this.pavilionMove ? 1 : 0,
         b: p.restView === 'back' ? 1 : 0,
         t: Math.round(p.baseTurn * 100) / 100,
         f: 1,
         z: p.sleeping ? 1 : 0,
         hp: p.heartBursts || 0,
+        q: this.pavilionSeat ? 1 : 0,
+        l: this.pavilionSeat,
         ch: p.chairOn ? 1 : 0,
         sg: this.sign,
         bt: this.sea.boating ? 1 : 0,
@@ -1965,13 +2061,15 @@
       }
       this.updateBreath(dt);
       const pup = this.pup;
+      this.updatePavilion(dt);
+      const onPavilion = !!(this.pavilionSeat || this.pavilionMove);
       let vx = 0;
       let vy = 0;
       const speed = this.sea.boating ? 245 : 170;
       // 의자에 앉아 있다가 걸으려 하면: 먼저 의자를 접고 내려온다
       const wants = !!(this.keys.x || this.keys.y || this.target);
       if (wants && pup.chairOn) pup.setChair(false);
-      if (pup.chair > 0.25) {
+      if (onPavilion || pup.chair > 0.25) {
         // 접는 동안은 그 자리에
       } else if (this.keys.x || this.keys.y) {
         const l = Math.hypot(this.keys.x, this.keys.y);
@@ -2034,26 +2132,31 @@
         }
       }
       const fireNear = this.presence().fire;
-      pup.light.glowA = 0.45 * fireNear;
+      pup.light.glowA = Math.max(0.45 * fireNear, onPavilion ? .24 : 0);
       pup.light.from = pup.x < FIRE.x ? 70 : -70;
       pup.k = 0.68;
-      pup.update(dt, { walking: this.moving && !this.sea.boating, noSleep: this.sea.boating || !!this.sea.fishing, E: 0.8 });
+      pup.update(dt, { walking: (this.moving || !!this.pavilionMove) && !this.sea.boating, noSleep: this.sea.boating || !!this.sea.fishing, E: 0.8 });
       for (const v of this.visitors.values()) {
-        v.update(dt, { E: 0.8, walkEps: v.st.bt ? 1000 : 2, jump: 700 });
+        // 지도에서는 올라가는 좌표를 그대로 나눈다. l은 방석 번호이며 눕기 값이 아니다.
+        v.jumpFrom = null;
+        v.update(dt, { E: 0.8, walkEps: v.st.bt ? 1000 : 2, jump: 700, lieOf: () => false });
         const p = v.pup;
         p.x = v.x;
         p.y = v.y;
         p.k = 0.68;
+        if (v.st.q) v.pavilionOn = true;
+        else if (p.y > PAVILION.y + 40 || Math.abs(p.x - PAVILION.x) > 140) v.pavilionOn = false;
         const d = Math.hypot(p.x - FIRE.x, p.y - FIRE.y);
-        p.light.glowA = 0.45 * Math.pow(MC.clamp(1 - (d - 60) / 700, 0, 1), 1.5);
+        p.light.glowA = Math.max(0.45 * Math.pow(MC.clamp(1 - (d - 60) / 700, 0, 1), 1.5), v.pavilionOn ? .24 : 0);
         p.light.from = p.x < FIRE.x ? 70 : -70;
       }
       MC.dropFaded(this.visitors);
 
       // 카메라는 멍이를 부드럽게 따라간다 (손가락으로 끌어 둘러보는 동안에는 그 자리에 둔다)
       if (!this.camFree) {
-        this.cam.x += (pup.x + vx * 0.25 - this.cam.x) * Math.min(1, dt * 3.2);
-        this.cam.y += (pup.y - 40 + vy * 0.25 - this.cam.y) * Math.min(1, dt * 3.2);
+        const focus = onPavilion || this.pavilionPending ? 1 : MC.clamp((230 - Math.hypot(pup.x - PAVILION.x, pup.y - (PAVILION.y + 40))) / 75, 0, 1);
+        this.cam.x += (MC.lerp(pup.x + vx * .25, PAVILION.x, focus) - this.cam.x) * Math.min(1, dt * 3.2);
+        this.cam.y += (MC.lerp(pup.y - 40 + vy * .25, PAVILION.y - 70, focus) - this.cam.y) * Math.min(1, dt * 3.2);
       }
       this.clampCam();
 
@@ -2216,7 +2319,7 @@
       }
       for (const v of near) {
         const p = v.pup;
-        items.push({ y: p.y, d: () => {
+        items.push({ y: v.pavilionOn ? PAVILION.y + 1 : p.y, d: () => {
           const a = MC.clamp(v.fade, 0, 1);
           if (a < 1) g.globalAlpha = a;
           this.sea.drawPup(g, p, v.st);
@@ -2224,13 +2327,18 @@
           g.globalAlpha = 1;
         } });
       }
-      items.push({ y: this.pup.y, d: () => {
+      items.push({ y: this.pavilionSeat || this.pavilionMove ? PAVILION.y + 1 : this.pup.y, d: () => {
         if (this.visitors.size) MC.drawYouMark(g, this.pup, t);
         this.sea.drawPup(g, this.pup, this.netState());
         if (!this.sea.boating) this.drawSign(g, this.pup, this.sign);
       } });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.d();
+      if (this.near?.id === 'moktak' && !this.pavilionSeat && !this.pavilionPending && !this.pavilionMove) {
+        g.font = '16px Jua, sans-serif'; g.textAlign = 'center';
+        g.fillStyle = 'rgba(248,235,200,.86)';
+        g.fillText('방석을 눌러 쉬기', PAVILION.x - 68, PAVILION.y + 82);
+      }
       this.sea.drawGulls(g, left, top, right, bottom);
       // 줄전구 줄
       g.strokeStyle = 'rgba(40,30,24,0.75)';
@@ -2295,12 +2403,13 @@
       glow([255, 140, 60], FIRE.x, FIRE.y - 10, 260 * fl, 0.42);
       glow([255, 152, 65], TOWER.x, TOWER.y - 46, 215 * fl, 0.38);
       for (const tn of TENTS) glow([255, 200, 120], tn.x, tn.y - 24 * tn.s, 70 * tn.s, 0.55);
-      glow([255, 214, 150], PAVILION.x, PAVILION.y - 70, 110, 0.35);
+      const pavilionGlow = (rgb, x, y, r, a) => { const p = pavilionPoint(x, y); glow(rgb, p.x, p.y, r * PAVILION_SCALE, a); };
+      pavilionGlow([255, 214, 150], 0, -70, 110, 0.35);
       for (const dx of [-58, 58]) {
-        glow([255, 205, 130], PAVILION.x + dx, PAVILION.y - 108, 38, 0.3);
-        glow([255, 238, 190], PAVILION.x + dx, PAVILION.y - 108, 9, 0.48);
+        pavilionGlow([255, 205, 130], dx, -108, 38, 0.3);
+        pavilionGlow([255, 238, 190], dx, -108, 9, 0.48);
       }
-      glow([255, 212, 143], PAVILION.x, PAVILION.y - 37, 79, 0.13);
+      pavilionGlow([255, 212, 143], 0, -37, 79, 0.13);
       // 숙소의 불 켜진 창과 문, 처마 등
       if (LODGE.y + 160 > top && LODGE.y - 250 < bottom) {
         const lf = 0.92 + 0.08 * MC.fbm(t * 0.9 + 3);
@@ -2475,6 +2584,7 @@
 
     // 멍이 앞(아래쪽)에 선 나무·텐트·정자가 멍이를 덮고 있는지
     hiddenBehind() {
+      if (this.pavilionSeat || this.pavilionMove) return false;
       const p = this.pup;
       const hx = p.x;
       const hy = p.y - 45;
@@ -2575,11 +2685,11 @@
 
     // 처마 끝의 풍경: 바람에 살랑
     drawChime(g) {
-      const x = PAVILION.x + 123;
-      const y = PAVILION.y - 147;
+      const { x, y } = pavilionPoint(123, -147);
       const a = Math.sin(this.chime * 1.7) * 0.18;
       g.save();
       g.translate(x, y);
+      g.scale(PAVILION_SCALE, PAVILION_SCALE);
       g.rotate(a);
       g.strokeStyle = '#6a7358';
       g.lineWidth = .9;
@@ -2627,6 +2737,7 @@
 
   MC.CampMap = CampMap;
   MC.CAMP_SPOTS = SPOTS;
+  MC.CAMP_PAVILION_SEATS = PAVILION_SEATS;
   MC.CAMP_PATHS = PATHS; // 첫째가 마을을 한 바퀴 도는 둘레길
   MC.CAMP_LODGE_BORDER = LODGE_BORDER;
   MC.campColdAt = coldAt;

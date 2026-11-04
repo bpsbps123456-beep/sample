@@ -697,8 +697,9 @@
     }
     // 머리(모자) 꼭대기 조금 위. 엎드려 있으면 더 낮게, 폴짝 뛰면 함께
     const up = (p.lie >= 0.5 ? 104 : 152) - (p.hop || 0) + (p.seatLift || 0);
-    const q = toScreen(p.x, p.y - up * p.k);
-    tag.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) translate(-50%, -100%)`;
+    const byPavilion = p === camp.pup && (camp.near?.id === 'moktak' || camp.pavilionSeat || camp.pavilionMove);
+    const q = toScreen(p.x, byPavilion ? p.y + 16 : p.y - up * p.k);
+    tag.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) translate(-50%, ${byPavilion ? '0' : '-100%'})`;
   }
 
   // ── 새 버전 ───────────────────────────────────────────
