@@ -10,7 +10,6 @@
     read: ['독서중', '책한장', '조용조용', '한쪽더'],
     rest: ['잠깐쉼', '쉬어가', '멍때림', '좋은밤'],
     nap: ['충전중', '꾸벅꾸벅', '꿈꾸는중'],
-    walk: ['산책중', '천천히', '바람좋다'],
     fish: ['낚시중', '기다림', '대어꿈'],
   };
 
@@ -112,9 +111,10 @@
         s.t = 0.8; s.f = Math.sin(a) > 0 ? -1 : 1;
       }
       if (spec.role === 'float') { s.x += 17 * Math.sin(t / 23); s.y += 12 * Math.cos(t / 29); s.z = +(mod(t, 139) < 77); }
-      if (s.p === 'map' && spec.seed % 4 < 2 && !s.bt) {
-        const signs = SIGNS[s.ch ? 'read' : spec.role] || SIGNS.rest;
-        s.sg = signs[mod(spec.seed + Math.floor(t / 210), signs.length)];
+      // 팻말은 한자리에 머무는 멍이만 쓴다. 문구도 시간이나 의자 상태에 따라 바꾸지 않는다.
+      if (s.p === 'map' && !spec.path && spec.seed % 4 < 2 && !s.bt) {
+        const signs = SIGNS[spec.role] || SIGNS.rest;
+        s.sg = signs[mod(spec.seed + Math.floor(spec.seed / 4), signs.length)];
       }
       return s;
     }
@@ -174,8 +174,10 @@
       if (old && old.bucket === bucket && old.context === context && old.inside === context.inside) return old.list;
       const occupied = [];
       const friends = [];
-      for (const spec of this.active(bucket / 5)) {
-        if (spec.place !== place || people.length + friends.length >= 32) continue;
+      // 고정된 자리를 먼저 잡아 산책 멍이가 지나가도 팻말과 함께 밀려나지 않게 한다.
+      const specs = this.active(bucket / 5).filter(s => s.place === place).sort((a, b) => Number(!!a.path) - Number(!!b.path));
+      for (const spec of specs) {
+        if (people.length + friends.length >= 32) continue;
         const s = this.sample(spec, bucket / 5);
         if (!s.bt) this.settle(s, context, occupied);
         friends.push({ id: spec.id, s }); occupied.push(s);

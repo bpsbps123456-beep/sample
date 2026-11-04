@@ -52,7 +52,31 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
     }
     return {chairs:chairs.size, signs:[...signs], changes:changes.size};
   });
-  check(variety.chairs >= 15 && variety.signs.length >= 10 && variety.signs.every(s => [...s].length <= 4) && variety.changes >= 4, '더미가 의자를 펴거나 쉬는 행동을 바꾸고 다양한 네 글자 팻말을 쓴다', variety);
+  check(variety.chairs >= 15 && variety.signs.length >= 6 && variety.signs.every(s => [...s].length <= 4) && variety.changes >= 4, '더미가 의자를 펴거나 쉬면서 서로 다른 네 글자 팻말을 쓴다', variety);
+  const fixedSigns = await A.evaluate(() => {
+    const r = MC.app.residents, first = new Map(), changed = [], moving = [];
+    for (let t = 1700000000; t < 1700007200; t += 43) {
+      for (const spec of r.specs) {
+        const s = r.sample(spec, t), previous = first.get(spec.id);
+        if (previous !== undefined && previous !== (s.sg || '')) changed.push(spec.id);
+        first.set(spec.id, s.sg || '');
+        if (s.sg && (spec.path || s.w || s.bt)) moving.push(spec.id);
+      }
+    }
+    const anchors = new Map(), shifted = [];
+    for (let t = 1700000000; t < 1700001200; t += 13) {
+      for (const {id, s} of r.merge('map', [], MC.app.camp, t)) {
+        if (!s.sg) continue;
+        const position = `${s.x},${s.y}`, previous = anchors.get(id);
+        if (previous !== undefined && previous !== position) shifted.push(id);
+        anchors.set(id, position);
+      }
+    }
+    r.cache.clear();
+    return {signs:anchors.size, changed:[...new Set(changed)], moving:[...new Set(moving)], shifted:[...new Set(shifted)]};
+  });
+  check(fixedSigns.signs >= 6 && !fixedSigns.changed.length, '팻말 내용은 시간이 지나거나 의자를 접어도 각자 정해진 문구로 유지된다', fixedSigns);
+  check(!fixedSigns.moving.length && !fixedSigns.shifted.length, '산책하는 더미는 팻말이 없고, 팻말은 산책 더미가 지나가도 제자리에 머문다', fixedSigns);
   const stays = await A.evaluate(() => {
     const r = MC.app.residents, c = MC.app.camp, time = 1700000100;
     const before = { x: c.pup.x, y: c.pup.y }, list = r.merge('map', [], c, time);
