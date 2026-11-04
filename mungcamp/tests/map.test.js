@@ -50,8 +50,8 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
 
   // 넓어진 마을: 네 곳에 '들어가기', 정자는 '똑'. 바다는 늘 가장 오른쪽
   const spots = await P.evaluate(() => MC.CAMP_SPOTS.map((s) => [s.id, s.label, s.act]));
-  const want = [['fire', '모닥불', '들어가기'], ['water', '달빛 바다', '들어가기'], ['forest', '편백 숲', '들어가기'], ['tent', '글램핑', '들어가기'], ['moktak', '정자', '똑']];
-  check(JSON.stringify(spots) === JSON.stringify(want), "모닥불·바다·숲·글램핑에 '들어가기', 정자는 '똑'", spots);
+  const want = [['fire', '모닥불', '들어가기'], ['firetower', '탑불멍', '들어가기'], ['water', '달빛 바다', '들어가기'], ['forest', '편백 숲', '들어가기'], ['tent', '글램핑', '들어가기'], ['lodge', '숙소', '들어가기'], ['moktak', '정자', '똑']];
+  check(JSON.stringify(spots) === JSON.stringify(want), "모닥불·탑불멍·바다·숲·글램핑·숙소에 '들어가기', 정자는 '똑'", spots);
   check(await P.evaluate(() => { const w = MC.CAMP_SPOTS.find((q) => q.id === 'water'); return MC.CAMP_SPOTS.every((q) => q.x <= w.x); }), '바다는 가장 오른쪽');
   check(await P.evaluate(() => { const t = MC.CAMP_SPOTS.find((q) => q.id === 'tent'); const f = MC.CAMP_SPOTS.find((q) => q.id === 'fire'); return t.y > f.y + 400; }), '글램핑장은 모닥불에서 더 아래(남쪽)');
   // 한 바퀴 도는 둘레길: 닫혀 있고, 길 위에 막힌 곳이 없고, 숲·바다·글램핑장 곁을 지난다
@@ -74,7 +74,33 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
   });
   check(ring.closed && ring.blocked === 0 && ring.unwalk === 0 && ring.len > 4000, '마을을 한 바퀴 도는 둘레길 (막힌 곳 없음)', ring);
   check(ring.near.every((d) => d < 420), '둘레길이 숲·바다·글램핑장 곁을 지난다', ring.near);
-  // 둘레길 한 토막을 실제로 걸어 본다: 글램핑장 앞을 지나 연못 쪽으로
+  const lodge = await P.evaluate(() => {
+    const c = MC.app.camp, route = MC.CAMP_PATHS.at(-1);
+    const spot = MC.CAMP_SPOTS.find((q) => q.id === 'lodge');
+    const cold = route.map(([x, y]) => MC.campColdAt(x, y));
+    const blocked = route.filter(([x, y]) => { const p = { x, y }; c.collide(p); return Math.hypot(p.x - x, p.y - y) > 4; }).length;
+    const oldPond = { x: 470, y: 1480 }; c.collide(oldPond);
+    const inside = (x, y) => {
+      const ring = MC.CAMP_LODGE_BORDER; let yes = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [a,b] = ring[i], [u,v] = ring[j];
+        if ((b > y) !== (v > y) && x < (u-a)*(y-b)/(v-b)+a) yes = !yes;
+      }
+      return yes;
+    };
+    const fenced = [[600,1900,0,1], [550,1830,0,-1]].map(([x,y,dx,dy]) => {
+      c.pup.x=x; c.pup.y=y; c.target=null; c.setKeys(dx,dy);
+      for (let i=0;i<120;i++) c.update(1/60);
+      c.setKeys(0,0); return inside(c.pup.x,c.pup.y);
+    });
+    return { x: spot.x, y: spot.y, cold, blocked, fenced, oldPond };
+  });
+  check(lodge.x < 400 && lodge.y > 1900, '숙소는 7시 방향 가장 안쪽', { x: lodge.x, y: lodge.y });
+  check(lodge.blocked === 0, '숙소로 가는 길이 툇마루 앞까지 막히지 않는다', lodge.blocked);
+  check(lodge.cold[0] < 0.4 && lodge.cold.at(-1) > 0.95 && lodge.cold.every((v, i, a) => !i || v >= a[i - 1] - 0.03), '입구부터 숙소까지 온도감이 서서히 내려간다');
+  check(lodge.fenced.every(Boolean), '숙소 길 양옆의 샛길은 울타리로 막힌다', lodge.fenced);
+  check(Math.hypot(lodge.oldPond.x - 470, lodge.oldPond.y - 1480) < 4, '연못을 없앤 자리는 평평한 풀밭');
+  // 둘레길 한 토막을 실제로 걸어 본다: 글램핑장 앞을 지나 서쪽으로
   const walked = await P.evaluate(async () => {
     const c = MC.app.camp;
     const r = MC.CAMP_PATHS[0];

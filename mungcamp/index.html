@@ -64,6 +64,7 @@
       <button class="chip camp-tool camp-suggest" id="suggestBtn" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg><span>건의하기</span></button>
       <div class="camp-tools-right">
         <button class="chip camp-tool" id="dressBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-palette"/></svg><span>꾸미기</span></button>
+        <button class="chip camp-tool" id="signBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 14v7M4 3h16v11H4zM8 7h8M8 10h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>팻말</span></button>
         <button class="chip camp-tool camp-chair" id="chairBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-chair"/></svg><span>의자</span></button>
       </div>
       <p class="toast toast-camp" id="campToast" role="status" aria-live="polite"></p>
@@ -190,6 +191,21 @@
       <div class="modal-buttons">
         <button class="btn btn-ghost" type="button" id="dressCancel">닫기</button>
         <button class="btn btn-ember" type="submit">다 됐어요</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal modal-fixed" id="signCard" hidden>
+    <form class="modal-card sign-card" id="signForm" role="dialog" aria-modal="true" aria-labelledby="sign-title" novalidate>
+      <h2 id="sign-title">내 멍이의 팻말</h2>
+      <p class="suggest-lead">마을에서 내 멍이 곁에 세워요.</p>
+      <label class="dress-label" for="signInput">네 글자 이내로 적어주세요</label>
+      <input class="text-input nick-input sign-input" id="signInput" type="text" maxlength="16" placeholder="업무중" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="signFine">
+      <p class="nick-fine" id="signFine" role="status">0 / 4 · 같은 마을의 멍이들에게 보여요</p>
+      <div class="modal-buttons">
+        <button class="btn btn-ghost" type="button" id="signCancel">닫기</button>
+        <button class="btn btn-ghost" type="button" id="signRemove">지우기</button>
+        <button class="btn btn-ember" type="submit">세우기</button>
       </div>
     </form>
   </div>

@@ -173,6 +173,14 @@ a { color: inherit; }
 }
 .camp-tools-right .camp-tool { position: static; }
 .camp-chair[aria-pressed="true"] { color: var(--on-ember); background: var(--ember); border-color: var(--ember); }
+#signBtn[aria-pressed="true"] { color: var(--on-ember); background: var(--ember); border-color: var(--ember); }
+.sign-card { max-width: 380px; }
+.sign-input { text-align: center; }
+@media (max-width: 520px) {
+  .camp-tools-right { gap: 6px; }
+  .camp-tools-right .camp-tool { padding-left: 10px; padding-right: 12px; }
+  .camp-suggest { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+}
 .camp-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .spot {
   position: absolute;

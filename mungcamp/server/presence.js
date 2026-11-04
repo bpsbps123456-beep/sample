@@ -2,10 +2,10 @@
 /* 멍캠프 — 함께 있는 사람들 서버 (의존성 없음, Node 18+)
 
    하는 일: 같은 장소에 있는 사람들끼리 서로의 멍이 자리를 나눠 준다.
-   함께 모이기에서는 닉네임(열 글자) 말고는 글을 받지 않고, 아무것도 남기지 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
+   함께 모이기에서는 닉네임(열 글자)과 마을 상태 팻말(네 글자)을 받는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
    따로, 건의함(server/suggest.js)이 사람들이 보낸 건의를 받아 운영자만 보게 남긴다.
 
-   - 장소(map, fire, water, forest, tent, lodge)마다 방을 나누고, 한 방이 차면 다음 방을 연다
+   - 장소(map, fire, firetower, water, forest, tent, lodge)마다 방을 나누고, 한 방이 차면 다음 방을 연다
      (모닥불·바다·숲은 ROOM_CAP=16, 글램핑 텐트 안과 숙소는 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
    - 받은 값은 아는 칸만, 숫자는 범위 안으로 다듬고, 너무 잦은 메시지는 버린다.
    - 바뀐 것만 모아서 1초에 TICK_HZ번 보낸다. 장소별 사람 수는 2초마다.
@@ -32,7 +32,7 @@ const MAP_CAP = +(process.env.MAP_CAP || 40);
 const TENT_CAP = +(process.env.TENT_CAP || 8);
 const MAX_CLIENTS = +(process.env.MAX_CLIENTS || 20000);
 const TICK_HZ = 8;
-const PLACES = ['map', 'fire', 'water', 'forest', 'tent', 'lodge'];
+const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge'];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const MAX_FRAME = 2048;
 
@@ -92,6 +92,7 @@ function clean(raw) {
     m: raw.m ? 1 : 0,
     rl: num(raw.rl, -1e6, 1e6) | 0,
     n: cleanName(raw.n),
+    sg: p === 'map' ? Array.from(cleanName(raw.sg)).slice(0, 4).join('').trim() : '',
   };
 }
 

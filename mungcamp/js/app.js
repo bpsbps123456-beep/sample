@@ -21,6 +21,14 @@
       ],
       space: 'log',
     },
+    firetower: {
+      place: '탑불멍',
+      make: () => new MC.FireScene({ tower: true, calm: MC.reducedMotion }),
+      scape: MC.FireScape,
+      guidance: '장작을 던져 위로 쌓아 보세요',
+      actions: [{ id: 'log', icon: 'i-log', label: '장작 쌓기', primary: true }, CHAIR_ACT],
+      space: 'log',
+    },
     water: {
       place: '달빛 바다',
       make: () => new MC.WaterScene({}),
@@ -55,7 +63,7 @@
       ],
       space: 'stove',
     },
-    // 정자 동쪽 숲 가장자리의 나무집: 코타츠가 놓인 다다미방
+    // 마을 남서쪽 가장 안쪽의 나무집: 코타츠가 놓인 다다미방
     lodge: {
       place: '숙소',
       make: () => new MC.LodgeScene({}),
@@ -171,7 +179,7 @@
   camp.onMoktak = () => sound.moktak();
 
   // ── 함께 ─────────────────────────────────────────────
-  // 같은 곳에 있는 다른 사람들의 멍이가 보인다. 처음에 적은 마음 단어 말고는 글이 오가지 않는다
+  // 같은 곳의 멍이와 마음 단어, 마을의 네 글자 상태 팻말이 보인다
   const net = new MC.Net();
   net.start();
   setInterval(() => net.tick(), 1000);
@@ -377,6 +385,65 @@
       closeDress();
       camp.pup.poke();
       toast(`'${name}' 멍이, 새 모습이에요`);
+    }, 0);
+  });
+
+  // ── 마을에서만 네 글자 상태 팻말 세우기 ────────────────
+  const signCard = $('#signCard');
+  const signInput = $('#signInput');
+  const signFine = $('#signFine');
+  const signBtn = $('#signBtn');
+  const signOpen = () => !signCard.hidden;
+  function signCount() {
+    signFine.classList.remove('is-warn');
+    signFine.textContent = `${Array.from(signInput.value).length} / 4 · 같은 마을의 멍이들에게 보여요`;
+  }
+  function limitSign() {
+    signInput.value = Array.from(signInput.value.normalize('NFC')).slice(0, 4).join('');
+    signCount();
+  }
+  function closeSign() {
+    signCard.hidden = true;
+    signBtn.focus({ preventScroll: true });
+  }
+  function saveSign(text) {
+    camp.sign = MC.cleanSign(text);
+    MC.store.set('sign', camp.sign);
+    signBtn.setAttribute('aria-pressed', String(!!camp.sign));
+    net.set(camp.netState());
+    closeSign();
+    toast(camp.sign ? '멍이 곁에 팻말을 세웠어요' : '팻말을 치웠어요');
+  }
+  signBtn.setAttribute('aria-pressed', String(!!camp.sign));
+  signBtn.addEventListener('click', () => {
+    if (state.view !== 'home') return;
+    held.clear();
+    camp.setKeys(0, 0);
+    camp.target = null;
+    signInput.value = camp.sign;
+    signCount();
+    $('#signRemove').disabled = !camp.sign;
+    signCard.hidden = false;
+    signInput.focus({ preventScroll: true });
+  });
+  signInput.addEventListener('input', (e) => { if (!e.isComposing) limitSign(); });
+  signInput.addEventListener('compositionend', limitSign);
+  $('#signCancel').addEventListener('click', closeSign);
+  $('#signRemove').addEventListener('click', () => saveSign(''));
+  signCard.addEventListener('click', (e) => { if (e.target === signCard) closeSign(); });
+  signCard.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.isComposing) { e.preventDefault(); closeSign(); }
+  });
+  $('#signForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    setTimeout(() => {
+      const text = MC.cleanSign(signInput.value);
+      if (!text) {
+        signFine.textContent = '팻말에 적을 짧은 말을 골라주세요';
+        signFine.classList.add('is-warn');
+        return;
+      }
+      saveSign(text);
     }, 0);
   });
 
@@ -794,7 +861,7 @@
 
   function startSession() {
     const scene = state.sceneObj;
-    if (state.scene === 'fire') {
+    if (state.scene === 'fire' || state.scene === 'firetower') {
       scene.age = () => elapsedSec();
       scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
     }
@@ -842,7 +909,7 @@
     const scene = state.sceneObj;
     const scape = (state.scape = new state.def.scape(sound));
     scape.begin(state.levels);
-    if (state.scene === 'fire') {
+    if (state.scene === 'fire' || state.scene === 'firetower') {
       scene.events = () => scape.drain();
       scene.onLand = (isWorry) => scape.thud(isWorry);
       scene.onPoke = () => scape.poke();
@@ -1040,7 +1107,7 @@
     const sc = state.sceneObj;
     if (!sc || !state.started) return;
     if (id === 'log') {
-      if (!sc.addLog()) toast('장작이 넉넉해요');
+      if (!sc.addLog()) toast(state.scene === 'firetower' ? (sc.flying.length ? '장작이 올라가고 있어요' : '탑이 높이 쌓였어요. 잠시 불멍해요') : '장작이 넉넉해요');
     } else if (id === 'worry') {
       if (!sc.worry) togglePanel('worry');
     } else if (id === 'ripple') sc.rippleAt();
@@ -1318,7 +1385,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (nickOpen() || suggestOpen() || dressOpen()) return;
+    if (nickOpen() || suggestOpen() || dressOpen() || signOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
     if (state.view === 'home') {

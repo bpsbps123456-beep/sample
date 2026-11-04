@@ -283,6 +283,7 @@
   class FireScene {
     constructor(opts = {}) {
       this.preview = !!opts.preview;
+      this.tower = !!opts.tower;
       this.focusX = opts.focusX || 0.5;
       this.calm = !!opts.calm;
       this.quality = 1;
@@ -343,7 +344,7 @@
       // 함께 걷기: 바닥을 톡 하거나 방향키로 모닥불 둘레를 걷고, 멈추면 그 자리에 맞게 앉는다
       if (!this.preview && MC.Crowd) {
         this.crowd = new MC.Crowd(this.pup, {
-          place: 'fire',
+          place: this.tower ? 'firetower' : 'fire',
           outfit: 'beanie',
           light: { ambient: 'rgba(16,14,38,0.3)', glow: [255, 150, 72], glowA: 0.4, from: 70 },
           start: { X: -186, Z: 47 },
@@ -377,8 +378,12 @@
         [-62, 16, 26, -70],
         [66, 14, -24, -72],
       ];
-      for (const [x0, y0, x1, y1] of teepee) {
-        this.logs.push(this.leaning('oak', x0, y0, x1, y1, y0 > 10, 17, 0.3));
+      if (this.tower) {
+        for (let i = 0; i < 4; i++) this.logs.push(this.towerLog(i, 0.15));
+      } else {
+        for (const [x0, y0, x1, y1] of teepee) {
+          this.logs.push(this.leaning('oak', x0, y0, x1, y1, y0 > 10, 17, 0.3));
+        }
       }
       this.stones = [];
       for (let i = 0; i < 15; i++) {
@@ -677,10 +682,31 @@
       return { x: this.cx + log.x * this.s, y: this.by + log.y * this.s };
     }
 
+    // 한 번 던질 때마다 꼭대기에 한 단. 기울기를 번갈아 주어 장작탑을 만든다.
+    towerLog(level, burnt = 0) {
+      return {
+        kind: level % 4 === 3 ? 'birch' : 'oak',
+        x: level % 2 ? 5 : -5, y: -14 - level * 24,
+        a: level % 2 ? -0.09 : 0.09, front: true,
+        fuel: 20, fuel0: 20 / (1 - burnt),
+        v: level % 2, seed: this.rnd() * 50, sprite: null,
+      };
+    }
+
+    towerHeight() {
+      return this.tower ? Math.max(0, ...this.logs.map((l) => -l.y + 16)) : 0;
+    }
+
+    flameHeight() {
+      return this.tower ? Math.min(380 + this.towerHeight() * 1.1, (this.by - 64) / this.s) : 430;
+    }
+
     addLog() {
-      if (this.logs.length + this.flying.length >= 10) return false;
+      if (this.logs.length + this.flying.length >= (this.tower ? 12 : 10)) return false;
+      // 날아가는 동안 다음 단을 예약하지 않아 장작끼리 겹치지 않는다.
+      if (this.tower && this.flying.length) return false;
       const side = Math.random() < 0.5 ? -1 : 1;
-      const target = this.leaning(
+      const target = this.tower ? this.towerLog(this.logs.length) : this.leaning(
         Math.random() < 0.2 ? 'birch' : 'oak',
         side * MC.rand(60, 110), MC.rand(2, 16),
         -side * MC.rand(0, 28), MC.rand(-84, -62),
@@ -699,6 +725,7 @@
     }
 
     burnWorry(text) {
+      if (this.tower) return false;
       if (this.worry) return false;
       const made = makeWorryLog(text, this.rnd);
       const target = {
@@ -737,7 +764,7 @@
         return true;
       }
       // 불 가까이를 톡 건드리면 불티가 날린다
-      if (Math.abs(x - this.cx) < 140 * this.s && y > this.by - 260 * this.s && y < this.by + 40 * this.s) {
+      if (Math.abs(x - this.cx) < 140 * this.s && y > this.by - (this.tower ? this.flameHeight() : 260) * this.s && y < this.by + 40 * this.s) {
         this.burst(0.9);
         if (this.onPoke) this.onPoke();
         return true;
@@ -846,8 +873,8 @@
       const s = this.s;
       this.sparks.push({
         x: this.cx + MC.gauss() * 30 * s,
-        y: this.by - MC.rand(20, 70) * s,
-        vx: MC.gauss() * 30 * s * power,
+        y: this.by - (MC.rand(20, 70) + this.towerHeight() * 0.8) * s,
+        vx: MC.gauss() * (this.tower ? 16 : 30) * s * power,
         vy: -MC.rand(60, 160) * s * (0.6 + 0.4 * power),
         f: 0,
         max: MC.rand(1.2, 3.2),
@@ -900,6 +927,11 @@
             i--;
           }
         }
+        // 밑단이 다 타면 남은 장작이 천천히 내려앉는다.
+        if (this.tower) for (let i = 0; i < this.logs.length; i++) {
+          const y = -14 - i * 24;
+          this.logs[i].y += (y - this.logs[i].y) * Math.min(1, dt * 5);
+        }
       }
       this.flare = Math.max(0, this.flare - dt * 0.18);
       const E = (this.E = Math.min(1.3, this.intensity() + this.flare * 0.45));
@@ -917,7 +949,7 @@
         this.acc.smoke -= 1;
         this.smoke.push({
           x: this.cx + MC.gauss() * 18 * s,
-          y: this.by - 170 * s * Math.min(1, E + 0.2),
+          y: this.by - (170 * Math.min(1, E + 0.2) + this.towerHeight() * 0.65) * s,
           vx: MC.rand(2, 10) * s,
           vy: -MC.rand(16, 32) * s,
           f: 0,
@@ -1000,6 +1032,11 @@
 
       for (let i = this.flying.length - 1; i >= 0; i--) {
         const f = this.flying[i];
+        // 창 크기가 달라져도 현재 화면의 꼭대기에 착지한다.
+        if (this.tower) {
+          f.log.y = -14 - this.logs.length * 24;
+          Object.assign(f.to, this.world(f.log), { k: this.s * LOG_SCALE });
+        }
         f.t += dt / f.dur;
         if (f.t >= 1) {
           this.flying.splice(i, 1);
@@ -1184,10 +1221,10 @@
     drawFlamesGL(g, E, flick) {
       if (!this.useGL) return false;
       const s = this.s;
-      const W = 300 * s;
-      const H = 430 * s;
+      const W = (this.tower ? 230 : 300) * s;
+      const H = this.flameHeight() * s;
       const scale = Math.min(this.dpr || 1, 1.25) * (this.quality >= 0.8 ? 1 : 0.7) * MC.FireGL.scale;
-      const c = MC.FireGL.render(W * scale, H * scale, this.t, E * (0.94 + 0.06 * flick), this.seed);
+      const c = MC.FireGL.render(W * scale, H * scale, this.t, E * (0.94 + 0.06 * flick), this.seed, this.tower);
       if (!c) {
         this.useGL = false;
         return false;
@@ -1389,6 +1426,12 @@
     drawFlamesSoft(g, E, flick) {
       const S = SPR;
       const { s, cx, by, t } = this;
+      g.save();
+      if (this.tower) {
+        g.translate(cx, by);
+        g.scale(0.8, this.flameHeight() / 330);
+        g.translate(-cx, -by);
+      }
       g.globalCompositeOperation = 'lighter';
       // 불꽃의 몸통: 높이가 제각각 일렁이는 큰 혀 다섯 개
       const Ec = Math.min(1.2, E);
@@ -1416,6 +1459,7 @@
       g.drawImage(S.hot, cx - 70 * s, by - 70 * s, 140 * s, 90 * s);
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
+      g.restore();
     }
 
     drawFlying(g) {

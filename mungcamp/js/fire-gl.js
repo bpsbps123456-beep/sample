@@ -23,6 +23,7 @@ uniform float uTime;
 uniform float uE;
 uniform float uAspect;
 uniform float uSeed;
+uniform float uTower;
 
 vec2 hash22(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
@@ -102,6 +103,8 @@ void main() {
     float x0 = (fi - 2.0) * 0.09 * (0.6 + 0.4 * min(E, 1.0)) + wob * 0.03;
     float h = (0.5 + 0.3 * wob) * (1.0 - side * 0.17) * (0.3 + 0.7 * E);
     float w = 0.095 * (1.0 - side * 0.12) * (0.7 + 0.3 * min(E, 1.2));
+    h *= mix(1.0, 1.5, uTower);
+    w *= mix(1.0, 0.72, uTower);
     body += tongue(q, x0, h, w);
   }
   body = 1.0 - exp(-body * 1.4);
@@ -168,6 +171,7 @@ void main() {
           e: gl.getUniformLocation(prog, 'uE'),
           aspect: gl.getUniformLocation(prog, 'uAspect'),
           seed: gl.getUniformLocation(prog, 'uSeed'),
+          tower: gl.getUniformLocation(prog, 'uTower'),
         },
       };
       canvas.addEventListener('webglcontextlost', (e) => {
@@ -190,7 +194,7 @@ void main() {
       return R && R.soft ? 0.55 : 1;
     },
     // w×h 픽셀로 불꽃을 그리고 그 캔버스를 돌려준다. 바로 drawImage로 옮겨 그리면 된다
-    render(w, h, time, E, seed) {
+    render(w, h, time, E, seed, tower = false) {
       if (!this.available()) return null;
       const gl = R.gl;
       w = Math.max(2, Math.round(w));
@@ -206,6 +210,7 @@ void main() {
       gl.uniform1f(R.u.e, E);
       gl.uniform1f(R.u.aspect, w / h);
       gl.uniform1f(R.u.seed, seed || 0);
+      gl.uniform1f(R.u.tower, tower ? 1 : 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       return R.canvas;
     },

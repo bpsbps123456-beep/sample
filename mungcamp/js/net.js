@@ -1,6 +1,5 @@
 /* 멍캠프 — 함께 있는 사람들
-   지금 같은 곳에 있는 다른 사람의 멍이를 보여 준다. 처음 들어올 때 적은 마음 단어(닉네임) 말고는 글이 오가지 않는다.
-   나누는 것은 닉네임(멍이를 눌러야 보인다), 어디에 섰는지, 털빛과 모자, 걷는지 앉았는지, 하트를 날렸는지뿐이다.
+   지금 같은 곳에 있는 다른 사람의 멍이를 보여 준다. 마음 단어(닉네임)와 마을의 네 글자 상태 팻말을 함께 나눈다.
 
    연결은 있는 것을 쓴다.
    1) <meta name="mc-presence" content="wss://..."> 가 있으면 함께 쓰는 서버 (server/presence.js).
@@ -13,8 +12,8 @@
   const SEND_GAP = 0.12; // 움직이는 동안 1초에 8번쯤 알린다
   const BEAT = 2.5; // 탭끼리는 가만히 있어도 가끔 '여기 있어요'
   const STALE = 9; // 이만큼 소식이 없으면 떠난 것으로 본다 (탭끼리)
-  const PLACES = ['map', 'fire', 'water', 'forest', 'tent', 'lodge'];
-  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0 };
+  const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge'];
+  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0, sg: '' };
 
   // 처음 온 날 털빛과 모자를 하나 골라 두고 계속 입는다
   function myLook() {
@@ -53,6 +52,7 @@
   }
 
   // 받은 것은 믿지 않는다: 아는 칸만, 숫자는 범위 안으로
+  const cleanSign = (v) => Array.from(cleanName(v)).slice(0, 4).join('').trim();
   function clean(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const num = (v, lo, hi) => (typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
@@ -84,6 +84,7 @@
       m: raw.m ? 1 : 0, // 귤을 까먹는 중
       rl: num(raw.rl, -1e6, 1e6) | 0, // 데굴데굴 구른 횟수 (부호는 구른 쪽)
       n: cleanName(raw.n), // 닉네임 (멍이를 눌러야 보인다)
+      sg: p === 'map' ? cleanSign(raw.sg) : '',
     };
   }
 
@@ -380,5 +381,6 @@
   MC.Net = Net;
   MC.netClean = clean;
   MC.cleanName = cleanName;
+  MC.cleanSign = cleanSign;
   MC.badName = (v) => typeof v === 'string' && badName(v.normalize('NFC'));
 })(window.MC = window.MC || {});
