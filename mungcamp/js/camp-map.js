@@ -55,7 +55,7 @@
     { id: 'forest', label: '편백 숲', tone: 'moss', x: STUMP.x + 20, y: STUMP.y + 30, r: 140, act: '들어가기', ax: STUMP.x, ay: STUMP.y - 110 },
     { id: 'tent', label: '글램핑', tone: 'glamp', x: GLAMP.x, y: GLAMP.y + 46, r: 135, act: '들어가기', ax: GLAMP.x, ay: GLAMP.y - 152 },
     { id: 'lodge', label: '숙소', tone: 'lodge', x: LODGE.x, y: LODGE.y + 64, r: 125, act: '들어가기', ax: LODGE.x, ay: LODGE.y - 220 },
-    { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 120, act: '똑', ax: PAVILION.x, ay: PAVILION.y - 204 },
+    { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 120, act: '똑', ax: PAVILION.x + 64, ay: PAVILION.y - 240 },
   ];
 
   // 오솔길: 몇 개의 점을 부드럽게 잇는다.
@@ -460,6 +460,11 @@
       this.dpr = dpr;
       // 세로 화면(휴대폰)은 지도를 조금 당겨 보여 준다: 멍이가 크게 보이고, 위아래로도 끌어 둘러볼 수 있다
       this.z = w < h * 0.9 ? MC.clamp(h / 1050, 0.7, 1.05) : MC.clamp(Math.min(w / 1150, h / 820), 0.62, 1.25);
+      // 낮은 가로 창에서는 이름과 목탁 단추를 처마 옆으로 내려 화면 위에 잘리지 않게 한다.
+      const pavilionLabel = SPOTS.find(q => q.id === 'moktak');
+      const lowWindow = w >= h * 0.9 && h < 600;
+      pavilionLabel.ax = PAVILION.x + (lowWindow ? 180 : 64);
+      pavilionLabel.ay = PAVILION.y - (lowWindow ? 110 : 240);
       // 땅 그림은 지도 전체 크기라 메모리를 아끼려고 1.1배까지만
       const gs = Math.min(1.1, this.z * dpr);
       if (!this.ground || Math.abs(gs - this.gs) / this.gs > 0.15) {
@@ -996,87 +1001,229 @@
           }
         }
       });
-      // 정자: 단청 띠와 처마 끝이 살짝 들린 기와지붕
-      sp.pavilion = sprite(260, 230, 130, 205, ss, (g) => {
-        g.fillStyle = 'rgba(0,0,0,0.25)';
-        ellipse(g, 0, 4, 100, 18);
-        g.fill();
-        // 돌 기단과 마루
-        MC.roundRect(g, -88, -30, 176, 30, 6);
-        g.fillStyle = '#a49c90';
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 2.2;
-        g.stroke();
-        MC.roundRect(g, -80, -40, 160, 16, 4);
-        g.fillStyle = '#c99a63';
-        g.fill();
-        g.stroke();
-        g.strokeStyle = 'rgba(110,70,40,0.35)';
-        g.lineWidth = 1.2;
-        for (let x = -72; x < 80; x += 12) {
-          g.beginPath();
-          g.moveTo(x, -39);
-          g.lineTo(x, -25);
-          g.stroke();
+      // 정자: 곡선 기와와 단청, 짜 맞춘 목재와 빛이 머무는 우물마루.
+      // 기와·나뭇결·꽃은 크기가 바뀔 때만 그려 두어 지도 이동 중에는 한 장으로 그린다.
+      sp.pavilion = sprite(310, 280, 155, 238, ss, (g) => {
+        const rnd = MC.rng(8216);
+        const edge = '#493d32';
+        const poly = (points, fill, stroke = edge, width = 1) => {
+          g.beginPath(); g.moveTo(...points[0]);
+          for (const p of points.slice(1)) g.lineTo(...p);
+          g.closePath(); g.fillStyle = fill; g.fill();
+          if (stroke) { g.strokeStyle = stroke; g.lineWidth = width; g.stroke(); }
+        };
+        const line = (points, color, width) => {
+          g.strokeStyle = color; g.lineWidth = width; g.beginPath();
+          points.forEach((p, i) => i ? g.lineTo(...p) : g.moveTo(...p)); g.stroke();
+        };
+        // 바닥에 넓게 퍼지는 부드러운 그림자와 낮은 디딤돌.
+        g.save(); g.scale(1, 0.23);
+        const shadow = g.createRadialGradient(5, 0, 12, 5, 0, 123);
+        shadow.addColorStop(0, 'rgba(22,32,25,0.4)'); shadow.addColorStop(1, 'rgba(22,32,25,0)');
+        g.fillStyle = shadow; g.fillRect(-128, -125, 256, 250); g.restore();
+        for (const [x, y, rx, ry] of [[0, 22, 31, 9], [-7, 33, 22, 6]]) {
+          ellipse(g, x, y + 1.5, rx + 2, ry); g.fillStyle = 'rgba(35,43,31,0.16)'; g.fill();
+          ellipse(g, x, y, rx, ry); g.fillStyle = '#a9a58e'; g.fill();
+          g.strokeStyle = '#74796a'; g.lineWidth = 0.9; g.stroke();
+          line([[x-rx*.6,y-2],[x-rx*.1,y-ry*.55],[x+rx*.55,y-2]], '#c9c4a8', 0.8);
         }
-        // 기둥
-        for (const x of [-66, 66, -40, 40]) {
-          g.fillStyle = x === -40 || x === 40 ? '#7a3426' : '#8f3d2b';
-          g.fillRect(x - 5, -118, 10, 80);
-          g.strokeStyle = INK;
-          g.lineWidth = 1.8;
-          g.strokeRect(x - 5, -118, 10, 80);
+        // 잘 다듬은 화강석 기단: 윗면과 옆면, 돌 사이 줄눈과 작은 반점.
+        const stone = g.createLinearGradient(0, -25, 0, 4);
+        stone.addColorStop(0, '#b0ad99'); stone.addColorStop(1, '#777c70');
+        MC.roundRect(g, -95, -25, 190, 28, 4); g.fillStyle = stone; g.fill();
+        g.strokeStyle = '#596456'; g.lineWidth = 1.5; g.stroke();
+        poly([[-95,-24],[-76,-42],[76,-42],[95,-24]], '#c1bca4', '#727d69', 1);
+        for (let x = -70; x < 90; x += 33) line([[x,-23],[x-2,-11],[x,2]], '#808575', 0.7);
+        for (let i = 0; i < 95; i++) {
+          g.fillStyle = i % 2 ? 'rgba(230,225,199,0.33)' : 'rgba(73,84,69,0.2)';
+          g.fillRect(-91+rnd()*181, -23+rnd()*24, .6+rnd()*.8, .7);
         }
-        // 방석
-        MC.roundRect(g, -16, -46, 32, 10, 4);
-        g.fillStyle = '#b9566a';
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 1.6;
-        g.stroke();
-        // 단청 띠
-        g.fillStyle = '#3f8f7a';
-        g.fillRect(-78, -126, 156, 10);
-        g.fillStyle = '#e06a4f';
-        for (let x = -72; x < 78; x += 14) {
-          ellipse(g, x, -121, 2.6, 2.6);
-          g.fill();
+        // 작은 두 단의 계단. 중앙을 비워 마루의 입구가 보인다.
+        for (const [y, width] of [[-9, 58], [1, 68]]) {
+          MC.roundRect(g, -width/2, y, width, 11, 1.7); g.fillStyle = '#999e88'; g.fill();
+          g.strokeStyle = '#66725e'; g.lineWidth = 0.9; g.stroke();
+          g.fillStyle = '#c8c4a9'; g.fillRect(-width/2+1, y+1, width-2, 3);
         }
-        g.strokeStyle = INK;
-        g.lineWidth = 1.6;
-        g.strokeRect(-78, -126, 156, 10);
-        // 지붕
-        g.beginPath();
-        g.moveTo(-118, -120);
-        g.quadraticCurveTo(-96, -128, -78, -134);
-        g.quadraticCurveTo(-52, -178, -30, -186);
-        g.lineTo(30, -186);
-        g.quadraticCurveTo(52, -178, 78, -134);
-        g.quadraticCurveTo(96, -128, 118, -120);
-        g.quadraticCurveTo(110, -138, 96, -140);
-        g.quadraticCurveTo(0, -150, -96, -140);
-        g.quadraticCurveTo(-110, -138, -118, -120);
-        g.closePath();
-        const roof = g.createLinearGradient(0, -186, 0, -120);
-        roof.addColorStop(0, '#56677c');
-        roof.addColorStop(1, '#36414f');
-        g.fillStyle = roof;
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 2.4;
-        g.stroke();
-        g.strokeStyle = 'rgba(20,26,34,0.45)';
-        g.lineWidth = 1.3;
-        for (let x = -90; x <= 90; x += 10) {
-          g.beginPath();
-          g.moveTo(x * 0.3, -184);
-          g.quadraticCurveTo(x * 0.75, -160, x, -138);
-          g.stroke();
+        // 따뜻한 나무 마루. 판마다 다르게 흐르는 결과 테두리 장부.
+        poly([[-86,-36],[-66,-62],[66,-62],[86,-36]], '#b48756', '#624c34', 1.4);
+        g.save(); g.clip();
+        for (let x = -85; x <= 85; x += 12) {
+          line([[x*.78,-62],[x,-36]], '#805c3b', 0.8);
+          line([[x*.78+2,-61],[x+2,-37]], 'rgba(235,197,134,0.5)', 0.6);
+          for (let i = 0; i < 3; i++) {
+            const yy=-60+rnd()*23;
+            line([[x*.9+3,yy],[x*.9+7,yy+1],[x*.9+9,yy+.4]], 'rgba(107,67,35,0.3)', 0.5);
+          }
         }
-        g.fillStyle = '#2b3440';
-        MC.roundRect(g, -36, -192, 72, 9, 4);
-        g.fill();
+        g.restore();
+        const floorLight = g.createRadialGradient(0,-48,3,0,-48,80);
+        floorLight.addColorStop(0,'rgba(255,216,141,0.3)'); floorLight.addColorStop(1,'rgba(255,216,141,0)');
+        poly([[-85,-36],[-66,-61],[66,-61],[85,-36]],floorLight,null);
+        poly([[-87,-36],[87,-36],[87,-25],[-87,-25]], '#9a6a40', '#60482f', 1.1);
+        line([[-85,-34],[85,-34]], '#e3b77e', 1.4);
+        for (let x=-75;x<85;x+=23) {
+          line([[x,-32],[x,-26]], '#704b2c', .8);
+          g.fillStyle='#d2a56e'; g.fillRect(x+2,-31,3,2);
+        }
+        // 뒤쪽 난간과 옆 난간의 가는 살대. 앞은 열어 둔다.
+        const rail = (ax,ay,bx,by,n) => {
+          line([[ax,ay],[bx,by]], '#694a32', 4);
+          line([[ax,ay-1],[bx,by-1]], '#c18e58', 1.2);
+          line([[ax,ay+21],[bx,by+21]], '#684a32', 3);
+          for(let i=0;i<=n;i++) {
+            const x=MC.lerp(ax,bx,i/n), y=MC.lerp(ay,by,i/n);
+            line([[x,y+2],[x+(i%2?2:-2),y+11],[x,y+20]], '#92643f', 2.2);
+          }
+        };
+        rail(-51,-86,51,-86,8);
+        rail(-75,-64,-51,-86,3); rail(51,-86,75,-64,3);
+        // 배흘림 기둥, 주춧돌, 빛을 받는 목재 결.
+        const column = (x, top, bottom, back) => {
+          MC.roundRect(g,x-10,bottom-2,20,8,2); g.fillStyle='#b2b09b'; g.fill();
+          g.strokeStyle='#707d6b'; g.lineWidth=.8; g.stroke();
+          const wood=g.createLinearGradient(x-7,0,x+7,0);
+          wood.addColorStop(0,back?'#a56844':'#bf8050'); wood.addColorStop(.35,back?'#855538':'#a56b44'); wood.addColorStop(1,'#5a392b');
+          g.beginPath(); g.moveTo(x-5,top); g.lineTo(x+5,top);
+          g.quadraticCurveTo(x+8,(top+bottom)/2,x+6,bottom);
+          g.lineTo(x-6,bottom); g.quadraticCurveTo(x-8,(top+bottom)/2,x-5,top); g.closePath();
+          g.fillStyle=wood; g.fill(); g.strokeStyle=edge; g.lineWidth=1.1; g.stroke();
+          g.save(); g.clip();
+          for(let i=0;i<8;i++) {
+            const xx=x-6+rnd()*12, yy=top+rnd()*25;
+            g.strokeStyle=i%3?'rgba(63,35,23,0.35)':'rgba(242,192,124,0.4)'; g.lineWidth=.55;
+            g.beginPath(); g.moveTo(xx,yy); g.bezierCurveTo(xx+2,yy+22,xx-1,bottom-20,xx+.5,bottom); g.stroke();
+          }
+          g.restore();
+          g.fillStyle='#486954'; g.fillRect(x-7,top+4,14,5);
+          line([[x-7,top+4],[x+7,top+4]], '#c4b276', .8);
+        };
+        column(-49,-139,-60,true); column(49,-139,-60,true);
+        // 린넨 방석과 작은 찻상. 차분한 쑥빛과 말린 장미빛을 쓴다.
+        for(const [x,y,color] of [[-37,-48,'#8b9d7a'],[30,-49,'#b68071']]) {
+          ellipse(g,x,y+3,18,5); g.fillStyle='rgba(43,34,23,0.2)'; g.fill();
+          MC.roundRect(g,x-16,y-5,32,9,4); g.fillStyle=color; g.fill();
+          g.strokeStyle='#665746'; g.lineWidth=.8; g.stroke();
+          g.strokeStyle='rgba(246,231,192,0.65)'; g.lineWidth=.6; g.setLineDash([1.5,2]);
+          MC.roundRect(g,x-13,y-3,26,5,2); g.stroke(); g.setLineDash([]);
+        }
+        g.fillStyle='#62482f'; g.fillRect(11,-69,3,8); g.fillRect(39,-69,3,8);
+        ellipse(g,26,-69,19,5); g.fillStyle='#b17c49'; g.fill();
+        g.strokeStyle='#62442b'; g.lineWidth=1; g.stroke();
+        ellipse(g,25,-72,7,3); g.fillStyle='#d2b787'; g.fill();
+        ellipse(g,25,-75,5,4); g.fillStyle='#9bab8b'; g.fill();
+        ellipse(g,25,-78,4,1.5); g.fillStyle='#d8d6b2'; g.fill();
+        g.strokeStyle='#ded4a7'; g.lineWidth=.7;
+        ellipse(g,30,-75,2,2); g.stroke();
+        ellipse(g,13,-72,3,1.7); g.fillStyle='#d0c8a4'; g.fill();
+        column(-74,-136,-35,false); column(74,-136,-35,false);
+        // 보와 공포: 층층이 포개진 받침과 절제된 연꽃 단청.
+        g.fillStyle='#6b4933'; MC.roundRect(g,-88,-127,176,12,2); g.fill();
+        for(const x of [-74,-49,49,74]) {
+          for(let i=0;i<3;i++) {
+            const width=18+i*8, yy=-113-i*5;
+            poly([[x-width/2,yy],[x+width/2,yy],[x+width/2-4,yy+4],[x-width/2+4,yy+4]],i%2?'#8e543b':'#547c64','#423e2f',.7);
+            line([[x-width/2+3,yy+.8],[x+width/2-3,yy+.8]], '#d1b77d', .65);
+          }
+        }
+        g.fillStyle='#527b65'; g.fillRect(-89,-127,178,8);
+        line([[-89,-127],[89,-127]], '#d5bc81', 1);
+        line([[-89,-119],[89,-119]], '#8f503b', 1.8);
+        for(let x=-81;x<=81;x+=18) {
+          for(const side of [-1,1]) {
+            ellipse(g,x+side*2.6,-123,3.2,1.5,side*.6); g.fillStyle='#b77d5b'; g.fill();
+          }
+          ellipse(g,x,-123,1.3,1.3); g.fillStyle='#d8bf7a'; g.fill();
+        }
+        // 등롱의 한지와 나무 골조. 실제 빛은 지도 조명 단계에서 더한다.
+        for(const x of [-58,58]) {
+          line([[x,-130],[x,-119]], '#5c5137', .9);
+          g.fillStyle='#694d32'; MC.roundRect(g,x-8,-121,16,4,1); g.fill();
+          const paper=g.createLinearGradient(x-6,0,x+6,0);
+          paper.addColorStop(0,'#dcad70'); paper.addColorStop(.4,'#ffe8b0'); paper.addColorStop(1,'#e6bb7d');
+          MC.roundRect(g,x-6,-117,12,19,1.5); g.fillStyle=paper; g.fill();
+          line([[x-6,-117],[x-6,-98],[x+6,-98],[x+6,-117]], '#7e603d', 1);
+          line([[x,-116],[x,-99]], 'rgba(135,99,48,0.55)', .6);
+          g.fillStyle='#6d5034'; MC.roundRect(g,x-8,-99,16,3,1); g.fill();
+        }
+        // 처마 밑 서까래의 단면과 어두운 천장.
+        poly([[-128,-151],[128,-151],[112,-135],[0,-124],[-112,-135]], '#3d4c40', '#3b3c30', 1);
+        for(let x=-112;x<=112;x+=9) {
+          const yy=-132-12*Math.pow(Math.abs(x)/116,3);
+          line([[x*.9,yy-12],[x,yy]], '#927c51', 3.6);
+          ellipse(g,x,yy,2.2,1.7); g.fillStyle='#b8b184'; g.fill();
+          ellipse(g,x,yy,.8,.6); g.fillStyle='#537a62'; g.fill();
+        }
+        // 앞 지붕의 곡면 좌표: 용마루에서 처마로 갈수록 넓어지고 양끝이 올라간다.
+        const roofPoint=(u,v)=>[u*MC.lerp(32,130,v),-213+76*v+7*Math.sin(Math.PI*v)-17*Math.pow(Math.abs(u),4)*v*v];
+        const roofPath=()=>{
+          g.beginPath(); g.moveTo(...roofPoint(-1,0)); g.lineTo(...roofPoint(1,0));
+          for(let i=1;i<=24;i++)g.lineTo(...roofPoint(1,i/24));
+          for(let i=24;i>=-24;i--)g.lineTo(...roofPoint(i/24,1));
+          for(let i=23;i>=0;i--)g.lineTo(...roofPoint(-1,i/24));
+          g.closePath();
+        };
+        roofPath();
+        const roof=g.createLinearGradient(-60,-212,70,-132);
+        roof.addColorStop(0,'#899088'); roof.addColorStop(.35,'#66777a'); roof.addColorStop(.75,'#455c64'); roof.addColorStop(1,'#314a53');
+        g.fillStyle=roof; g.fill(); g.strokeStyle='#303f42'; g.lineWidth=1.8; g.stroke();
+        g.save(); g.clip();
+        // 암키와의 겹친 가로 이음. 줄마다 조금씩 엇갈린다.
+        for(let row=1;row<=8;row++) {
+          const v=row/8;
+          for(let i=-16;i<16;i++) {
+            const u=(i+(row%2)*.5)/16;
+            const pts=[];
+            for(let k=0;k<=4;k++)pts.push(roofPoint(u+k/64,v));
+            line(pts,'rgba(30,49,56,0.58)',.8);
+            line(pts.map(([x,y])=>[x,y-1]),'rgba(186,199,179,0.3)',.55);
+          }
+        }
+        // 수키와는 빛을 받은 등과 옆의 그늘로 둥글게 표현한다.
+        for(let i=-16;i<=16;i++) {
+          const u=i/16, pts=[];
+          for(let k=0;k<=28;k++)pts.push(roofPoint(u,k/28));
+          line(pts,'rgba(26,43,50,0.75)',3.1);
+          line(pts.map(([x,y])=>[x-.75,y-.4]),'rgba(162,180,172,0.65)',1.2);
+          for(let row=1;row<8;row++) {
+            const [x,y]=roofPoint(u,row/8);
+            line([[x-1.4,y-.4],[x+1.2,y+.3]],'#344b52',.75);
+          }
+        }
+        g.restore();
+        const eaves=[];
+        for(let i=-32;i<=32;i++)eaves.push(roofPoint(i/32,1));
+        line(eaves,'#34474a',4);
+        line(eaves.map(([x,y])=>[x,y-1.6]),'#a2aaa0',1.25);
+        // 처마 끝 막새. 작은 연꽃 무늬가 기와의 두께를 드러낸다.
+        for(let i=-16;i<=16;i++) {
+          const [x,y]=roofPoint(i/16,1);
+          ellipse(g,x,y+1.2,3.1,2.6); g.fillStyle='#5b6c6c'; g.fill();
+          g.strokeStyle='#34484b'; g.lineWidth=.7; g.stroke();
+          ellipse(g,x-.6,y+.6,1.2,1); g.strokeStyle='#b2b7a0'; g.lineWidth=.55; g.stroke();
+        }
+        // 용마루의 층과 끝의 치켜든 망와.
+        for(const [yy,ww,color] of [[-215,77,'#354b51'],[-219,70,'#73847f'],[-222,64,'#8e998a']]) {
+          MC.roundRect(g,-ww/2,yy,ww,4,1.5); g.fillStyle=color; g.fill();
+        }
+        for(const side of [-1,1]) {
+          poly([[side*30,-216],[side*42,-223],[side*43,-230],[side*35,-226],[side*30,-223]],'#657a75','#35494a',.9);
+          line([[side*35,-221],[side*40,-225]],'#b1b8a1',.8);
+        }
+        // 기단 모서리의 이끼와 작은 꽃. 건물의 출입구와 앞길은 비워 둔다.
+        for(const side of [-1,1]) {
+          for(let i=0;i<18;i++) {
+            const x=side*(77+rnd()*35),y=-1+rnd()*9;
+            ellipse(g,x,y,2+rnd()*3,.8+rnd()*1.2); g.fillStyle=i%2?'#7f9861':'#5c805b'; g.fill();
+          }
+          for(let i=0;i<6;i++) {
+            const x=side*(101+rnd()*18),y=4+rnd()*8,h=5+rnd()*9;
+            line([[x,y],[x-2,y-h],[x+1,y-3],[x+4,y-h*.8]],'#769268',.9);
+            if(i%2===0) {
+              for(let k=0;k<5;k++) { const a=k*Math.PI*.4; ellipse(g,x-2+Math.cos(a)*1.8,y-h+Math.sin(a)*1.8,1.5,.8,a); g.fillStyle='#efe4bd'; g.fill(); }
+              ellipse(g,x-2,y-h,.7,.7); g.fillStyle='#d3ae62'; g.fill();
+            }
+          }
+        }
       });
       // 그루터기와 빨간 버섯
       // 눈 덮인 작은 목조 숙소: 다락창, 린넨 커튼, 현관 등과 나무 툇마루.
@@ -2149,6 +2296,11 @@
       glow([255, 152, 65], TOWER.x, TOWER.y - 46, 215 * fl, 0.38);
       for (const tn of TENTS) glow([255, 200, 120], tn.x, tn.y - 24 * tn.s, 70 * tn.s, 0.55);
       glow([255, 214, 150], PAVILION.x, PAVILION.y - 70, 110, 0.35);
+      for (const dx of [-58, 58]) {
+        glow([255, 205, 130], PAVILION.x + dx, PAVILION.y - 108, 38, 0.3);
+        glow([255, 238, 190], PAVILION.x + dx, PAVILION.y - 108, 9, 0.48);
+      }
+      glow([255, 212, 143], PAVILION.x, PAVILION.y - 37, 79, 0.13);
       // 숙소의 불 켜진 창과 문, 처마 등
       if (LODGE.y + 160 > top && LODGE.y - 250 < bottom) {
         const lf = 0.92 + 0.08 * MC.fbm(t * 0.9 + 3);
@@ -2367,21 +2519,41 @@
       g.translate(mk.x, mk.y);
       g.scale(1 + 0.1 * this.moktakHit, sq);
       g.lineJoin = 'round';
+      // 목탁 아래의 얇은 자주빛 받침과 둥근 손잡이.
+      ellipse(g, 0, 1, 17, 4); g.fillStyle = '#634d49'; g.fill();
+      ellipse(g, 0, -.5, 15, 3); g.fillStyle = '#b57c69'; g.fill();
+      g.strokeStyle = '#daa381'; g.lineWidth = .7; g.stroke();
+      ellipse(g, 0, -18, 6.5, 5.5); g.fillStyle = '#a57140'; g.fill();
+      g.strokeStyle = '#513a23'; g.lineWidth = 1.2; g.stroke();
+      ellipse(g, 0, -18, 3.2, 2.6); g.fillStyle = '#3f3e28'; g.fill();
       ellipse(g, 0, -8, 13, 10);
       const grd = g.createRadialGradient(-4, -12, 1, 0, -8, 14);
-      grd.addColorStop(0, '#c98a4f');
-      grd.addColorStop(1, '#8a4f26');
+      grd.addColorStop(0, '#e0ac69');
+      grd.addColorStop(.5, '#b47a43');
+      grd.addColorStop(1, '#754727');
       g.fillStyle = grd;
       g.fill();
       g.strokeStyle = INK;
-      g.lineWidth = 1.8;
+      g.lineWidth = 1.3;
       g.stroke();
+      g.save(); g.clip();
+      for (let i = 0; i < 6; i++) {
+        g.strokeStyle = i % 2 ? 'rgba(242,196,125,0.45)' : 'rgba(112,66,33,0.4)';
+        g.lineWidth = .6;
+        g.beginPath(); g.ellipse(-2, -9, 5 + i * 2, 3 + i, -.15, .3, 3.8); g.stroke();
+      }
+      g.restore();
       g.strokeStyle = '#4a2a14';
-      g.lineWidth = 1.6;
+      g.lineWidth = 1.9;
       g.beginPath();
       g.moveTo(-8, -5);
       g.quadraticCurveTo(0, -1, 8, -5);
       g.stroke();
+      for (const x of [-8, 8]) {
+        ellipse(g, x, -5, 1.5, 1.5); g.fillStyle = '#49311e'; g.fill();
+      }
+      g.strokeStyle = '#e7b570'; g.lineWidth = .75;
+      g.beginPath(); g.ellipse(-3, -11, 6.5, 3.5, -.25, 3.6, 5.5); g.stroke();
       g.restore();
       // 채
       g.save();
@@ -2396,39 +2568,59 @@
       ellipse(g, 0, -18, 3.4, 3.4);
       g.fillStyle = '#b07a4a';
       g.fill();
+      g.strokeStyle = '#e2b37a'; g.lineWidth = .7;
+      g.beginPath(); g.arc(-.7, -18.5, 1.7, 3.6, 5.5); g.stroke();
       g.restore();
     }
 
     // 처마 끝의 풍경: 바람에 살랑
     drawChime(g) {
-      const x = PAVILION.x + 112;
-      const y = PAVILION.y - 122;
+      const x = PAVILION.x + 123;
+      const y = PAVILION.y - 147;
       const a = Math.sin(this.chime * 1.7) * 0.18;
       g.save();
       g.translate(x, y);
       g.rotate(a);
-      g.strokeStyle = '#3a3a3a';
-      g.lineWidth = 1.2;
+      g.strokeStyle = '#6a7358';
+      g.lineWidth = .9;
       g.beginPath();
       g.moveTo(0, 0);
-      g.lineTo(0, 8);
+      g.lineTo(0, 9);
       g.stroke();
+      ellipse(g, 0, 8, 1.6, 2); g.stroke();
       g.beginPath();
-      g.moveTo(-5, 16);
-      g.quadraticCurveTo(-5, 7, 0, 7);
-      g.quadraticCurveTo(5, 7, 5, 16);
+      g.moveTo(-6.5, 21);
+      g.quadraticCurveTo(-5, 17, -4, 12);
+      g.quadraticCurveTo(0, 6, 4, 12);
+      g.quadraticCurveTo(5, 17, 6.5, 21);
       g.closePath();
-      g.fillStyle = '#7c8a7a';
+      const bronze = g.createLinearGradient(-6, 0, 6, 0);
+      bronze.addColorStop(0, '#6e8f76'); bronze.addColorStop(.35, '#b3b382'); bronze.addColorStop(1, '#516f60');
+      g.fillStyle = bronze;
       g.fill();
-      g.strokeStyle = INK;
+      g.strokeStyle = '#41564a';
       g.stroke();
-      g.fillStyle = '#d9b45a';
+      ellipse(g, 0, 21, 6.5, 2); g.fillStyle = '#485647'; g.fill();
+      g.strokeStyle = '#b0b080'; g.lineWidth = .8; g.stroke();
+      g.beginPath(); g.moveTo(-3.5, 14); g.lineTo(3.5, 14); g.moveTo(-4.5, 18); g.lineTo(4.5, 18); g.stroke();
+      ellipse(g, -1.7, 11.5, 1, 1); g.fillStyle = '#d9c98e'; g.fill();
+      g.strokeStyle = '#978554'; g.lineWidth = .7;
+      g.beginPath(); g.moveTo(0, 19); g.lineTo(0, 34); g.stroke();
+      ellipse(g, 0, 23, 1.8, 2); g.fillStyle = '#b6a269'; g.fill();
+      // 바람을 받는 물고기 장식은 종보다 한 박자 늦게 흔들린다.
+      g.translate(0, 35);
+      g.rotate(Math.sin(this.chime * 1.7 - .8) * .16);
       g.beginPath();
-      g.moveTo(0, 18);
-      g.lineTo(-3, 25);
-      g.lineTo(3, 25);
+      g.moveTo(-8, 0);
+      g.quadraticCurveTo(-3, -5, 5, -1);
+      g.lineTo(10, -5); g.lineTo(9, 4); g.lineTo(5, 1);
+      g.quadraticCurveTo(-3, 5, -8, 0);
       g.closePath();
-      g.fill();
+      g.fillStyle = '#c2ae6f'; g.fill();
+      g.strokeStyle = '#667654'; g.lineWidth = .8; g.stroke();
+      ellipse(g, -4.5, -.5, .8, .8); g.fillStyle = '#4d5b45'; g.fill();
+      g.strokeStyle = '#e0cf91'; g.lineWidth = .65;
+      g.beginPath(); g.moveTo(-2, -2); g.quadraticCurveTo(2, 0, -2, 2); g.moveTo(1, -2); g.quadraticCurveTo(5, 0, 1, 2); g.stroke();
       g.restore();
     }
   }
