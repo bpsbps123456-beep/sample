@@ -806,7 +806,7 @@ body.is-reading { overflow: hidden; }
 .suggest-input::placeholder { color: var(--ink-faint); }
 .suggest-fine { margin: 8px 2px 14px; font-size: var(--step--1); color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
 .suggest-fine.is-warn { color: var(--ember-hi); text-align: center; }
-.owner-link { padding: 0; border: 0; background: none; color: var(--ember-hi); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.owner-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: none; cursor: text; }
 .owner-card { width: min(620px, 100%); }
 .owner-card h2 { margin-bottom: 12px; }
 .owner-actions { margin-top: 16px; }
