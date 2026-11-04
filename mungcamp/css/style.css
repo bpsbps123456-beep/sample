@@ -802,6 +802,7 @@ body.is-reading { overflow: hidden; }
 .suggest-card { width: min(480px, 100%); text-align: left; background: rgba(12, 14, 28, 0.96); }
 .suggest-card h2 { text-align: center; }
 .suggest-lead { margin: 0 0 14px; font-size: var(--step-0); line-height: 1.45; color: var(--ink-dim); text-align: center; }
+.suggest-phrase { display: inline-block; }
 .suggest-input { display: block; min-height: 9.5em; resize: vertical; font-size: 1.45rem; line-height: 1.45; }
 .suggest-input::placeholder { color: var(--ink-faint); }
 .suggest-fine { margin: 8px 2px 14px; font-size: var(--step--1); color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
