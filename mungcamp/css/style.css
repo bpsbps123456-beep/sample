@@ -177,6 +177,31 @@ a { color: inherit; }
 #signBtn[aria-pressed="true"] { color: var(--on-ember); background: var(--ember); border-color: var(--ember); }
 .sign-card { max-width: 380px; }
 .sign-input { text-align: center; }
+.camp-tool:disabled { opacity: 0.45; cursor: default; }
+.camp-sea-ui {
+  position: absolute;
+  left: 50%;
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 10px 18px 12px;
+  border: 1px solid rgba(220,231,216,.24);
+  border-radius: 24px;
+  background: rgba(20,37,48,.88);
+  box-shadow: 0 10px 32px rgba(9,20,29,.2);
+  text-align: center;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.camp-sea-ui[hidden] { display: none; }
+.camp-sea-ui p { margin: 0 0 6px; font-size: var(--step--1); line-height: 1.25; color: #e7e6d0; }
+.sea-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.sea-buttons .btn { min-height: 44px; padding: 3px 22px 1px; white-space: nowrap; }
+.sea-buttons .btn:disabled { opacity: .65; cursor: default; }
+.camp-sea-ui.is-biting { border-color: #ffd391; box-shadow: 0 0 24px rgba(255,208,130,.18); }
+.has-sea-controls .camp-hint { opacity: 0; }
+.has-sea-controls .toast-camp { bottom: calc(104px + var(--sea-ui-height, 120px) + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 520px) {
   .camp-tools {
     position: absolute;

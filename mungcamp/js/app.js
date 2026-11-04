@@ -795,11 +795,46 @@
     campCanvas.focus({ preventScroll: true });
   });
 
+  camp.sea.onToast = msg => toast(msg);
+  const seaControls = $('#seaControls'), seaAction = $('#seaAction'), seaStop = $('#seaStop'), seaStatus = $('#seaStatus');
+  let seaLayoutKey = '';
+  seaAction.addEventListener('click', () => { camp.sea.action(); campCanvas.focus({ preventScroll: true }); });
+  seaStop.addEventListener('click', () => { camp.sea.stopFishing(); campCanvas.focus({ preventScroll: true }); });
+  const seaLabels = [
+    ['낚시 잔교', (MC.CampSea.deck.x0 + MC.CampSea.deck.x1) / 2, MC.CampSea.deck.y0 - 30],
+    ['작은 선착장', MC.CampSea.berth.x, MC.CampSea.berth.y + 88],
+  ].map(([text, x, y]) => {
+    const el = document.createElement('div'); el.className = 'spot'; el.dataset.tone = 'sea';
+    const name = document.createElement('p'); name.className = 'spot-name'; name.textContent = text;
+    el.append(name); $('#campLayer').append(el); return { el, x, y };
+  });
+
   const hint = $('#campHint');
   hint.textContent = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? '가고 싶은 곳을 톡' : '방향키로 걸어요';
   if (state.walked) hint.classList.add('is-off');
 
   function onCampFrame() {
+    for (const { el, x, y } of seaLabels) {
+      const p = camp.toScreen(x, y);
+      el.style.visibility = p.x < -130 || p.x > camp.w + 130 || p.y < -50 || p.y > camp.h + 100 ? 'hidden' : 'visible';
+      el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+    }
+    const sea = camp.sea.controls();
+    seaControls.hidden = !sea;
+    $('#camp').classList.toggle('has-sea-controls', !!sea);
+    chairBtn.disabled = camp.sea.boating || !!camp.sea.fishing;
+    if (sea) {
+      if (seaAction.textContent !== sea.label) seaAction.textContent = sea.label;
+      if (seaStatus.textContent !== sea.detail) seaStatus.textContent = sea.detail;
+      seaStop.hidden = !sea.stop;
+      seaAction.disabled = !!sea.waiting;
+      seaControls.classList.toggle('is-biting', !!sea.bite);
+      const layoutKey = sea.label + sea.detail + camp.w;
+      if (layoutKey !== seaLayoutKey) {
+        seaLayoutKey = layoutKey;
+        $('#camp').style.setProperty('--sea-ui-height', seaControls.offsetHeight + 'px');
+      }
+    }
     // 자리 이름과 '앉기' 단추를 지도 위 제자리에
     for (const s of MC.CAMP_SPOTS) {
       const { el, act } = spotEls[s.id];
@@ -1521,6 +1556,9 @@
         e.preventDefault();
         held.add(e.code);
         applyKeys();
+      } else if ((e.code === 'Enter' || e.code === 'Space') && camp.sea.controls() && !(t && t.closest && t.closest('button, a'))) {
+        e.preventDefault();
+        if (!seaAction.disabled) seaAction.click();
       } else if ((e.code === 'Enter' || e.code === 'Space') && camp.near && !(t && t.closest && t.closest('button, a'))) {
         e.preventDefault();
         activateSpot(camp.near);

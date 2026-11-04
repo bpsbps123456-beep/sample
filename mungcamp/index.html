@@ -69,6 +69,13 @@
           <button class="chip camp-tool camp-chair" id="chairBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-chair"/></svg><span>의자</span></button>
         </div>
       </div>
+      <div class="camp-sea-ui" id="seaControls" role="group" aria-label="바닷가 활동" hidden>
+        <p id="seaStatus" role="status" aria-live="polite"></p>
+        <div class="sea-buttons">
+          <button class="btn btn-ember" id="seaAction" type="button">낚싯대 던지기</button>
+          <button class="btn btn-ghost" id="seaStop" type="button" hidden>거두기</button>
+        </div>
+      </div>
       <p class="toast toast-camp" id="campToast" role="status" aria-live="polite"></p>
     </header>
 
@@ -260,6 +267,7 @@
   <script src="js/scene-forest.js" defer></script>
   <script src="js/scene-tent.js" defer></script>
   <script src="js/scene-lodge.js" defer></script>
+  <script src="js/camp-sea.js" defer></script>
   <script src="js/camp-map.js" defer></script>
   <script src="js/breath.js" defer></script>
   <script src="js/app.js" defer></script>

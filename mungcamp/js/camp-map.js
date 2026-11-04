@@ -5,13 +5,12 @@
 (function (MC) {
   'use strict';
 
-  const W = 2600;
+  const W = MC.CampSea.width;
   const H = 2100;
   const INK = 'rgba(30,40,34,0.85)';
 
   // 오른쪽 끝은 언제나 바다. 물가 선은 조금씩 굽이친다
-  const shoreX = (y) => 2170 + 40 * Math.sin(y * 0.004) + 22 * Math.sin(y * 0.011 + 1);
-  const DOCK = { y0: 1022, y1: 1060, len: 210 };
+  const shoreX = MC.CampSea.shoreX;
   const DOCK_Y = 1041;
 
   const FIRE = { x: 1120, y: 1060 };
@@ -168,6 +167,8 @@
       this.pup.x = FIRE.x - 70;
       this.pup.y = FIRE.y + 70;
       this.sign = MC.cleanSign(MC.store.get('sign', ''));
+      this.sea = new MC.CampSea(this);
+      this.route = [];
       this.cam = { x: this.pup.x, y: this.pup.y - 40 };
       this.rnd = MC.rng(1717);
       this.layout();
@@ -331,6 +332,7 @@
 
     // 부딪히면 바깥으로 밀어 낸다. grow로 조금 넉넉하게 밀 수도 있다
     collide(p, grow = 1) {
+      if (this.sea.boating) return;
       for (let pass = 0; pass < 2; pass++) {
         for (const b of this.blockers) {
           const r = b.r * grow;
@@ -351,6 +353,7 @@
 
     // 톡 눌러 갈 때: 앞을 가로막는 것이 있으면 옆으로 비켜 돌아간다
     steer(dx, dy) {
+      if (this.sea.boating) return [0, 0];
       const p = this.pup;
       let ax = 0;
       let ay = 0;
@@ -394,6 +397,7 @@
         this.buildSprites();
       }
       this.clampCam();
+      this.sea.build(ss);
     }
 
     buildGround() {
@@ -402,14 +406,14 @@
       const g = c.getContext('2d');
       g.scale(gs, gs);
       const rnd = MC.rng(2024);
-      const base = g.createRadialGradient(W * 0.45, H * 0.58, 120, W * 0.45, H * 0.58, W * 0.85);
+      const base = g.createRadialGradient(1170, H * 0.58, 120, 1170, H * 0.58, 2210);
       base.addColorStop(0, '#5a9168');
       base.addColorStop(1, '#3a6b4f');
       g.fillStyle = base;
       g.fillRect(0, 0, W, H);
       for (let i = 0; i < 480; i++) {
         g.fillStyle = rnd() < 0.5 ? `rgba(120,178,120,${0.05 + rnd() * 0.07})` : `rgba(40,86,60,${0.05 + rnd() * 0.08})`;
-        ellipse(g, rnd() * W, rnd() * H, 30 + rnd() * 90, 20 + rnd() * 60);
+        ellipse(g, rnd() * 2600, rnd() * H, 30 + rnd() * 90, 20 + rnd() * 60);
         g.fill();
       }
       // 편백 숲 바닥은 이끼빛으로 짙게
@@ -1519,34 +1523,6 @@
         g.lineTo(9, -19);
         g.stroke();
       }));
-      // 바다로 뻗은 나무 선착장
-      const dl = DOCK.len + 34;
-      const dh = DOCK.y1 - DOCK.y0;
-      sp.dock = sprite(dl + 10, dh + 26, 5, dh + 14, ss, (g) => {
-        g.fillStyle = 'rgba(10,30,60,0.35)';
-        g.fillRect(4, -dh + 6, dl, dh);
-        g.fillStyle = '#9a7150';
-        g.fillRect(0, -dh, dl, dh);
-        g.strokeStyle = 'rgba(70,45,28,0.6)';
-        g.lineWidth = 1.2;
-        for (let x = 12; x < dl; x += 12) {
-          g.beginPath();
-          g.moveTo(x, -dh);
-          g.lineTo(x, 0);
-          g.stroke();
-        }
-        g.strokeStyle = INK;
-        g.lineWidth = 2;
-        g.strokeRect(0, -dh, dl, dh);
-        for (const x of [dl * 0.33, dl * 0.66, dl - 4]) {
-          for (const y of [-dh - 2, 2]) {
-            ellipse(g, x, y, 4.5, 4.5);
-            g.fillStyle = '#5e4330';
-            g.fill();
-            g.stroke();
-          }
-        }
-      });
       this.glowCache = {};
     }
 
@@ -1584,9 +1560,9 @@
 
     walkable(x, y) {
       if (x < 40 || y < 70 || x > W - 30 || y > H - 30) return false;
+      if (this.sea.boating) return this.sea.navigable(x, y);
       const sx = shoreX(y);
-      const onDock = y > DOCK.y0 + 6 && y < DOCK.y1 + 6 && x < sx + DOCK.len + 10;
-      return x < sx - 22 || onDock;
+      return x < sx - 22 || this.sea.onDeck(x, y, 5);
     }
 
     // ── 조작 ─────────────────────────────────────────────
@@ -1595,6 +1571,7 @@
       this.keys.y = y;
       if (x || y) {
         this.target = null;
+        this.route = [];
         this.camFree = false;
       }
     }
@@ -1626,7 +1603,8 @@
       }
       const tgt = { x: p.x, y: p.y };
       this.collide(tgt, 1.3);
-      this.target = tgt;
+      this.route = this.sea.walkRoute(tgt);
+      this.target = this.route.shift();
       this.lastDist = Infinity;
       this.stuck = 0;
       return 'walk';
@@ -1634,6 +1612,7 @@
 
     // 의자: 펴고 앉아 책 읽기 ↔ 접고 일어서기. 걷기 시작하면 저절로 접는다
     toggleChair() {
+      if (this.sea.boating || this.sea.fishing) { this.sea.note('낚싯대나 노를 내려놓은 뒤 의자를 펼 수 있어요.'); return false; }
       const on = !this.pup.chairOn;
       this.pup.setChair(on);
       if (on) {
@@ -1662,6 +1641,9 @@
     placeAt(id) {
       const s = SPOTS.find((q) => q.id === id);
       if (!s) return;
+      this.sea.boating = false;
+      this.sea.stopFishing(true);
+      this.route = [];
       this.pup.x = s.x;
       this.pup.y = s.y + 24;
       this.pup.view = 'front';
@@ -1693,6 +1675,9 @@
         hp: p.heartBursts || 0,
         ch: p.chairOn ? 1 : 0,
         sg: this.sign,
+        bt: this.sea.boating ? 1 : 0,
+        ba: Math.round(this.sea.angle * 180 / Math.PI),
+        fs: this.sea.fishing ? this.sea.fishing.stage : 0,
       };
     }
 
@@ -1723,7 +1708,7 @@
       const pup = this.pup;
       let vx = 0;
       let vy = 0;
-      const speed = 170;
+      const speed = this.sea.boating ? 245 : 170;
       // 의자에 앉아 있다가 걸으려 하면: 먼저 의자를 접고 내려온다
       const wants = !!(this.keys.x || this.keys.y || this.target);
       if (wants && pup.chairOn) pup.setChair(false);
@@ -1737,7 +1722,7 @@
         const dx = this.target.x - pup.x;
         const dy = this.target.y - pup.y;
         const d = Math.hypot(dx, dy);
-        if (d < 6) this.target = null;
+        if (d < 6) this.target = this.route.shift() || null;
         else {
           const sp = Math.min(speed, d * 6);
           let ux = dx / d;
@@ -1753,6 +1738,7 @@
           this.lastDist = d;
           if (this.stuck > 0.6) {
             this.target = null;
+            this.route = [];
             this.stuck = 0;
             vx = 0;
             vy = 0;
@@ -1760,6 +1746,8 @@
         }
       }
       this.moving = Math.hypot(vx, vy) > 5;
+      this.seaDX = vx; this.seaDY = vy;
+      this.sea.update(dt, this.moving);
       if (this.moving) {
         const nx = pup.x + vx * dt;
         const ny = pup.y + vy * dt;
@@ -1790,9 +1778,9 @@
       pup.light.glowA = 0.45 * fireNear;
       pup.light.from = pup.x < FIRE.x ? 70 : -70;
       pup.k = 0.68;
-      pup.update(dt, { walking: this.moving, E: 0.8 });
+      pup.update(dt, { walking: this.moving && !this.sea.boating, noSleep: this.sea.boating || !!this.sea.fishing, E: 0.8 });
       for (const v of this.visitors.values()) {
-        v.update(dt, { E: 0.8, walkEps: 2, jump: 700 });
+        v.update(dt, { E: 0.8, walkEps: v.st.bt ? 1000 : 2, jump: 700 });
         const p = v.pup;
         p.x = v.x;
         p.y = v.y;
@@ -1820,7 +1808,7 @@
           best = s;
         }
       }
-      this.near = best;
+      this.near = this.sea.boating ? null : best;
 
       this.moktakHit = Math.max(0, this.moktakHit - dt * 4);
       for (const tx of this.texts) tx.t += dt;
@@ -1893,15 +1881,14 @@
       g.stroke();
       for (let i = 0; i < 40; i++) {
         const y = top + MC.hash(i * 3.1) * (bottom - top);
-        const x = shoreX(y) + 40 + MC.hash(i * 7.7) * 400;
+        const x = shoreX(y) + 40 + MC.hash(i * 7.7) * (W - shoreX(y) - 80);
         const b = Math.sin(t * (1 + MC.hash(i) * 1.5) + i);
         if (b < 0.4) continue;
         g.fillStyle = `rgba(255,248,220,${(b - 0.4) * 0.9})`;
         g.fillRect(x - 6, y, 12, 1.6);
       }
       // 선착장
-      const dock = sp.dock;
-      g.drawImage(dock.c, shoreX(760) - 34 - dock.ax, DOCK.y1 - dock.ay, dock.w, dock.h);
+      this.sea.drawHarbor(g);
 
       // 앞뒤 순서대로 세우기 (아래에 있을수록 앞)
       const items = [];
@@ -1972,15 +1959,15 @@
         items.push({ y: p.y, d: () => {
           const a = MC.clamp(v.fade, 0, 1);
           if (a < 1) g.globalAlpha = a;
-          p.draw(g, z * (this.dpr || 1));
-          this.drawSign(g, p, v.st.sg);
+          this.sea.drawPup(g, p, v.st);
+          if (!v.st.bt) this.drawSign(g, p, v.st.sg);
           g.globalAlpha = 1;
         } });
       }
       items.push({ y: this.pup.y, d: () => {
         if (this.visitors.size) MC.drawYouMark(g, this.pup, t);
-        this.pup.draw(g, z * (this.dpr || 1));
-        this.drawSign(g, this.pup, this.sign);
+        this.sea.drawPup(g, this.pup, this.netState());
+        if (!this.sea.boating) this.drawSign(g, this.pup, this.sign);
       } });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.d();

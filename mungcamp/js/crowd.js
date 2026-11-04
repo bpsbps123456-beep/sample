@@ -95,7 +95,7 @@
       p.paintEvery = paintGap(lively);
       if (st.z && !p.sleeping) p.setMood('sleepy', 2.5);
       else if (!st.z && p.sleeping) p.wake();
-      p.update(dt, Object.assign({}, env, { walking: !!st.w || d > (env.walkEps || 3), noSleep: true }));
+      p.update(dt, Object.assign({}, env, { walking: !st.bt && (!!st.w || d > (env.walkEps || 3)), noSleep: true }));
     }
   }
 

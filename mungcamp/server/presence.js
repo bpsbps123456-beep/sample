@@ -93,6 +93,9 @@ function clean(raw) {
     rl: num(raw.rl, -1e6, 1e6) | 0,
     n: cleanName(raw.n),
     sg: p === 'map' ? Array.from(cleanName(raw.sg)).slice(0, 4).join('').trim() : '',
+    bt: p === 'map' && raw.bt ? 1 : 0,
+    ba: p === 'map' ? Math.round(num(raw.ba, -180, 180) || 0) : 0,
+    fs: p === 'map' && !raw.bt ? num(raw.fs, 0, 2) | 0 : 0,
   };
 }
 
