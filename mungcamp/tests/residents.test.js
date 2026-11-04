@@ -80,7 +80,7 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
     const crowd = MC.app.state.sceneObj.crowd, original = crowd.visitors;
     const npcs = [...original.values()];
     const list = new Map();
-    for (let i = 0; i < 40; i++) list.set(`extra-${i}`, { ...npcs[0], id: `extra-${i}` });
+    for (let i = 0; i < 200; i++) list.set(`extra-${i}`, { ...npcs[0], id: `extra-${i}` });
     const st = { ...npcs[0].st, npc: 0, n: '사람', x: 100, y: 900 };
     MC.syncVisitors(list, [{ id: 'real-person', s: st }], { outfit: 'beanie' });
     crowd.visitors = list; crowd.shownAt = -1;
@@ -88,7 +88,7 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
     crowd.visitors = original; crowd.shownAt = -1;
     return { has, size: list.size, real: list.has('real-person') };
   });
-  check(priority.has && priority.real && priority.size === 40, '방문자가 많아도 실제 사람을 생성·그리기에 우선한다', priority);
+  check(priority.has && priority.real && priority.size === 200, '방문자가 많아도 실제 사람을 생성·그리기에 우선한다', priority);
   const phone = await person({ phone: true, residents: true }); cleanup(() => phone.close());
   await enter(phone.page, srv.url, 'fire');
   await until(phone.page, () => MC.app.state.sceneObj.crowd.visitors.size >= 4);

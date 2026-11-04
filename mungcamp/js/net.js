@@ -317,6 +317,8 @@
     }
 
     receive(id, raw) {
+      // 서버는 큰 방의 변경 묶음을 한 번 만들어 모두에게 보낸다. 나는 다른 멍이로 추가하지 않는다.
+      if (id === this.id) return false;
       const st = clean(raw);
       if (!st) {
         this.peers.delete(id);

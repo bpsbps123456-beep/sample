@@ -6,7 +6,8 @@
    따로, 건의함(server/suggest.js)이 사람들이 보낸 건의를 받아 운영자만 보게 남긴다.
 
    - 장소(map, fire, firetower, water, forest, tent, lodge)마다 방을 나누고, 한 방이 차면 다음 방을 연다
-     (모닥불·바다·숲은 ROOM_CAP=16, 글램핑 텐트 안과 숙소는 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
+     (모닥불·바다·숲은 ROOM_CAP=100, 글램핑 텐트 안과 숙소는 TENT_CAP=40, 마을은 MAP_CAP=200).
+     넉넉히 함께 머물고, 정원이 찬 뒤 들어오는 사람만 새 방으로 간다. 기존 사람을 내보내지 않는다.
    - 받은 값은 아는 칸만, 숫자는 범위 안으로 다듬고, 너무 잦은 메시지는 버린다.
    - 바뀐 것만 모아서 1초에 TICK_HZ번 보낸다. 장소별 사람 수는 2초마다.
 
@@ -26,10 +27,10 @@ const zlib = require('zlib');
 const suggest = require('./suggest');
 
 const PORT = +(process.env.PORT || 8787);
-// 마을 지도는 넉넉하게, 모닥불·바다·숲은 오붓하게
-const ROOM_CAP = +(process.env.ROOM_CAP || 16);
-const MAP_CAP = +(process.env.MAP_CAP || 40);
-const TENT_CAP = +(process.env.TENT_CAP || 8);
+// 붐비는 정도는 이용자가 보고 머물거나 이동한다. 정원은 서버 보호용 상한이다.
+const ROOM_CAP = +(process.env.ROOM_CAP || 100);
+const MAP_CAP = +(process.env.MAP_CAP || 200);
+const TENT_CAP = +(process.env.TENT_CAP || 40);
 const MAX_CLIENTS = +(process.env.MAX_CLIENTS || 20000);
 const TICK_HZ = 8;
 const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge'];
@@ -109,7 +110,7 @@ function joinRoom(c, place) {
   const list = rooms.get(place);
   // 가장 붐비지만 아직 자리가 있는 방: 사람들이 흩어지지 않고 모이도록
   let room = null;
-  // 텐트와 숙소는 방이 작아 오붓하게
+  // 실내는 야외보다 낮은 정원을 둔다.
   const cap = place === 'map' ? MAP_CAP : place === 'tent' || place === 'lodge' ? TENT_CAP : ROOM_CAP;
   for (const r of list) if (r.members.size < cap && (!room || r.members.size > room.members.size)) room = r;
   if (!room) {
@@ -150,16 +151,13 @@ setInterval(() => {
       const l = Array.from(room.left);
       room.changed.clear();
       room.left.clear();
-      for (const m of room.members) {
-        // 자기 자신의 변화는 빼고 보낸다
-        let mine = null;
-        if (j[m.id]) {
-          mine = j[m.id];
-          delete j[m.id];
-        }
-        if (Object.keys(j).length || l.length) send(m, { t: 'd', j, l });
-        if (mine) j[m.id] = mine;
+      // 큰 방도 JSON과 웹소켓 프레임은 한 번만 만든다. 내 상태는 수신 쪽에서 제외한다.
+      if (room.members.size === 1 && !l.length) {
+        const only = room.members.values().next().value;
+        if (Object.keys(j).every(id => id === only.id)) continue;
       }
+      const data = frame(JSON.stringify({ t: 'd', j, l }));
+      for (const m of room.members) sendFrame(m, data);
     }
   }
 }, 1000 / TICK_HZ);
@@ -168,8 +166,8 @@ setInterval(() => {
 setInterval(() => {
   const c = {};
   for (const [place, list] of rooms) c[place] = list.reduce((n, r) => n + r.members.size, 0);
-  const msg = JSON.stringify({ t: 'n', c });
-  for (const cl of clients) sendRaw(cl, msg);
+  const data = frame(JSON.stringify({ t: 'n', c }));
+  for (const cl of clients) sendFrame(cl, data);
 }, 2000);
 
 // ── 웹소켓 (RFC 6455, 텍스트 프레임만) ─────────────────────
@@ -194,13 +192,17 @@ function frame(text) {
 }
 
 function sendRaw(c, text) {
+  sendFrame(c, frame(text));
+}
+
+function sendFrame(c, data) {
   if (c.closed) return;
   // 느린 연결이 쌓이면 끊는다 (메모리 보호)
   if (c.socket.writableLength > 256 * 1024) {
     close(c);
     return;
   }
-  c.socket.write(frame(text));
+  c.socket.write(data);
 }
 
 function send(c, obj) {

@@ -4,12 +4,12 @@
 (function (MC) {
   'use strict';
 
-  const MAX_VISITORS = 40;
+  const MAX_VISITORS = 200;
 
   // 다른 사람 멍이는 가까운 사람부터 이만큼만 그린다. 기기가 버거워하면(MC.Runner 가 품질을 낮추면) 줄인다
   function maxDrawn() {
     const q = MC.frameQuality == null ? 1 : MC.frameQuality;
-    return q >= 0.8 ? 16 : q >= 0.6 ? 12 : 8;
+    return q >= 0.8 ? 48 : q >= 0.6 ? 24 : 8;
   }
   // 다시 그리는 간격도 버거우면 늘린다
   function paintGap(lively) {
