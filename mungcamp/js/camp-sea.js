@@ -2,7 +2,8 @@
 (function (MC) {
   'use strict';
 
-  const shoreX = y => 2170 + 40 * Math.sin(y * 0.004) + 22 * Math.sin(y * 0.011 + 1);
+  // 잔잔한 두 굽이로 이어지는 해안. 선착장 곁에는 작은 만이 생긴다.
+  const shoreX = y => 2170 + 58 * Math.sin(y * 0.0032 + .3) + 25 * Math.sin(y * 0.0071 - .8);
   const Y = 1041;
   const END = shoreX(Y) + 850;
   const PIER = { x0: shoreX(Y) - 65, x1: END, y0: Y - 40, y1: Y + 40 };

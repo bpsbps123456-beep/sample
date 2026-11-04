@@ -62,7 +62,7 @@
   // 둘레길은 마을을 한 바퀴 돈다: 숲 → 정자 → 바닷가 모래길 → 글램핑장 앞 → 다시 숲.
   // 가운데 모닥불에서 네 곳으로 지름길이 나 있다
   const RING = [
-    [660, 652], [900, 560], [1180, 520], [1405, 566], [1700, 556], [1930, 690], [2010, 900],
+    [660, 652], [900, 560], [1180, 535], [1405, 566], [1700, 556], [1910, 700], [1995, 900],
     [2018, 1180], [1950, 1450], [1760, 1640], [1640, 1860], [1290, 1950], [960, 1890], [780, 1700],
     [720, 1440], [640, 1290], [430, 1150], [350, 900], [430, 712],
   ];
@@ -72,8 +72,8 @@
     [[FIRE.x - 60, FIRE.y + 20], [900, 900], [720, 760], [STUMP.x + 20, STUMP.y + 44]],
     // 모닥불에서 더 밑으로: 텐트 사이로 내려가 글램핑장 마당에 닿는다
     [[FIRE.x, FIRE.y + 70], [1150, 1300], [1160, 1560], [1185, 1790], [GLAMP.x, GLAMP.y + 70]],
-    // 모닥불과 바닷길 사이에서 장작탑이 있는 작은 마당으로
-    [[1420, 1090], [1530, 1190], [1580, 1320], [TOWER.x, TOWER.y + 65]],
+    // 장작탑 앞을 지나 해안 둘레길에 다시 합류하는 작은 산책 고리.
+    [[1420, 1090], [1515, 1190], [1535, 1300], [1600, 1405], [1750, 1452], [1950, 1450]],
     // 남서쪽 둘레길에서 부드럽게 갈라져, 가장 안쪽 숙소의 툇마루 앞에 닿는다
     [[780, 1700], [680, 1774], [580, 1862], [470, 1940], [395, 1940], [LODGE.x, LODGE.y + 16]],
   ];
@@ -98,6 +98,66 @@
     return out;
   }
   const PATHS = [catmull(RING, 12, true), ...PATH_KEYS.map((k) => catmull(k))];
+  const PATH_WIDTHS = [51, 46, 57, 41, 46, 39, 36];
+  const CLEARINGS = [
+    { x: FIRE.x, y: FIRE.y + 33, rx: 158, ry: 105, seed: 2 },
+    { x: TOWER.x, y: TOWER.y + 40, rx: 123, ry: 94, seed: 7 },
+    { x: STUMP.x + 16, y: STUMP.y + 35, rx: 93, ry: 66, seed: 12 },
+    { x: PAVILION.x, y: PAVILION.y + 43, rx: 132, ry: 67, seed: 16 },
+  ];
+  const beachWidth = y => 133 + 20 * Math.sin(y * .004 + .6) + 28 * Math.exp(-(((y - DOCK_Y) / 340) ** 2));
+
+  function pathRadius(x, y, pi) {
+    return PATH_WIDTHS[pi] * .5 * (1 + .075 * Math.sin(x * .012 + y * .004) + .045 * Math.sin(y * .017 - x * .005));
+  }
+
+  // 폭의 작은 변화는 모든 겹에서 함께 쓴다. 교차점도 한 장의 흙으로 그린다.
+  function pathRibbon(g, path, pi, spread) {
+    const left = [], right = [], loop = pi === 0;
+    for (let i = 0; i < path.length; i++) {
+      const [x, y] = path[i];
+      const a = path[i ? i - 1 : loop ? path.length - 2 : 0];
+      const b = path[i < path.length - 1 ? i + 1 : loop ? 1 : i];
+      const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+      const r = Math.max(2, pathRadius(x, y, pi) + spread);
+      left.push([x - dy / len * r, y + dx / len * r]);
+      right.push([x + dy / len * r, y - dx / len * r]);
+    }
+    g.beginPath(); g.moveTo(...left[0]);
+    for (let i = 1; i < left.length; i++) g.lineTo(...left[i]);
+    if (!loop) {
+      const end = path.at(-1), before = path.at(-2), dx = end[0] - before[0], dy = end[1] - before[1], len = Math.hypot(dx, dy) || 1;
+      const r = pathRadius(...end, pi) + spread;
+      g.quadraticCurveTo(end[0] + dx / len * r * 1.5, end[1] + dy / len * r * 1.5, ...right.at(-1));
+    } else g.lineTo(...right.at(-1));
+    for (let i = right.length - 2; i >= 0; i--) g.lineTo(...right[i]);
+    if (!loop) {
+      const start = path[0], after = path[1], dx = start[0] - after[0], dy = start[1] - after[1], len = Math.hypot(dx, dy) || 1;
+      const r = pathRadius(...start, pi) + spread;
+      g.quadraticCurveTo(start[0] + dx / len * r * 1.5, start[1] + dy / len * r * 1.5, ...left[0]);
+    }
+    g.closePath(); g.fill();
+  }
+
+  function clearing(g, q) {
+    g.save(); g.translate(q.x, q.y); g.scale(1, q.ry / q.rx);
+    const earth = g.createRadialGradient(0, 0, q.rx * .12, 0, 0, q.rx * 1.08);
+    earth.addColorStop(0, '#cbb18a');
+    earth.addColorStop(.54, 'rgba(203,177,138,.98)');
+    earth.addColorStop(.76, 'rgba(203,177,138,.66)');
+    earth.addColorStop(.93, 'rgba(203,177,138,.14)');
+    earth.addColorStop(1, 'rgba(203,177,138,0)');
+    g.fillStyle = earth;
+    const pts = [];
+    for (let i = 0; i < 32; i++) {
+      const a = i / 32 * Math.PI * 2;
+      const r = 1 + .055 * Math.sin(a * 3 + q.seed) + .035 * Math.sin(a * 5 - q.seed);
+      pts.push([Math.cos(a) * q.rx * r * 1.1, Math.sin(a) * q.rx * r * 1.1]);
+    }
+    g.beginPath(); g.moveTo(...pts[0]);
+    for (const p of pts.slice(1)) g.lineTo(...p);
+    g.closePath(); g.fill(); g.restore();
+  }
   // 양옆 샛길을 닫는 하나의 낮은 나무 울타리. 두 끝 사이의 입구만 열려 있다.
   const LODGE_BORDER = catmull([
     [735, 1658], [635, 1720], [535, 1790], [470, 1800],
@@ -210,8 +270,12 @@
       return false;
     }
 
+    inClearing(x, y, margin = 0) {
+      return CLEARINGS.some(q => ((x - q.x) / (q.rx + margin)) ** 2 + ((y - q.y) / (q.ry + margin)) ** 2 < 1);
+    }
+
     clearOf(x, y, d) {
-      if (this.nearPath(x, y, d)) return false;
+      if (this.nearPath(x, y, d) || this.inClearing(x, y, 25)) return false;
       if (x > shoreX(y) - 190) return false;
       for (const [ox, oy, r] of [[FIRE.x, FIRE.y, 190], [TOWER.x, TOWER.y, 170], [PAVILION.x, PAVILION.y - 40, 170], [STUMP.x, STUMP.y, 110], [BRAZIER.x, BRAZIER.y, 120]]) {
         if ((x - ox) ** 2 + (y - oy) ** 2 < r * r) return false;
@@ -235,8 +299,14 @@
         this.trees.push({ kind, v: (rnd() * 3) | 0, x, y, sway: rnd() * 6 });
         return true;
       };
-      // 편백 숲: 왼쪽 위에 빽빽하게
-      for (let i = 0; i < 420; i++) add('cypress', 90 + rnd() * 900, 90 + rnd() * 700, 46);
+      // 숲 가장자리는 둥글게 풀어진다. 네모난 나무 벽 대신 성긴 외곽과 짙은 안쪽.
+      for (let i = 0; i < 480; i++) {
+        const x = 65 + rnd() * 1030, y = 65 + rnd() * 800;
+        const d = Math.hypot((x - 400) / 650, (y - 220) / 660);
+        const edge = MC.clamp((1.16 - d) / .38, 0, 1);
+        if (rnd() > edge) continue;
+        add('cypress', x, y, 46);
+      }
       // 둥근 나무와 덤불: 마을 가장자리를 따라
       for (let i = 0; i < 900; i++) {
         const edge = rnd();
@@ -252,10 +322,13 @@
           x = 1000 + rnd() * 1000;
           y = 70 + rnd() * 300;
         } else {
-          // 둘레길 안쪽 들판에 드문드문
-          x = 650 + rnd() * 1350;
-          y = 700 + rnd() * 1150;
-          if (rnd() < 0.68) continue;
+          // 나무는 작은 군락으로 모이고 가운데 풀밭은 트여 있다.
+          const groves = [[1730, 760, 150, 145], [920, 1440, 150, 155], [1790, 1580, 105, 125], [870, 390, 150, 120]];
+          const q = groves[(rnd() * groves.length) | 0];
+          const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+          x = q[0] + Math.cos(a) * q[2] * r;
+          y = q[1] + Math.sin(a) * q[3] * r;
+          if (rnd() < .5) continue;
         }
         add(rnd() < 0.35 ? 'bush' : 'round', x, y, 58);
       }
@@ -265,7 +338,7 @@
         let acc = 0;
         for (let i = 1; i < path.length; i++) {
           acc += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-          if (acc < 160) continue;
+          if (acc < (pi === PATHS.length - 1 ? 166 : 190)) continue;
           acc = 0;
           const [x0, y0] = path[i - 1];
           const [x1, y1] = path[i];
@@ -273,6 +346,8 @@
           const side = (this.lanterns.length + pi) % 2 ? 1 : -1;
           const x = x1 + (-(y1 - y0) / len) * 42 * side;
           const y = y1 + ((x1 - x0) / len) * 42 * side;
+          // 갈림길 가운데나 넓은 마당에는 기둥을 세우지 않는다.
+          if (this.nearPath(x, y, 33) || this.inClearing(x, y, 12)) continue;
           if ((x - FIRE.x) ** 2 + (y - FIRE.y) ** 2 < 120 * 120) continue;
           if (Math.hypot(x - TOWER.x, y - TOWER.y) < 125) continue;
           if (x > shoreX(y) - 30) continue;
@@ -411,10 +486,15 @@
       base.addColorStop(1, '#3a6b4f');
       g.fillStyle = base;
       g.fillRect(0, 0, W, H);
-      for (let i = 0; i < 480; i++) {
-        g.fillStyle = rnd() < 0.5 ? `rgba(120,178,120,${0.05 + rnd() * 0.07})` : `rgba(40,86,60,${0.05 + rnd() * 0.08})`;
-        ellipse(g, rnd() * 2600, rnd() * H, 30 + rnd() * 90, 20 + rnd() * 60);
-        g.fill();
+      // 넓고 옅은 풀빛의 변화. 동그란 얼룩이 도드라지지 않도록 가장자리를 풀어 준다.
+      for (let i = 0; i < 95; i++) {
+        const x = rnd() * 2300, y = rnd() * H, r = 85 + rnd() * 170;
+        const light = rnd() < .58;
+        g.save(); g.translate(x, y); g.scale(1, .55 + rnd() * .3);
+        const patch = g.createRadialGradient(0, 0, 0, 0, 0, r);
+        patch.addColorStop(0, light ? 'rgba(147,183,111,.11)' : 'rgba(29,70,48,.13)');
+        patch.addColorStop(1, light ? 'rgba(147,183,111,0)' : 'rgba(29,70,48,0)');
+        g.fillStyle = patch; g.fillRect(-r, -r, r * 2, r * 2); g.restore();
       }
       // 편백 숲 바닥은 이끼빛으로 짙게
       const moss = g.createRadialGradient(520, 430, 40, 520, 430, 600);
@@ -426,16 +506,21 @@
       const band = (off, wobble) => {
         g.beginPath();
         g.moveTo(W + 10, -10);
-        for (let y = -10; y <= H + 10; y += 10) g.lineTo(shoreX(y) + off + Math.sin(y * 0.021) * wobble, y);
+        for (let y = -10; y <= H + 10; y += 10) g.lineTo(shoreX(y) + (typeof off === 'function' ? off(y) : off) + Math.sin(y * 0.021) * wobble, y);
         g.lineTo(W + 10, H + 10);
         g.closePath();
       };
-      band(-170, 14);
+      // 모래와 잔디 사이에는 낮은 사구. 작은 반도와 만을 따라 폭이 달라진다.
+      for (const [extra, alpha] of [[24, .06], [14, .09], [6, .15]]) {
+        band(y => -beachWidth(y) - extra, 9);
+        g.fillStyle = `rgba(209,193,139,${alpha})`; g.fill();
+      }
+      band(y => -beachWidth(y), 8);
       g.fillStyle = '#e2cc9c';
       g.fill();
-      band(-46, 6);
-      g.fillStyle = '#c6b088';
-      g.fill();
+      for (const [off, col] of [[-55, '#d6bf94'], [-42, '#cbb68e'], [-27, '#c3b28e']]) {
+        band(off, 3); g.fillStyle = col; g.fill();
+      }
       band(0, 0);
       const sea = g.createLinearGradient(2100, 0, W, 0);
       sea.addColorStop(0, '#78cabb');
@@ -453,11 +538,28 @@
         g.fillStyle = patch; g.fillRect(-r, -r, r * 2, r * 2); g.restore();
       }
       g.restore();
-      for (let i = 0; i < 260; i++) {
+      for (let i = 0; i < 480; i++) {
         const y = rnd() * H;
-        const x = shoreX(y) - 170 + rnd() * 150;
+        const x = shoreX(y) - beachWidth(y) + 8 + rnd() * (beachWidth(y) - 38);
         g.fillStyle = `rgba(${rnd() < 0.5 ? '255,250,235' : '150,125,90'},${0.15 + rnd() * 0.2})`;
-        g.fillRect(x, y, 2, 2);
+        ellipse(g, x, y, .7 + rnd() * 1.6, .5 + rnd()); g.fill();
+      }
+      // 모래가 끝나는 곳에 성긴 갯풀과 바람결. 다리 입구와 산책로는 비워 둔다.
+      for (let i = 0; i < 150; i++) {
+        const y = 45 + rnd() * (H - 90), x = shoreX(y) - beachWidth(y) + (rnd() - .5) * 27;
+        if (this.nearPath(x, y, 40)) continue;
+        g.strokeStyle = rnd() < .6 ? 'rgba(113,143,88,.5)' : 'rgba(184,169,111,.65)';
+        g.lineWidth = 1.2; g.beginPath();
+        for (let j = -1; j <= 1; j++) {
+          g.moveTo(x + j * 2, y); g.quadraticCurveTo(x + j * 3 - 2, y - 6, x + j * 6 - 4, y - 10 - rnd() * 5);
+        }
+        g.stroke();
+      }
+      for (let i = 0; i < 65; i++) {
+        const y = rnd() * H, x = shoreX(y) - 65 - rnd() * 40;
+        if (Math.abs(y - DOCK_Y) < 60) continue;
+        g.strokeStyle = 'rgba(173,151,108,.19)'; g.lineWidth = .9;
+        g.beginPath(); g.moveTo(x - 4, y - 10); g.quadraticCurveTo(x + 2, y, x - 3, y + 14); g.stroke();
       }
       // 숙소까지 긴 거리로 풀빛이 식고, 옅은 서리에서 눈으로 차츰 이어진다
       {
@@ -486,39 +588,51 @@
           g.fill();
         }
       }
-      // 오솔길
-      for (const path of PATHS) {
-        const stroke = (lw, col) => {
-          g.strokeStyle = col;
-          g.lineWidth = lw;
-          g.lineCap = 'round';
-          g.lineJoin = 'round';
-          g.beginPath();
-          path.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-          g.stroke();
-        };
-        stroke(58, 'rgba(120,96,64,0.35)');
-        stroke(50, '#c8a77c');
-        stroke(40, '#d8bb90');
-        // 같은 흙길 위로 서리가 조금씩 늘어 문 앞에서 눈길이 된다.
-        for (let i = 1; i < path.length; i++) {
-          const [x, y] = path[i];
-          const chill = coldAt(x, y);
-          if (!chill) continue;
-          g.strokeStyle = `rgba(228,232,233,${chill * chill * 0.84})`;
-          g.lineWidth = 39;
-          g.beginPath();
-          g.moveTo(...path[i - 1]);
-          g.lineTo(x, y);
-          g.stroke();
-        }
-        for (let i = 0; i < path.length; i += 2) {
-          const [x, y] = path[i];
-          g.fillStyle = `rgba(140,110,80,${0.35 * (1 - coldAt(x, y) * 0.65)})`;
-          ellipse(g, x + (rnd() - 0.5) * 34, y + (rnd() - 0.5) * 34, 2 + rnd() * 2.5, 1.5 + rnd() * 1.5);
-          g.fill();
+      // 흙길과 시설 앞마당을 같은 겹으로 칠해 이음새와 둥근 막다른 끝을 없앤다.
+      for (const [spread, col] of [[12, 'rgba(157,143,95,.035)'], [7, 'rgba(166,146,98,.07)'], [3, 'rgba(126,110,77,.13)'], [0, '#bea37b'], [-3, '#cbb18a'], [-8, 'rgba(218,193,151,.48)']]) {
+        g.fillStyle = col;
+        PATHS.forEach((path, pi) => pathRibbon(g, path, pi, spread));
+      }
+      for (const q of CLEARINGS) clearing(g, q);
+      // 마당 한가운데는 모서리 없이 다져진 흙과 잔자갈.
+      for (const q of CLEARINGS) {
+        for (let i = 0; i < 90; i++) {
+          const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * .8;
+          const x = q.x + Math.cos(a) * q.rx * r, y = q.y + Math.sin(a) * q.ry * r;
+          g.fillStyle = rnd() < .55 ? 'rgba(114,97,73,.17)' : 'rgba(245,226,191,.28)';
+          ellipse(g, x, y, .8 + rnd() * 1.6, .6 + rnd() * 1.1); g.fill();
         }
       }
+      PATHS.forEach((path, pi) => {
+        // 같은 흙길 위로 서리가 조금씩 늘어 문 앞에서 눈길이 된다.
+        g.lineCap = 'round';
+        for (let i = 1; i < path.length; i++) {
+          const [x, y] = path[i], chill = coldAt(x, y);
+          if (chill) {
+            g.strokeStyle = `rgba(228,232,233,${chill * chill * .82})`;
+            g.lineWidth = pathRadius(x, y, pi) * 2 - 5;
+            g.beginPath(); g.moveTo(...path[i - 1]); g.lineTo(x, y); g.stroke();
+          }
+          if (i % 2) continue;
+          const prev = path[i - 1], dx = x - prev[0], dy = y - prev[1], len = Math.hypot(dx, dy) || 1;
+          const r = pathRadius(x, y, pi);
+          // 가는 흙결과 작고 납작한 자갈.
+          g.fillStyle = `rgba(128,105,75,${.22 * (1 - chill * .65)})`;
+          ellipse(g, x + (rnd() - .5) * r * 1.65, y + (rnd() - .5) * r * 1.65, .7 + rnd() * 1.6, .5 + rnd()); g.fill();
+          if (i % 8 === 0) {
+            g.strokeStyle = `rgba(243,220,181,${.22 * (1 - chill)})`; g.lineWidth = .8;
+            const off = (rnd() - .5) * r;
+            g.beginPath(); g.moveTo(x - dy / len * off, y + dx / len * off); g.lineTo(x + dx / len * 8 - dy / len * off, y + dy / len * 8 + dx / len * off); g.stroke();
+          }
+          // 풀은 길 가장자리를 조금씩 덮되 교차점과 마당으로 들어오지 않는다.
+          if (i % 5 || chill > .65) continue;
+          const side = i % 10 ? -1 : 1, edge = r + 4 + rnd() * 5;
+          const ex = x - dy / len * edge * side, ey = y + dx / len * edge * side;
+          if (this.nearPath(ex, ey, r * .9) || this.inClearing(ex, ey, 8) || ex > shoreX(ey) - beachWidth(ey) - 12) continue;
+          g.strokeStyle = 'rgba(87,126,74,.48)'; g.lineWidth = 1.1;
+          g.beginPath(); g.moveTo(ex - 2, ey); g.lineTo(ex - 4, ey - 4); g.moveTo(ex + 1, ey); g.lineTo(ex + 2, ey - 5); g.stroke();
+        }
+      });
       // 눈길의 마지막 굽이는 오래 놓인 돌 디딤길로, 문 앞의 따뜻한 빛으로 이어진다.
       {
         const path = PATHS[PATHS.length - 1];
@@ -552,20 +666,6 @@
           for (const dx of [-3, 0, 3]) { ellipse(g, x + dx, y - 4, 1, 1.2); g.fill(); }
         }
       }
-      // 모닥불 둘레의 다져진 흙
-      const yard = g.createRadialGradient(FIRE.x, FIRE.y, 20, FIRE.x, FIRE.y, 150);
-      yard.addColorStop(0, 'rgba(200,170,128,0.9)');
-      yard.addColorStop(0.7, 'rgba(200,170,128,0.55)');
-      yard.addColorStop(1, 'rgba(200,170,128,0)');
-      g.fillStyle = yard;
-      ellipse(g, FIRE.x, FIRE.y, 170, 120);
-      g.fill();
-      const towerYard = g.createRadialGradient(TOWER.x, TOWER.y, 15, TOWER.x, TOWER.y, 140);
-      towerYard.addColorStop(0, 'rgba(130,101,66,0.6)');
-      towerYard.addColorStop(1, 'rgba(130,101,66,0)');
-      g.fillStyle = towerYard;
-      ellipse(g, TOWER.x, TOWER.y, 160, 112);
-      g.fill();
       // 글램핑장 마당: 고운 자갈을 깐 너른 터
       const gy = g.createRadialGradient(1290, 1800, 30, 1290, 1800, 380);
       gy.addColorStop(0, 'rgba(206,186,150,0.95)');
@@ -607,7 +707,7 @@
       for (let i = 0; i < 2000; i++) {
         const x = rnd() * W;
         const y = rnd() * H;
-        if (x > shoreX(y) - 175 || this.nearPath(x, y, 30)) continue;
+        if (x > shoreX(y) - beachWidth(y) - 28 || this.nearPath(x, y, 35) || this.inClearing(x, y, 10)) continue;
         if (((x - 1290) / 400) ** 2 + ((y - 1800) / 160) ** 2 < 1) continue;
         // 눈 덮인 숙소 둘레에는 들꽃 대신 눈 위로 삐죽한 마른 풀만
         if (rnd() < coldAt(x, y)) {
