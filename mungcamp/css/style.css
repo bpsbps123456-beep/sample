@@ -659,6 +659,16 @@ a { color: inherit; }
 .nick-fine.is-warn { color: var(--ember-hi); }
 .nick-card .btn-block { margin-top: 16px; }
 .modal-buttons .btn { flex: 1; white-space: nowrap; min-height: 48px; }
+/* 팻말의 세 버튼은 글자 폭에 맞추고, 캡슐 반지름만큼만 좌우를 띄운다. */
+.sign-card .modal-buttons { flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.sign-card .modal-buttons .btn {
+  --sign-button-height: 48px;
+  flex: 0 0 auto;
+  height: var(--sign-button-height);
+  min-height: var(--sign-button-height);
+  padding: 0 calc(var(--sign-button-height) / 2);
+  line-height: 1;
+}
 /* 내 멍이 꾸미기 */
 .dress-card { width: min(440px, 100%); padding-top: 20px; background: rgba(12, 14, 28, 0.96); }
 .dress-card h2 { margin-bottom: 0; font-size: var(--step-2); }
@@ -721,6 +731,10 @@ a { color: inherit; }
   .swatch { width: 36px; height: 36px; padding: 3px; }
   .swatch-row { gap: 3px; }
   .modal-buttons .btn { min-height: 46px; font-size: var(--step-0); }
+  .sign-card .modal-buttons .btn { --sign-button-height: 46px; }
+}
+@media (max-width: 360px) {
+  .sign-card .modal-buttons .btn { font-size: var(--step--1); }
 }
 /* 키가 낮은 휴대폰(가로 모드 포함)에서는 미리보기를 더 작게 */
 @media (max-height: 700px) {
