@@ -216,7 +216,7 @@ function ownerCookie(req, token, age) {
   return `${COOKIE}=${token}; Path=/api/suggestions; HttpOnly; SameSite=Strict; Max-Age=${age}${secure ? '; Secure' : ''}`;
 }
 
-function ownerApi(req, res, url, allowedOrigins) {
+function ownerApi(req, res, url, allowedOrigins, getPresence) {
   const route = url.pathname;
   if (route !== '/api/suggestions' && !route.startsWith('/api/suggestions/')) return false;
   if (!sameOrigin(req, allowedOrigins)) {
@@ -254,6 +254,10 @@ function ownerApi(req, res, url, allowedOrigins) {
     return true;
   }
   if (!ownerOk(req)) { sendJson(res, 401, { ok: false, error: 'auth' }); return true; }
+  if (route === '/api/suggestions/presence' && req.method === 'GET') {
+    sendJson(res, 200, getPresence());
+    return true;
+  }
   if (route === '/api/suggestions' && req.method === 'GET') {
     sendJson(res, 200, { count: list.length, items: list.slice().reverse() });
     return true;
@@ -292,9 +296,9 @@ ${rows ? `<ul>${rows}</ul>` : '<p class="empty">아직 받은 건의가 없어�
 }
 
 // 건의에 관한 요청이면 처리하고 true
-function handle(req, res, allowedOrigins = []) {
+function handle(req, res, allowedOrigins = [], getPresence = () => ({ total: 0, places: {}, at: Date.now() })) {
   const url = new URL(req.url || '/', 'http://x');
-  if (ownerApi(req, res, url, allowedOrigins)) return true;
+  if (ownerApi(req, res, url, allowedOrigins, getPresence)) return true;
   if (url.pathname === '/api/suggest') {
     if (req.method !== 'POST') {
       res.writeHead(405, { allow: 'POST' });

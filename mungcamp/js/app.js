@@ -527,8 +527,14 @@
   const ownerOpen = () => !ownerCard.hidden;
   let ownerAbort = null;
   let ownerLogout = Promise.resolve();
+  let ownerPresenceTimer = null;
+  let ownerPresenceBusy = false;
 
   function lockOwner() {
+    clearInterval(ownerPresenceTimer);
+    ownerPresenceTimer = null;
+    $('#ownerOnline').textContent = '—';
+    $('#ownerPlaces').textContent = '';
     ownerLogin.hidden = false;
     ownerInbox.hidden = true;
     ownerPassword.value = '';
@@ -590,6 +596,23 @@
     button.addEventListener('click', action);
     return button;
   }
+  async function loadOwnerPresence() {
+    if (ownerPresenceBusy || !ownerOpen() || ownerInbox.hidden) return;
+    ownerPresenceBusy = true;
+    try {
+      const data = await ownerRequest('/presence');
+      $('#ownerOnline').textContent = String(data.total);
+      const names = { map: '마을', fire: '모닥불', firetower: '탑불멍', water: '바다', forest: '숲', tent: '글램핑', lodge: '숙소' };
+      $('#ownerPlaces').textContent = Object.entries(names).map(([id, name]) => `${name} ${data.places[id] || 0}`).join(' · ');
+      $('#ownerPresenceNote').textContent = '더미 제외 · 열린 화면 기준 · 5초마다 갱신';
+    } catch (error) {
+      if (error.name !== 'AbortError' && ownerOpen()) {
+        $('#ownerOnline').textContent = '—';
+        $('#ownerPlaces').textContent = '';
+        $('#ownerPresenceNote').textContent = '접속 현황을 불러오지 못했어요. 잠시 후 다시 확인해요.';
+      }
+    } finally { ownerPresenceBusy = false; }
+  }
   async function loadOwner() {
     const data = await ownerRequest('');
     if (!ownerOpen()) return;
@@ -621,6 +644,8 @@
     }
     ownerLogin.hidden = true;
     ownerInbox.hidden = false;
+    await loadOwnerPresence();
+    if (ownerOpen() && !ownerPresenceTimer) ownerPresenceTimer = setInterval(loadOwnerPresence, 5000);
   }
   ownerLogin.addEventListener('submit', async e => {
     e.preventDefault();

@@ -728,12 +728,22 @@
       const to = this.world(target);
       this.flying.push({
         log: target,
+        actor: this.tower,
+        held: this.tower,
+        elapsed: 0,
         t: 0,
         dur: 0.95,
         from: { x: this.w + 80 * this.s, y: this.h * 0.95, a: -1.4, k: this.s * LOG_SCALE },
         to: { x: to.x, y: to.y, a: target.a, k: this.s * LOG_SCALE },
         arc: 120 * this.s,
       });
+      if (this.tower) {
+        this.pup.wake();
+        this.pup.lookUpT = 1.2;
+        this.pup.logThrow = { time: 0, side: this.pup.x < this.cx ? 1 : -1 };
+        const f = this.flying[this.flying.length - 1];
+        Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.7 });
+      }
       return true;
     }
 
@@ -1043,25 +1053,13 @@
         p.y += p.vy * dt;
       }
 
-      for (let i = this.flying.length - 1; i >= 0; i--) {
-        const f = this.flying[i];
-        // 창 크기가 달라져도 현재 화면의 꼭대기에 착지한다.
-        if (this.tower) {
-          f.log.y = -14 - this.logs.length * TOWER_STEP;
-          Object.assign(f.to, this.world(f.log), { k: this.s * LOG_SCALE });
-        }
-        f.t += dt / f.dur;
-        if (f.t >= 1) {
-          this.flying.splice(i, 1);
-          this.land(f);
-        }
-      }
       if (this.worry && this.worry.phase !== 'fly') this.worry.t += dt;
 
       if (this.crowd) {
         this.crowd.update(dt);
       }
       this.pup.update(dt, { E, cold: !this.preview && E < 0.22, walking: !!(this.crowd && this.crowd.moving) });
+      this.updateFlying(dt);
       if (this.comfortAt && t >= this.comfortAt) {
         this.comfortAt = 0;
         this.pup.comfort();
@@ -1089,6 +1087,55 @@
         }
       }
       this.meteors.update(dt);
+    }
+
+    updateFlying(dt) {
+      for (let i = this.flying.length - 1; i >= 0; i--) {
+        const f = this.flying[i];
+        if (this.tower) {
+          f.log.y = -14 - this.logs.length * TOWER_STEP;
+          Object.assign(f.to, this.world(f.log), { k: this.s * LOG_SCALE });
+        }
+        if (f.actor) {
+          f.elapsed += dt;
+          const side = this.pup.logThrow?.side || (this.pup.x < this.cx ? 1 : -1);
+          this.pup.logThrow = { time: Math.min(f.elapsed, 0.4), side };
+          if (f.held) {
+            Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.7 });
+            if (f.elapsed >= 0.4) {
+              f.held = false;
+              f.origin = { x: (f.from.x - this.cx) / this.s, y: (f.from.y - this.by) / this.s, k: f.from.k / this.s };
+              this.pup.hopV = -45;
+            }
+          }
+          if (!f.held) {
+            Object.assign(f.from, { x: this.cx + f.origin.x * this.s, y: this.by + f.origin.y * this.s, k: f.origin.k * this.s });
+            f.t = Math.max(0, (f.elapsed - 0.4) / f.dur);
+          }
+          this.pup.logThrow = f.elapsed < 0.8 ? { time: f.elapsed, side } : null;
+        } else f.t += dt / f.dur;
+        if (f.t >= 1) {
+          this.flying.splice(i, 1);
+          if (f.actor) this.pup.logThrow = null;
+          this.land(f);
+        }
+      }
+    }
+
+    flyingPose(f) {
+      if (f.held) return f.from;
+      if (f.actor) {
+        const u = MC.clamp(f.t, 0, 1), v = 1 - u;
+        const top = Math.max(32, Math.min(f.from.y, f.to.y) - f.arc);
+        return {
+          x: MC.lerp(f.from.x, f.to.x, u),
+          y: v * v * f.from.y + 2 * v * u * top + u * u * f.to.y,
+          a: MC.lerp(f.from.a, f.to.a, u) + Math.sin(Math.PI * u) * 0.4,
+          k: MC.lerp(f.from.k, f.to.k, u),
+        };
+      }
+      const e = f.t < 0.5 ? 2 * f.t * f.t : 1 - Math.pow(-2 * f.t + 2, 2) / 2;
+      return { x: MC.lerp(f.from.x, f.to.x, e), y: MC.lerp(f.from.y, f.to.y, e) - f.arc * Math.sin(Math.PI * f.t), a: MC.lerp(f.from.a, f.to.a, e), k: MC.lerp(f.from.k, f.to.k, e) };
     }
 
     // 반딧불이: 불 바로 위는 비우고 양옆 풀밭과 소나무 아래에서, 천천히 깜빡이며 떠다닌다
@@ -1496,11 +1543,7 @@
       const s = this.s;
       // 날아가는 장작
       for (const f of this.flying) {
-        const e = f.t < 0.5 ? 2 * f.t * f.t : 1 - Math.pow(-2 * f.t + 2, 2) / 2;
-        const x = MC.lerp(f.from.x, f.to.x, e);
-        const y = MC.lerp(f.from.y, f.to.y, e) - f.arc * Math.sin(Math.PI * f.t);
-        const a = MC.lerp(f.from.a, f.to.a, e);
-        const k = MC.lerp(f.from.k, f.to.k, e);
+        const { x, y, a, k } = this.flyingPose(f);
         const sprite = f.worry ? (f.t < 0.85 ? f.worry.made.sprite : f.worry.made.plain) : f.log.sprite || (f.log.sprite = this.logSprites[f.log.kind][f.log.v % this.logSprites[f.log.kind].length]);
         this.drawPlacedLog(g, f.log, sprite, x, y, a, k);
       }

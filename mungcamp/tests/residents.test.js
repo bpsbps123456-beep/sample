@@ -40,13 +40,18 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
   });
   check(!terrain.bad.length && terrain.boats && terrain.fishing && terrain.footWhileBoating, '보트·낚시·도보는 각자의 지형을 벗어나지 않는다', terrain);
   check(terrain.walkers === 4 && terrain.resters === 4, '산책 멍이는 서로 다른 주기로 걷다가 쉬고 돌아온다', terrain);
-  const yieldMap = await A.evaluate(() => {
-    const r = MC.app.residents, c = MC.app.camp, s = r.sample(r.specs[0], 1000);
-    const before = { x: c.pup.x, y: c.pup.y };
-    r.settle(s, c, [{ x: s.x, y: s.y }]);
-    return { gap: Math.hypot(s.x - r.specs[0].x, (s.y - r.specs[0].y) * 1.65), unchanged: before.x === c.pup.x && before.y === c.pup.y };
+  const stays = await A.evaluate(() => {
+    const r = MC.app.residents, c = MC.app.camp, time = 1700000100;
+    const before = { x: c.pup.x, y: c.pup.y }, list = r.merge('map', [], c, time);
+    const target = list.find(p => p.id === r.specs[0].id);
+    c.pup.x = target.s.x; c.pup.y = target.s.y;
+    r.cache.clear();
+    const after = r.merge('map', [{ id: 'real-person', s: { ...target.s, npc: 0 } }], c, time).filter(p => p.s.npc);
+    const same = JSON.stringify(list) === JSON.stringify(after);
+    c.pup.x = before.x; c.pup.y = before.y; r.cache.clear();
+    return same;
   });
-  check(yieldMap.gap >= 75 && yieldMap.unchanged, '실제 사람이 있는 자리에서는 상주 멍이가 양보한다', yieldMap);
+  check(stays, '내 멍이나 다른 사람이 가까이 와도 상주 멍이는 자리를 비키지 않는다');
   const boop = await A.evaluate(() => {
     const a = MC.app, friend = [...a.camp.visitors.values()].find(v => v.st.npc), before = a.net.mine.bp;
     a.camp.onBoop(friend.id);
@@ -61,9 +66,14 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
     const result = await A.evaluate(() => {
       const a = MC.app, sc = a.state.sceneObj, crowd = sc.crowd;
       const friends = [...crowd.visitors.values()].filter(v => v.st.npc && !v.leaving);
-      return { count: friends.length, expected: a.residents.count(a.state.scene), free: friends.every(v => v.st.k || crowd.free(v.st.x, v.st.y)), finite: friends.every(v => Number.isFinite(v.pup.x + v.pup.y)), q: friends.some(v => v.st.q) };
+      const time = 1700000100, before = a.residents.merge(a.state.scene, [], sc, time), me = { ...crowd.me };
+      crowd.me.X = friends[0].st.x; crowd.me.Z = friends[0].st.y; a.residents.cache.clear();
+      const after = a.residents.merge(a.state.scene, [], sc, time);
+      const stays = JSON.stringify(before) === JSON.stringify(after);
+      Object.assign(crowd.me, me); a.residents.cache.clear();
+      return { count: friends.length, expected: a.residents.count(a.state.scene), free: friends.every(v => v.st.k || crowd.free(v.st.x, v.st.y)), finite: friends.every(v => Number.isFinite(v.pup.x + v.pup.y)), q: friends.some(v => v.st.q), stays };
     });
-    check(result.count === result.expected && result.free && result.finite && !result.q, `${place}: 장소에 맞는 멍이가 보이고 사람의 침대·가지 자리는 비워 둔다`, result);
+    check(result.count === result.expected && result.free && result.finite && !result.q && result.stays, `${place}: 장소에 맞게 머물고 실제 사람이 와도 자리를 비키지 않는다`, result);
     if (['fire', 'tent', 'lodge'].includes(place)) await shot(A, `residents-${place}`);
   }
   const priority = await A.evaluate(() => {

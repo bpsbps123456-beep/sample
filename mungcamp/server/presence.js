@@ -408,6 +408,12 @@ function serveFile(req, res) {
 }
 
 // ── 서버 ───────────────────────────────────────────────
+function actualPresence() {
+  const places = {};
+  for (const [place, list] of rooms) places[place] = list.reduce((n, r) => n + r.members.size, 0);
+  return { total: clients.size, places, at: Date.now() };
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -415,7 +421,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   // 건의함: 누구나 보내고, 운영자만 본다 (server/suggest.js)
-  if (suggest.handle(req, res, ALLOWED_ORIGINS)) return;
+  if (suggest.handle(req, res, ALLOWED_ORIGINS, actualPresence)) return;
   if (STATIC) {
     serveFile(req, res);
     return;

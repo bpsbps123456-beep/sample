@@ -3,7 +3,7 @@
   'use strict';
 
   const mod = (a, b) => ((a % b) + b) % b;
-  const NAMES = ['보리', '구름', '솔잎', '밤톨', '모래', '두부', '여울', '단풍', '감자', '달래', '파도', '윤슬', '호두', '쿠키', '라떼', '콩이', '도토리', '자두', '해솔', '별이', '이슬', '버들', '솜이', '유자', '온유', '초록', '하루', '나른함', '차분함', '포근함', '달빛', '잔잔함', '몽글', '느긋함', '노곤'];
+  const NAMES = ['퇴근하고싶다', '잠깐쉬는중', '커피한잔', '생각정리중', '오늘도수고했어', '멍때리는중', '내일의나에게', '집가고싶다', '느린하루', '공부하다옴', '마감전잠깐', '아무생각없음', '주말기다리는중', '숨고르기', '밤산책', '출근은내일', '오늘은여기까지', '비오는날좋아', '그냥쉬러옴', '딱5분만', '따뜻한이불', '월요일싫어', '노을보는사람', '잠이안와', '괜찮아질거야', '꾸벅꾸벅', '조용히있을게', '별보는중', '바다보고싶다', '쉬었다가자', '할일은많지만', '천천히가도돼', '비타민충전', '지금은충전중', '잘살고있겠지'];
 
   // 같은 길을 끝없이 돌지 않고, 양 끝에서 서로 다른 시간만큼 쉬었다가 돌아온다.
   function route(points) {
@@ -107,7 +107,7 @@
       return this.camp.blockers.every(b => Math.hypot(x - b.x, (y - b.y) * b.sy) >= b.r + 7);
     }
 
-    // 사람이 먼저다. 친구가 빈자리로 물러나며, 실제 사람의 좌표는 손대지 않는다.
+    // 지형과 다른 자동 멍이만 피해 배치한다. 사람이 가까이 와도 자리를 바꾸지 않는다.
     settle(s, context, occupied) {
       const map = s.p === 'map', crowd = !map && context.crowd;
       if (!map && s.p === 'lodge' && !!s.k !== !!context.inside) return s;
@@ -153,9 +153,7 @@
       // 초당 다섯 번 갱신하고, 매 프레임의 보간·호흡·눈 깜빡임은 Pup이 맡는다.
       const bucket = Math.floor(time * 5), old = this.cache.get(place);
       if (old && old.bucket === bucket && old.context === context && old.inside === context.inside) return old.list;
-      const map = place === 'map', crowd = !map && context.crowd;
-      const mine = map ? { x: context.pup.x, y: context.pup.y, bt: +context.sea.boating } : { x: crowd.me.X, y: crowd.me.Z, k: +!!context.inside };
-      const occupied = people.map(p => p.s).concat(mine);
+      const occupied = [];
       const friends = [];
       for (const spec of this.active(bucket / 5)) {
         if (spec.place !== place || people.length + friends.length >= 32) continue;

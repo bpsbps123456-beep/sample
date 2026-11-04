@@ -127,6 +127,7 @@
       this.wagPhase = 0;
       this.hop = 0;
       this.hopV = 0;
+      this.logThrow = null;
       this.pomX = 0;
       this.pomV = 0;
       this.hearts = [];
@@ -265,6 +266,31 @@
       if (this.wake()) return;
       this.perkT = 1.6;
       this.hopV = -32;
+    }
+
+    // 장작을 두 앞발로 들어 올리고, 불 쪽으로 밀어 던진 뒤 팔을 내린다.
+    logThrowPose() {
+      if (!this.logThrow) return null;
+      const { time, side } = this.logThrow;
+      const lift = MC.smooth(0, 0.28, time), push = MC.smooth(0.28, 0.4, time);
+      const recover = MC.smooth(0.48, 0.8, time), dir = side * this.flip;
+      return {
+        x: MC.lerp((-12 + 42 * push) * dir, 0, recover),
+        y: MC.lerp(-30 - 106 * lift - 7 * push, -4, recover),
+        lean: dir * (-0.055 * lift + 0.13 * push) * (1 - recover),
+        lift: lift * (1 - recover),
+      };
+    }
+
+    logGrip() {
+      const pose = this.logThrowPose();
+      if (!pose) return null;
+      const angle = this.chair > 0.01 ? 0 : pose.lean;
+      const y = pose.y - this.seatLift;
+      const x = pose.x * Math.cos(angle) - y * Math.sin(angle);
+      const yy = pose.x * Math.sin(angle) + y * Math.cos(angle);
+      const bob = -Math.abs(Math.sin(this.walkPhase)) * 3 * this.walk;
+      return { x: this.x + x * this.k * this.flip, y: this.y + (yy + this.hop + bob) * this.k, a: angle * this.flip };
     }
 
     watchUp(sec) {
@@ -575,7 +601,7 @@
 
     // ── 그리기 ───────────────────────────────────────────
     bounds() {
-      return { x0: -78, y0: this.chair > 0 ? -170 : -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 42 : 14 };
+      return { x0: -78, y0: this.logThrow ? -180 : this.chair > 0 ? -170 : -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 42 : 14 };
     }
 
     draw(g, dpr, bodyOnly) {
@@ -630,6 +656,7 @@
       const bob = -Math.abs(Math.sin(this.walkPhase)) * 3 * this.walk;
       o.save();
       o.translate(shake, this.hop + bob);
+      if (this.logThrow && this.chair <= 0.01) o.rotate(this.logThrowPose().lean);
       o.rotate(Math.sin(this.walkPhase) * 0.04 * this.walk);
       o.scale(spinX, 1);
       // 눕고 일어날 때 몽글하게 눌렸다 펴진다
@@ -1008,12 +1035,13 @@
       this.paintBody(o, false);
       o.restore();
       if (this.outfit === 'scarf') this.paintScarf(o, false);
-      const reading = this.chair > 0.72;
-      if (this.stick && !reading && !this.snack) this.paintStick(o);
+      const reading = this.chair > 0.72 && !this.logThrow;
+      if (this.stick && !reading && !this.snack && !this.logThrow) this.paintStick(o);
       if (reading) this.paintBook(o);
-      else if (this.snack) this.paintMandarin(o);
-      this.paintPaws(o);
+      else if (this.snack && !this.logThrow) this.paintMandarin(o);
+      if (!this.logThrow) this.paintPaws(o);
       this.paintHeadGroup(o, b);
+      if (this.logThrow) this.paintThrowPaws(o);
     }
 
     // 두 앞발로 든 귤: 껍질이 별처럼 벌어지고, 한 쪽씩 줄어든다
@@ -1093,6 +1121,22 @@
       this.paintTail(o, 0, -9, 0);
       if (this.outfit === 'scarf') this.paintScarf(o, true);
       this.paintHeadGroup(o, b);
+      if (this.logThrow) this.paintThrowPaws(o);
+    }
+
+    paintThrowPaws(o) {
+      const pose = this.logThrowPose();
+      for (const side of [-1, 1]) {
+        const x = pose.x + side * 17, y = pose.y + 5;
+        o.beginPath();
+        o.moveTo(side * 22, -35);
+        o.quadraticCurveTo(side * (36 + pose.lift * 15), y + 22, x, y);
+        o.strokeStyle = INK; o.lineWidth = 15; o.stroke();
+        o.strokeStyle = this.coat.fur; o.lineWidth = 10.6; o.stroke();
+        ellipse(o, x, y, 8, 6, side * 0.2);
+        o.fillStyle = '#fffaf1'; o.fill();
+        o.lineWidth = 2.2; o.strokeStyle = INK; o.stroke();
+      }
     }
 
     bodyPath(o) {

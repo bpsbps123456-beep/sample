@@ -739,6 +739,11 @@ a { color: inherit; }
 .owner-fine { margin: 12px 0 0; color: var(--ember-hi); font-size: var(--step--1); text-align: center; }
 .owner-fine:empty { display: none; }
 .owner-count { margin: 0 0 12px; color: var(--ink-dim); }
+.owner-presence { margin: 0 0 20px; padding: 16px 18px; border: 1px solid var(--glass-line); border-radius: 18px; background: rgba(255,181,105,0.055); }
+.owner-presence-total { margin: 0; color: var(--ink); }
+.owner-presence-total strong { margin: 0 5px; color: var(--ember-hi); font-size: 1.65em; font-variant-numeric: tabular-nums; }
+.owner-presence-places { margin: 8px 0; color: var(--ink-dim); font-size: var(--step--1); line-height: 1.6; overflow-wrap: anywhere; }
+.owner-presence-note { margin: 0; color: var(--ink-faint); font-size: var(--step--1); }
 .owner-list { display: grid; gap: 12px; }
 .owner-item { padding: 14px 16px; border: 1px solid var(--glass-line); border-radius: 18px; background: rgba(255,255,255,0.025); }
 .owner-meta { margin: 0 0 6px; color: var(--ink-dim); font-size: var(--step--1); }
