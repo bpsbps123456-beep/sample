@@ -24,6 +24,25 @@ main(async ({ check, presenceServer, person, until, sleep, cleanup, shot }) => {
   check(await until(A, () => MC.app.camp.sign === '업무중' && document.querySelector('#signCard').hidden), '멍이 곁에 팻말을 세운다');
   check(await until(B, () => [...MC.app.camp.visitors.values()].some((v) => v.st.sg === '업무중'), null, 8000), '다른 사람 화면에도 팻말이 보인다 (서버 경유)');
   await shot(A, 'sign-desktop');
+  const fixed = await A.evaluate(() => {
+    const c = MC.app.camp, canvas = document.createElement('canvas');
+    const g = canvas.getContext('2d'), translate = g.translate.bind(g);
+    const saved = { cam: { ...c.cam }, w: c.w, h: c.h, z: c.z };
+    const positions = [];
+    g.translate = (x, y) => { positions.push([x, y]); translate(x, y); };
+    try {
+      // 같은 팻말이 화면 양 끝을 오가도록 카메라를 이동하고 화면 크기도 바꾼다.
+      for (const width of [1440, 390]) {
+        c.w = width;
+        for (const screenX of [40, width - 40]) {
+          c.cam.x = 940 - (screenX - width / 2) / c.z;
+          c.drawSign(g, { x: 940, y: 1205, k: 1 }, '독서중');
+        }
+      }
+      return positions;
+    } finally { Object.assign(c, saved); }
+  });
+  check(fixed.length === 4 && fixed.every(p => p[0] === fixed[0][0] && p[1] === fixed[0][1]), 'PC·휴대폰에서 카메라가 움직여도 팻말의 마을 좌표는 고정된다', fixed);
   await A.reload();
   await until(A, () => !!MC.app?.camp?.ground);
   check(await A.evaluate(() => MC.app.camp.sign === '업무중'), '새로 열어도 내 팻말을 기억한다');

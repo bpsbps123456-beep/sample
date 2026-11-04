@@ -2458,7 +2458,8 @@
       text = MC.cleanSign(text);
       if (!text) return;
       const k = p.k;
-      const side = this.toScreen(p.x, p.y).x > this.w - 130 ? -1 : 1;
+      // 화면을 따라가거나 크기를 바꿔도 팻말이 좌우로 튀지 않게 마을 경계만 기준으로 삼는다.
+      const side = p.x + 165 * k > W ? -1 : 1;
       g.save();
       g.translate(p.x + side * 108 * k, p.y + 7 * k);
       g.scale(k, k);
