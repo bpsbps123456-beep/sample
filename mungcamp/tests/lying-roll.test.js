@@ -17,10 +17,31 @@ main(async ({ check, presenceServer, person, until, sleep, cleanup, enter, shot 
     const p = new MC.Pup({ outfit: 'scarf' }); p.lie = p.lieTo = 1;
     const cv = document.createElement('canvas'); cv.width = cv.height = 320;
     const g = cv.getContext('2d'); let escaped = 0, floating = 0, deepest = -999, left = 999, right = -999, top = 999;
+    let torso, head, joint, badJoints = 0, maxDrift = 0, maxTurnGap = 0;
+    const ellipse = g.ellipse.bind(g), paintHead = p.paintHead;
+    g.ellipse = (x, y, rx, ry, angle, ...rest) => {
+      if (!torso && y < 0 && rx > 20 && ry > 15) {
+        const m = g.getTransform();
+        torso = { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f, angle: Math.atan2(m.b, m.a) + angle };
+      }
+      return ellipse(x, y, rx, ry, angle, ...rest);
+    };
+    p.paintHead = function (o, ...args) {
+      const m = o.getTransform();
+      head = { x: m.e - 71 * m.c, y: m.f - 71 * m.d, angle: Math.atan2(m.b, m.a) };
+      return paintHead.call(this, o, ...args);
+    };
     for (const dir of [-1, 1]) for (let i = 0; i <= 40; i++) {
+      torso = head = null;
       p.rollPose = { u: i / 40, dir };
       const bounds = p.bounds();
       g.resetTransform(); g.clearRect(0, 0, 320, 320); g.translate(160, 200); p.paint(g);
+      const dx = head.x - torso.x, dy = head.y - torso.y;
+      if (!joint) joint = { dx, dy };
+      const drift = Math.hypot(dx - joint.dx, dy - joint.dy);
+      const turnGap = Math.abs(Math.atan2(Math.sin(head.angle - torso.angle), Math.cos(head.angle - torso.angle)));
+      maxDrift = Math.max(maxDrift, drift); maxTurnGap = Math.max(maxTurnGap, turnGap);
+      if (drift > 12 || turnGap > 0.12) badJoints++;
       const pixels = g.getImageData(0, 0, 320, 320).data;
       let bottom = -999;
       for (let y = 0; y < 320; y++) for (let x = 0; x < 320; x++) {
@@ -37,10 +58,11 @@ main(async ({ check, presenceServer, person, until, sleep, cleanup, enter, shot 
     const resting = new MC.Pup(); resting.setLie(true);
     const events = []; resting.onEvent = e => events.push(e);
     for (let i = 0; i < 20; i++) resting.update(1 / 60, {});
-    return { escaped, floating, deepest, left, right, top, settled: resting.lie === 1, noHop: !events.includes('hop') && resting.hop === 0 };
+    return { escaped, floating, deepest, left, right, top, badJoints, maxDrift, maxTurnGap, settled: resting.lie === 1, noHop: !events.includes('hop') && resting.hop === 0 };
   });
   check(contact.escaped === 0, '양방향 구르기의 머리·꼬리·발이 그림 범위 안에 들어온다', contact);
   check(contact.floating === 0, '구르는 내내 몸이 바닥에 닿고 발이 바닥 아래로 빠지지 않는다', contact);
+  check(contact.badJoints === 0, '구르는 모든 중간 자세에서 머리가 어깨에 붙어 몸통과 같은 방향으로 돈다', { drift: contact.maxDrift, turnGap: contact.maxTurnGap });
   check(contact.settled && contact.noHop, '바닥에 누울 때 튀어 오르지 않고 앞다리를 접어 내려앉는다');
 
   await A.evaluate(() => {

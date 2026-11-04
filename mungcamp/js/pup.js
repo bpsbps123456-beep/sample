@@ -961,24 +961,46 @@
     }
 
     // 바닥·침대: 납작한 배와 접은 뒷다리, 앞으로 뻗은 앞발 위에 턱을 얹는다.
-    // 구를 때는 몸통의 단면, 머리, 접은 다리를 각각 돌린다. 그림자는 바닥에 남는다.
+    // 구를 때도 머리와 어깨를 잇는 축은 유지한다. 바닥에 맞춘 높이는 온몸에 함께 적용한다.
     paintGroundLying(o, b) {
       const R = this.rollPose;
       const u = R ? R.u : 0;
       const lie = Math.max(MC.smooth(0, 1, this.lie), R ? MC.smooth(0, 0.12, u) : 0);
       const angle = R ? MC.smooth(0.14, 0.88, u) * Math.PI * 2 * R.dir * this.flip : 0;
       const cs = Math.cos(angle), sn = Math.sin(angle);
-      const side = Math.abs(sn);
       const belly = (1 - cs) / 2;
       const tuck = R ? Math.sin(Math.PI * MC.smooth(0, 1, u)) : 0;
-      const bx = 14 * lie * cs;
-      const ry = MC.lerp(26, 22 + 6 * side, lie) + b * 0.55;
+      const bx = 14 * lie - 5 * tuck;
+      const rx = MC.lerp(27, 42 - 9 * tuck, lie);
+      const ry = MC.lerp(26, 22 + 2 * tuck, lie) + b * 0.55;
       const by = -ry;
-      const hx = -9 * lie * cs + 5 * sn;
+      const hx = -9 * lie + 3 * tuck;
       const sx = MC.lerp(1, 0.88, lie), sy = MC.lerp(1, 0.8, lie);
       const headTop = this.outfit === 'beanie' ? 64 : this.outfit === 'nightcap' ? 58 : this.outfit === 'sprout' ? 50 : 37;
+      const hy = MC.lerp(-71, -28.2, lie) + tuck;
       const headRadius = Math.hypot(42 * sx * sn, (cs < 0 ? headTop : 29) * sy * cs);
-      const hy = MC.lerp(-71, -5 - headRadius, lie);
+      const hindfeet = [-1, 1].map(s => {
+        const px = MC.lerp(s * 22, s < 0 ? -27 : 43, lie);
+        const dx = MC.lerp(px - bx, s < 0 ? -12 : 21, tuck), dy = ry - 4 - 9 * tuck;
+        const rot = angle + s * 0.18;
+        const radius = Math.hypot(11 * Math.sin(rot), 6 * Math.cos(rot));
+        const y = by + dx * sn + dy * cs;
+        return { x: bx + dx * cs - dy * sn, y: R ? y : Math.min(-radius, y), rot, radius };
+      });
+      const forefeet = [-1, 1].map(s => {
+        const dx = s * MC.lerp(10, 14, lie), dy = MC.lerp(68, 25 - 10 * tuck, lie);
+        const rot = angle - s * 0.08;
+        const radius = Math.hypot(9.5 * Math.sin(rot), 5.5 * Math.cos(rot));
+        const step = !R && this.paddle > 0.01 ? Math.sin(this.t * 7 + s * Math.PI / 2) * 2 * this.paddle : 0;
+        const y = hy + dx * sn + dy * cs + step;
+        return { x: hx + dx * cs - dy * sn, y: R ? y : Math.min(-radius, y), rot, radius,
+          ax: hx + dx * 0.75 * cs - (dy - 10) * sn, ay: hy + dx * 0.75 * sn + (dy - 10) * cs };
+      });
+      // 머리만 따로 들거나 발만 바닥에 붙이지 않고, 가장 낮은 접점에 맞춰 온몸을 옮긴다.
+      const bottom = Math.max(by + Math.hypot(rx * sn, ry * cs), hy + headRadius,
+        ...hindfeet.map(p => p.y + p.radius), ...forefeet.map(p => p.y + p.radius));
+      o.save();
+      if (R) o.translate(0, -Math.max(0, bottom));
       const fur = (x, y, rx, rY, rot = 0, color = this.coat.fur) => {
         ellipse(o, x, y, rx, rY, rot);
         o.fillStyle = color; o.fill();
@@ -1001,43 +1023,33 @@
         o.restore();
       };
       // 꼬리는 허리 옆에 내려놓고, 몸이 뒤집힐 때만 함께 말려 올라간다.
-      o.save(); o.translate(bx + 34 * cs, by + 12 * cs); o.rotate(angle);
+      const tailX = bx + MC.lerp(16, 8, tuck) + MC.lerp(18, 10, tuck) * cs - MC.lerp(12, -2, tuck) * sn;
+      const tailY = by + MC.lerp(18, 10, tuck) * sn + MC.lerp(12, -2, tuck) * cs;
+      o.save(); o.translate(tailX, tailY); o.rotate(angle); o.scale(1 - 0.35 * tuck, 1 - 0.35 * tuck);
       o.beginPath(); o.moveTo(0, 0);
       o.bezierCurveTo(14, -5, 24, 10 + Math.sin(this.wagPhase) * this.wag * 3, 12, 11);
       o.strokeStyle = INK; o.lineWidth = 11; o.stroke();
       o.strokeStyle = this.coat.fur; o.lineWidth = 6.8; o.stroke(); o.restore();
       // 호흡은 배의 윗선만 움직인다. 바닥에 닿은 아랫선은 고정한다.
-      ellipse(o, bx, by, MC.lerp(27, 42 - 12 * side, lie), ry);
+      ellipse(o, bx, by, rx, ry, angle);
       const grad = o.createLinearGradient(0, by - ry, 0, 0);
       grad.addColorStop(0, this.coat.hi); grad.addColorStop(0.6, this.coat.fur); grad.addColorStop(1, this.coat.lo);
       o.fillStyle = grad; o.fill(); o.strokeStyle = INK; o.lineWidth = 2.4; o.stroke();
       if (belly > 0.01) {
         o.save(); o.globalAlpha *= belly;
-        ellipse(o, bx, by - 2, 20, 14); o.fillStyle = this.coat.hi; o.fill();
+        o.translate(bx, by); o.rotate(angle);
+        ellipse(o, 0, -2, 20, 14); o.fillStyle = this.coat.hi; o.fill();
         o.strokeStyle = 'rgba(91,61,44,0.18)'; o.lineWidth = 1.2;
-        o.beginPath(); o.moveTo(bx, by - 8); o.quadraticCurveTo(bx - 2, by, bx, by + 5); o.stroke(); o.restore();
+        o.beginPath(); o.moveTo(0, -8); o.quadraticCurveTo(-2, 0, 0, 5); o.stroke(); o.restore();
       }
       // 뒷다리는 허벅지 밑으로 접는다. 뒤집힐 때는 무릎을 당겨 발바닥이 보인다.
-      for (const s of [-1, 1]) {
-        const px = MC.lerp(s * 22, s < 0 ? -27 : 43, lie);
-        const dx = px - bx, dy = ry - 4 - 9 * tuck;
-        const rot = angle + s * 0.18;
-        const x = bx + dx * cs - dy * sn;
-        const y = Math.min(-Math.hypot(11 * Math.sin(rot), 6 * Math.cos(rot)), by + dx * sn + dy * cs);
-        paw(x, y, rot, belly, true);
-      }
+      for (const p of hindfeet) paw(p.x, p.y, p.rot, belly, true);
       const forepaws = () => {
-        for (const s of [-1, 1]) {
-          const dx = s * MC.lerp(10, 14, lie);
-          const dy = MC.lerp(68, 25 - 10 * tuck, lie);
-          const step = !R && this.paddle > 0.01 ? Math.sin(this.t * 7 + s * Math.PI / 2) * 2 * this.paddle : 0;
-          const rot = angle - s * 0.08;
-          const x = hx + dx * cs - dy * sn;
-          const y = Math.min(-Math.hypot(9.5 * Math.sin(rot), 5.5 * Math.cos(rot)), hy + dx * sn + dy * cs + step);
-          o.beginPath(); o.moveTo(hx + dx * 0.75 * cs - (dy - 10) * sn, hy + dx * 0.75 * sn + (dy - 10) * cs);
-          o.lineTo(x, y); o.strokeStyle = INK; o.lineWidth = 12; o.stroke();
+        for (const p of forefeet) {
+          o.beginPath(); o.moveTo(p.ax, p.ay);
+          o.lineTo(p.x, p.y); o.strokeStyle = INK; o.lineWidth = 12; o.stroke();
           o.strokeStyle = this.coat.fur; o.lineWidth = 8; o.stroke();
-          paw(x, y, rot, belly);
+          paw(p.x, p.y, p.rot, belly);
         }
       };
       if (belly < 0.5) forepaws();
@@ -1049,10 +1061,13 @@
       }
       const view = this.view;
       this.view = 'front';
-      o.save(); o.translate(hx, hy); o.rotate(angle + this.tilt * (1 - lie) + this.tilt * lie * 0.12);
-      o.scale(sx, sy); o.translate(0, 71); this.paintHead(o); o.restore();
+      const dx = bx - hx, dy = by - hy;
+      const join = R ? { x: (dx * cs + dy * sn) / sx, y: (-dx * sn + dy * cs) / sy - 71, rx: rx / sx, ry: ry / sy, blend: tuck } : null;
+      o.save(); o.translate(hx, hy); o.rotate(angle + (R ? 0 : this.tilt * (1 - lie) + this.tilt * lie * 0.12));
+      o.scale(sx, sy); o.translate(0, 71); this.paintHead(o, join); o.restore();
       this.view = view;
       if (belly >= 0.5) forepaws();
+      o.restore();
     }
 
     // 튜브·가지 위의 엎드린 모습
@@ -1345,7 +1360,7 @@
       o.closePath();
     }
 
-    paintHead(o) {
+    paintHead(o, join = null) {
       const back = this.view === 'back';
       const tx = back ? 0 : this.turn;
       this.headPath(o);
@@ -1357,7 +1372,17 @@
       o.fill();
       o.lineWidth = 2.4;
       o.strokeStyle = INK;
-      o.stroke();
+      if (join) {
+        // 어깨와 겹치는 머리의 테두리는 옅게 지워 목을 자르는 고리처럼 보이지 않게 한다.
+        o.save();
+        ellipse(o, join.x, join.y, join.rx, join.ry); o.clip();
+        o.globalAlpha *= 1 - join.blend;
+        this.headPath(o); o.stroke(); o.restore();
+        o.save();
+        o.beginPath(); o.rect(-180, -240, 360, 360);
+        o.ellipse(join.x, join.y, join.rx, join.ry, 0, 0, Math.PI * 2); o.clip('evenodd');
+        this.headPath(o); o.stroke(); o.restore();
+      } else o.stroke();
       this.paintEar(o, -1, tx);
       this.paintEar(o, 1, tx);
       if (!back) this.paintFace(o, tx);
