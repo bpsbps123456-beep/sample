@@ -5,15 +5,19 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+  // 어디서나: 접이식 의자를 펴고 앉아 책 읽기
+  const CHAIR_ACT = { id: 'chair', icon: 'i-chair', label: '의자', toggle: true };
+
   const SCENES = {
     fire: {
-      place: '모닥불 글램핑',
+      place: '모닥불',
       make: (o) => new MC.FireScene({ calm: MC.reducedMotion, from: o.from }),
       scape: MC.FireScape,
       guidance: '불꽃을 바라봐요',
       actions: [
         { id: 'log', icon: 'i-log', label: '장작', primary: true },
         { id: 'worry', icon: 'i-pen', label: '걱정' },
+        CHAIR_ACT,
       ],
       space: 'log',
     },
@@ -25,6 +29,7 @@
       actions: [
         { id: 'ripple', icon: 'i-drop', label: '물결', primary: true },
         { id: 'bottle', icon: 'i-bottle', label: '편지' },
+        CHAIR_ACT,
       ],
       space: 'ripple',
     },
@@ -33,12 +38,12 @@
       make: () => new MC.ForestScene({}),
       scape: MC.ForestScape,
       guidance: '숲 소리에 귀 기울여요',
-      actions: [{ id: 'breeze', icon: 'i-wind', label: '바람', primary: true }],
+      actions: [{ id: 'breeze', icon: 'i-wind', label: '바람', primary: true }, CHAIR_ACT],
       space: 'breeze',
     },
-    // 모닥불 글램핑의 벨텐트 안
+    // 마을 남쪽 글램핑장의 벨텐트 안
     tent: {
-      place: '글램핑 텐트',
+      place: '글램핑',
       make: (o) => new MC.TentScene({ from: o.from }),
       scape: MC.TentScape,
       guidance: '따뜻하게 쉬어요',
@@ -46,6 +51,7 @@
         { id: 'stove', icon: 'i-log', label: '장작', primary: true },
         { id: 'lights', icon: 'i-bulb', label: '불빛', toggle: true },
         { id: 'rain', icon: 'i-rain', label: '비', toggle: true },
+        CHAIR_ACT,
       ],
       space: 'stove',
     },
@@ -224,6 +230,79 @@
     }, 0);
   });
 
+  // ── 건의하기 ─────────────────────────────────────────
+  // 이 사이트를 건네준 서버(server/presence.js)가 있을 때만 보인다. 보낸 건의는 운영자만 본다
+  const suggestCard = $('#suggestCard');
+  const suggestInput = $('#suggestInput');
+  const suggestFine = $('#suggestFine');
+  const suggestSend = $('#suggestSend');
+  const presenceMeta = document.querySelector('meta[name="mc-presence"]');
+  const canSuggest = !!(presenceMeta && presenceMeta.content === 'auto' && window.fetch);
+  const suggestOpen = () => !suggestCard.hidden;
+  let suggestBack = null;
+  if (canSuggest) {
+    $('#suggestBtn').hidden = false;
+    $('#footSuggest').hidden = false;
+  }
+  function suggestNote(msg) {
+    if (msg) {
+      suggestFine.textContent = msg;
+      suggestFine.classList.add('is-warn');
+    } else {
+      suggestFine.classList.remove('is-warn');
+      suggestFine.textContent = `${Array.from(suggestInput.value).length} / 1000`;
+    }
+  }
+  function openSuggest() {
+    suggestBack = document.activeElement;
+    suggestCard.hidden = false;
+    suggestNote('');
+    if (window.matchMedia && matchMedia('(pointer: fine)').matches) {
+      setTimeout(() => { try { suggestInput.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }, 80);
+    }
+  }
+  function closeSuggest() {
+    suggestCard.hidden = true;
+    try { if (suggestBack && suggestBack.focus) suggestBack.focus({ preventScroll: true }); } catch (e) { /* 무시 */ }
+  }
+  $('#suggestBtn').addEventListener('click', openSuggest);
+  $('#suggestLink').addEventListener('click', openSuggest);
+  $('#suggestCancel').addEventListener('click', closeSuggest);
+  suggestCard.addEventListener('click', (e) => { if (e.target === suggestCard) closeSuggest(); });
+  suggestCard.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSuggest();
+    }
+  });
+  suggestInput.addEventListener('input', () => suggestNote(''));
+  $('#suggestForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = suggestInput.value.trim();
+    if (Array.from(text).length < 2) {
+      suggestNote('조금만 더 적어 주세요');
+      suggestInput.focus();
+      return;
+    }
+    suggestSend.disabled = true;
+    try {
+      const r = await fetch('api/suggest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, nick: net.name || '', place: state.view === 'session' ? state.scene : 'home' }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) {
+        suggestInput.value = '';
+        closeSuggest();
+        toast('고마워요. 잘 전했어요');
+      } else suggestNote(j.error === 'busy' ? '조금 쉬었다가 다시 보내 주세요' : '보내지 못했어요. 잠시 뒤에 다시 해 주세요');
+    } catch (err) {
+      suggestNote('보내지 못했어요. 인터넷을 확인해 주세요');
+    }
+    suggestSend.disabled = false;
+  });
+
   // 머리 위 닉네임: 한 번에 하나, 3초쯤 떠 있다가 사라진다
   const campName = $('#campName');
   const sceneName = $('#sceneName');
@@ -250,7 +329,7 @@
       return;
     }
     // 머리(모자) 꼭대기 조금 위. 엎드려 있으면 더 낮게, 폴짝 뛰면 함께
-    const up = (p.lie >= 0.5 ? 104 : 152) - (p.hop || 0);
+    const up = (p.lie >= 0.5 ? 104 : 152) - (p.hop || 0) + (p.seatLift || 0);
     const q = toScreen(p.x, p.y - up * p.k);
     tag.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) translate(-50%, -100%)`;
   }
@@ -322,7 +401,7 @@
     for (const s of MC.CAMP_SPOTS) {
       const e = spotEls[s.id];
       if (!e || !e.count) continue;
-      const n = net.count(s.id) + (s.id === 'fire' ? net.count('tent') : 0);
+      const n = net.count(s.id);
       const on = n > 0;
       if (e.count.hidden === on) e.count.hidden = !on;
       if (on && e.count.lastChild.textContent !== String(n)) e.count.lastChild.textContent = String(n);
@@ -356,6 +435,14 @@
     spotEls[s.id] = { el, act, count };
   }
 
+  // 의자: 펴고 앉아 책 읽기. 걷기 시작하면 저절로 접힌다
+  const chairBtn = $('#chairBtn');
+  chairBtn.addEventListener('click', () => {
+    const on = camp.toggleChair();
+    chairBtn.setAttribute('aria-pressed', String(on));
+    campCanvas.focus({ preventScroll: true });
+  });
+
   const hint = $('#campHint');
   hint.textContent = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? '가고 싶은 곳을 톡' : '방향키로 걸어요';
   if (state.walked) hint.classList.add('is-off');
@@ -371,6 +458,8 @@
       const near = camp.near === s;
       if (act.hidden === near) act.hidden = !near;
     }
+    const chairOn = String(camp.pup.chairOn);
+    if (chairBtn.getAttribute('aria-pressed') !== chairOn) chairBtn.setAttribute('aria-pressed', chairOn);
     if (camp.moving && !state.walked) {
       state.walked = true;
       MC.store.set('walked', true);
@@ -388,7 +477,8 @@
     if (a && now - a.last > 0.3) {
       a.last = now;
       const pr = camp.presence();
-      a.fire.presence(0.06 + 0.94 * pr.fire);
+      // 글램핑장 화로 곁에서도 장작 소리가 작게
+      a.fire.presence(0.06 + 0.94 * Math.max(pr.fire, 0.4 * pr.glamp));
       a.water.presence(0.06 + 0.94 * pr.water);
       a.forest.presence(0.04 + 0.96 * pr.forest);
       a.map.setParams({ pavilion: pr.pavilion });
@@ -528,7 +618,9 @@
       c.width = Math.round(r.width * dpr);
       c.height = Math.round(r.height * dpr);
       const name = c.dataset.scene;
-      const sc = name === 'fire' ? new MC.FireScene({ preview: true }) : name === 'water' ? new MC.WaterScene({ preview: true }) : new MC.ForestScene({ preview: true });
+      const make = { fire: MC.FireScene, water: MC.WaterScene, forest: MC.ForestScene, tent: MC.TentScene }[name];
+      if (!make) continue;
+      const sc = new make({ preview: true });
       sc.quality = 0.8;
       sc.resize(r.width, r.height, dpr);
       for (let i = 0; i < 120; i++) sc.update(1 / 60);
@@ -540,10 +632,6 @@
 
   // ── 세션 열고 닫기 ─────────────────────────────────────
   function openSession(name) {
-    // 모닥불과 텐트 사이를 오갈 때는 같은 쉼이 이어진다 (20분 종도 그대로)
-    const prev = state.view === 'session' ? state.scene : null;
-    const glamping = (prev === 'fire' && name === 'tent') || (prev === 'tent' && name === 'fire');
-    const keep = glamping && state.started ? { startAt: state.startAt, timerDone: state.timerDone } : null;
     if (state.view === 'session') {
       if (state.scene === name) return;
       teardown();
@@ -551,7 +639,7 @@
     const def = SCENES[name];
     Object.assign(state, {
       view: 'session', scene: name, def, started: false, timerDone: false,
-      leaving: false, worryShown: false, switching: false,
+      leaving: false, worryShown: false,
     });
     stopCamp();
     home.hidden = true;
@@ -560,7 +648,7 @@
     session.dataset.scene = name;
 
     setCurtain(1, 0);
-    const scene = def.make({ from: glamping ? prev : null });
+    const scene = def.make({});
     state.sceneObj = scene;
     state.runner = new MC.Runner(stage, scene, { quality: MC.reducedMotion ? 0.7 : 1, onFrame });
     state.runner.start();
@@ -571,19 +659,19 @@
     buildBreathPanel();
     closePanels();
     $('#endCard').hidden = true;
-    startSession(keep);
+    startSession();
   }
 
-  function startSession(keep) {
+  function startSession() {
     const scene = state.sceneObj;
     if (state.scene === 'fire') {
       scene.age = () => elapsedSec();
       scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
-      scene.onEnterTent = () => switchScene('tent');
     }
     if (state.scene === 'water' || state.scene === 'forest') scene.onToast = (msg) => toast(msg);
     if (state.scene === 'tent') {
-      scene.onExit = () => switchScene('fire');
+      // 문으로 걸어 나가면 마을의 글램핑장 앞으로
+      scene.onExit = () => leave();
       scene.onToggle = (id, on) => setPressed(id, on);
       scene.onToast = (msg) => toast(msg);
     }
@@ -598,8 +686,8 @@
     }
     if (scene.pup) scene.pup.setLook(net.look.c, net.look.h);
     state.started = true;
-    state.startAt = keep ? keep.startAt : Date.now();
-    state.timerDone = keep ? keep.timerDone : false;
+    state.startAt = Date.now();
+    state.timerDone = false;
     clearInterval(state.timerInt);
     state.timerInt = setInterval(checkTime, 1000);
     startSceneAudio();
@@ -637,19 +725,6 @@
     }
   }
 
-  // 모닥불 ↔ 텐트: 화면과 소리가 살짝 잦아들었다가 다른 쪽에서 피어난다
-  function switchScene(name) {
-    if (state.switching || state.view !== 'session') return;
-    state.switching = true;
-    closePanels();
-    hideSceneAct();
-    setCurtain(1, 0.55);
-    if (state.scape) state.scape.duck(0, 0.6);
-    setTimeout(() => {
-      if (state.view === 'session') location.hash = name;
-    }, 600);
-  }
-
   function teardown() {
     hideName();
     held.clear();
@@ -678,13 +753,13 @@
     hideName();
     const from = state.scene;
     // 새 버전이 와 있으면 마을로 돌아오는 이 틈에 새로 고친다
-    if (freshen(state.lastSpot || (from === 'tent' ? 'fire' : from))) return;
+    if (freshen(state.lastSpot || from)) return;
     teardown();
     state.view = 'home';
     session.hidden = true;
     home.hidden = false;
     document.body.classList.remove('in-session');
-    camp.placeAt(state.lastSpot || (from === 'tent' ? 'fire' : from));
+    camp.placeAt(state.lastSpot || from);
     renderThumbs();
     startCamp();
   }
@@ -696,12 +771,7 @@
   }
 
   // 나갈 때는 화면과 소리가 함께 천천히 잦아든다
-  function leave(toMap) {
-    // 텐트 안에서 뒤로 가면 모닥불 앞으로 나간다
-    if (toMap !== true && state.scene === 'tent') {
-      switchScene('fire');
-      return;
-    }
+  function leave() {
     if (state.leaving) return;
     state.leaving = true;
     closePanels();
@@ -730,6 +800,13 @@
       updateTogether();
     }
     placeSceneAct(sc);
+    if (sc.crowd) {
+      const on = sc.crowd.pup.chairOn;
+      if (state.chairShown !== on) {
+        state.chairShown = on;
+        setPressed('chair', on);
+      }
+    }
     if (tag.el === sceneName) placeName((x, y) => ({ x, y }));
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
@@ -796,6 +873,7 @@
   function buildDock(def) {
     const box = $('#dockScene');
     box.textContent = '';
+    state.chairShown = null;
     for (const a of def.actions) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -821,6 +899,11 @@
       else togglePanel('bottle');
     }
     else if (id === 'breeze') sc.breeze();
+    else if (id === 'chair') {
+      const on = sc.crowd ? sc.crowd.toggleChair() : null;
+      if (on === null) toast('여기서는 의자를 펼 수 없어요');
+      setPressed('chair', !!on);
+    }
     else if (id === 'stove') {
       if (!sc.addLog()) toast('난로가 따뜻해요');
     } else if (id === 'lights') setPressed('lights', sc.toggleLights());
@@ -832,7 +915,7 @@
     if (b) b.setAttribute('aria-pressed', String(!!on));
   }
 
-  // 장면 속 문 앞에서 뜨는 단추 (모닥불 앞 텐트의 '들어가기')
+  // 장면 속에서 멍이 곁에 뜨는 단추 (텐트 침대의 '눕기')
   const sceneAct = $('#sceneAct');
   const sceneActWrap = $('#sceneActWrap');
   sceneAct.addEventListener('click', () => {
@@ -843,7 +926,7 @@
     if (!sceneActWrap.hidden) sceneActWrap.hidden = true;
   }
   function placeSceneAct(sc) {
-    const hint = !state.switching && sc.portalHint ? sc.portalHint() : null;
+    const hint = sc.portalHint ? sc.portalHint() : null;
     if (!hint) {
       hideSceneAct();
       return;
@@ -1082,7 +1165,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (nickOpen()) return;
+    if (nickOpen() || suggestOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
     if (state.view === 'home') {
@@ -1094,7 +1177,7 @@
       } else if ((e.code === 'Enter' || e.code === 'Space') && camp.near && !(t && t.closest && t.closest('button, a'))) {
         e.preventDefault();
         activateSpot(camp.near);
-      }
+      } else if (e.code === 'KeyC') chairBtn.click();
       return;
     }
     if (state.view !== 'session') return;
@@ -1112,7 +1195,7 @@
       wake();
       return;
     }
-    // 텐트 문 앞에서 Enter: 들어가기
+    // 장면 속 단추가 떠 있으면 Enter 로 (침대의 '눕기')
     if (e.code === 'Enter' && !sceneActWrap.hidden) {
       e.preventDefault();
       sceneAct.click();
@@ -1126,6 +1209,9 @@
         break;
       case 'KeyB':
         toggleBreath();
+        break;
+      case 'KeyC':
+        doAction('chair');
         break;
       case 'KeyM':
         toggleMute();
@@ -1193,7 +1279,7 @@
   });
 
   $('#stayBtn').addEventListener('click', stay);
-  $('#leaveBtn').addEventListener('click', () => leave(true));
+  $('#leaveBtn').addEventListener('click', () => leave());
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.started) requestWakeLock();

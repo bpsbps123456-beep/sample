@@ -321,7 +321,32 @@
       } else if (kind === 'crab') {
         tone(2100, 1800, 0.03, 0.018);
         tone(2300, 1900, 0.03, 0.018, 0.09);
+      } else if (kind === 'chair') {
+        // 접이식 의자를 펴는 소리: 나무 다리가 딸깍, 딸깍, 천이 팽팽해지는 툭
+        tone(1500, 1350, 0.03, 0.03, 0, 'triangle');
+        tone(1250, 1100, 0.03, 0.026, 0.16, 'triangle');
+        this.rustle(0.34, 0.09, 700, 0.025);
+      } else if (kind === 'page') {
+        // 책장 넘기는 사르륵
+        this.rustle(0.01, 0.32, 2600, 0.016);
       }
+    }
+
+    // 종이나 천이 스치는 짧은 잡음 (delay 뒤, dur 동안, f 언저리)
+    rustle(delay, dur, f, amp) {
+      const ctx = this.ctx;
+      const at = ctx.currentTime + 0.01 + delay;
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise.pink;
+      const bp = this.filter('bandpass', f, 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(amp, at + dur * 0.3);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.master);
+      src.start(at, Math.random() * 3, dur + 0.05);
     }
 
     // 호흡 안내음: 들숨은 조금 높게, 날숨은 조금 낮게
@@ -1202,9 +1227,12 @@
       this.windLevel = 0.3;
       // 진짜 계곡물과 새소리. 오면 합성한 물소리와 먼 새 울음은 물러나고,
       // 화면과 맞물린 소리(가까이 내려앉은 오목눈이, 다람쥐, 바람)만 합성으로 남는다
+      // 계곡물은 낮고 느리게: 조금 느리게 흘려 물소리를 낮추고, 쉬익거리는 고음은 덜어 낸다
       const st = snd.pan(-0.3);
       st.connect(this.layers.stream);
-      this.streamBed = this.rec('stream', st, { level: ForestScape.STREAM, len: [7, 12], xf: 2.5 });
+      const sl = snd.filter('lowpass', 1500, 0.2);
+      sl.connect(st);
+      this.streamBed = this.rec('stream', sl, { level: ForestScape.STREAM, len: [8, 13], xf: 3, rate: [0.76, 0.82] });
       this.streamBed.onReady = () => {
         this.realStream = true;
         for (const L of [this.streamBody, this.streamLo, this.streamHi]) glide(L.pre.gain, 0, 1.2, snd.ctx);
@@ -1350,7 +1378,7 @@
       if (Math.random() < 0.6 && !this.realBirds) this.bird(ct + MC.rand(0.6, 1.5));
     }
   }
-  ForestScape.STREAM = 0.5;
+  ForestScape.STREAM = 0.34;
   ForestScape.BIRDS = 0.42;
   ForestScape.layers = [
     { key: 'stream', label: '계곡물', value: 0.8 },

@@ -1,4 +1,4 @@
-/* 멍캠프 — 불멍: 별 아래 벨텐트와 모닥불 */
+/* 멍캠프 — 불멍: 별 아래 모닥불과 줄전구 */
 (function (MC) {
   'use strict';
 
@@ -283,9 +283,6 @@
   class FireScene {
     constructor(opts = {}) {
       this.preview = !!opts.preview;
-      this.from = opts.from || null; // 'tent': 텐트에서 나왔다
-      this.onEnterTent = null;
-      this.toTent = false;
       this.focusX = opts.focusX || 0.5;
       this.calm = !!opts.calm;
       this.quality = 1;
@@ -446,88 +443,14 @@
       this.cx = w * (this.portrait ? 0.5 : this.focusX);
       this.by = h * 0.8;
       this.ground = h * 0.62;
-      if (this.portrait) {
-        this.tent = { x: w * 0.82, y: this.ground + (this.by - this.ground) * 0.3, k: s * 0.62 };
-      } else {
-        const off = MC.clamp(w * 0.3, 260 * s, 420 * s);
-        const room = w - this.cx - 150 * s * 0.8;
-        const dx = room >= off ? off : room >= 240 * s ? room : -off;
-        this.tent = { x: this.cx + dx, y: this.ground + (this.by - this.ground) * 0.25, k: s * 0.8 };
-      }
       this.buildBackground();
-      this.buildTent();
       this.buildLights();
       const pup = this.pup;
       pup.k = s * 1.2;
       pup.x = this.cx - (this.portrait ? 158 : 196) * s;
       pup.y = this.by + 47 * s;
       pup.stickTip = { x: this.cx - 62 * s, y: this.by - 60 * s };
-      if (this.crowd) {
-        this.crowd.layout();
-        // 텐트에서 나오면 문간에서 살며시 나타나 한 걸음 걸어 나온다
-        if (this.from === 'tent' && !this.arrived) {
-          this.arrived = true;
-          const d = this.tentDoor();
-          this.crowd.portalWalk({ X: d.X, Z: d.Zin - 4 }, { X: d.X, Z: d.Z + 30 }, 0.9, true);
-        }
-      }
-    }
-
-    // ── 텐트 드나들기 ─────────────────────────────────────
-    // 텐트 문 (장면 좌표). Z는 문 앞 땅, Zin은 문턱
-    tentDoor() {
-      const tn = this.tent;
-      const b = this.crowd.cfg.bounds();
-      return { X: MC.clamp((tn.x - this.cx) / this.s, b.x0, b.x1), Z: b.z0 + 4, Zin: (tn.y - this.by) / this.s };
-    }
-
-    hitTent(x, y) {
-      const tn = this.tent;
-      const lx = (x - tn.x) / tn.k;
-      const ly = (y - tn.y) / tn.k;
-      if (ly > 10 || ly < -250) return false;
-      const half = ly > -105 ? 132 + ly * 0.11 : (120 * (246 + ly)) / 141;
-      return Math.abs(lx) < half;
-    }
-
-    nearTent() {
-      if (!this.crowd || this.crowd.portal) return false;
-      const d = this.tentDoor();
-      return Math.abs(this.crowd.me.X - d.X) < 80 && this.crowd.me.Z < d.Z + 70;
-    }
-
-    // 텐트를 톡: 문까지 걸어가서 들어간다
-    goTent() {
-      if (!this.crowd || this.entering) return;
-      if (this.nearTent()) {
-        this.enterTent();
-        return;
-      }
-      const d = this.tentDoor();
-      this.crowd.go({ X: d.X, Z: d.Z });
-      this.toTent = true;
-    }
-
-    enterTent() {
-      if (this.entering) return;
-      this.entering = true;
-      this.toTent = false;
-      const d = this.tentDoor();
-      const me = this.crowd.me;
-      this.crowd.portalWalk({ X: me.X, Z: me.Z }, { X: d.X, Z: d.Zin - 6 }, 0.8, false, () => {
-        if (this.onEnterTent) this.onEnterTent();
-      });
-    }
-
-    // 텐트 문 가까이 오면 '들어가기' 단추를 띄운다
-    portalHint() {
-      if (this.entering || !this.nearTent() || this.crowd.moving) return null;
-      const tn = this.tent;
-      return { x: tn.x, y: tn.y - 150 * tn.k, label: '들어가기' };
-    }
-
-    usePortal() {
-      this.goTent();
+      if (this.crowd) this.crowd.layout();
     }
 
     // 멈춰 선 자리에 맞게 앉는다
@@ -720,119 +643,16 @@
       this.skyA = a;
     }
 
-    tentPath(g) {
-      g.beginPath();
-      g.moveTo(-132, 0);
-      g.lineTo(-120, -105);
-      g.quadraticCurveTo(-62, -168, -6, -246);
-      g.lineTo(6, -246);
-      g.quadraticCurveTo(62, -168, 120, -105);
-      g.lineTo(132, 0);
-      g.closePath();
-    }
-
-    buildTent() {
-      const k = this.tent.k * this.dpr;
-      const W = 340, H = 290;
-      const make = () => {
-        const c = MC.canvas(W * k, H * k);
-        const g = c.getContext('2d');
-        g.scale(k, k);
-        g.translate(W / 2, H - 16);
-        return [c, g];
-      };
-      const [c, g] = make();
-      // 바닥 그림자
-      g.fillStyle = 'rgba(0,0,0,0.55)';
-      g.beginPath();
-      g.ellipse(0, 2, 160, 12, 0, 0, Math.PI * 2);
-      g.fill();
-      // 안쪽 랜턴 빛을 머금은 캔버스 천
-      this.tentPath(g);
-      const fabric = g.createRadialGradient(0, -48, 10, 0, -80, 220);
-      fabric.addColorStop(0, '#f6c98e');
-      fabric.addColorStop(0.45, '#b77b4c');
-      fabric.addColorStop(1, '#3d2a21');
-      g.fillStyle = fabric;
-      g.fill();
-      // 솔기
-      g.save();
-      this.tentPath(g);
-      g.clip();
-      g.strokeStyle = 'rgba(60,36,22,0.35)';
-      g.lineWidth = 1.5;
-      for (const x of [-120, -80, -40, 40, 80, 120]) {
-        g.beginPath();
-        g.moveTo(0, -246);
-        g.lineTo(x, -105);
-        g.stroke();
-      }
-      g.beginPath();
-      g.moveTo(-120, -105);
-      g.lineTo(120, -105);
-      g.stroke();
-      g.restore();
-      // 걷어 올린 문 사이로 보이는 안쪽
-      g.beginPath();
-      g.moveTo(-38, 0);
-      g.lineTo(0, -122);
-      g.lineTo(38, 0);
-      g.closePath();
-      const inside = g.createLinearGradient(0, -122, 0, 0);
-      inside.addColorStop(0, '#ffcf86');
-      inside.addColorStop(1, '#ffe7b8');
-      g.fillStyle = inside;
-      g.fill();
-      g.fillStyle = 'rgba(120,70,40,0.55)';
-      g.beginPath();
-      g.moveTo(-38, 0);
-      g.lineTo(0, -122);
-      g.lineTo(-24, -2);
-      g.closePath();
-      g.fill();
-      g.beginPath();
-      g.moveTo(38, 0);
-      g.lineTo(0, -122);
-      g.lineTo(24, -2);
-      g.closePath();
-      g.fill();
-      // 꼭대기 기둥
-      g.strokeStyle = '#2a1d16';
-      g.lineWidth = 3;
-      g.beginPath();
-      g.moveTo(0, -246);
-      g.lineTo(0, -262);
-      g.stroke();
-      // 고정 끈
-      g.strokeStyle = 'rgba(220,196,160,0.28)';
-      g.lineWidth = 1;
-      for (const [x0, y0, x1] of [[-120, -105, -168], [120, -105, 168], [-70, -175, -160], [70, -175, 160]]) {
-        g.beginPath();
-        g.moveTo(x0, y0);
-        g.lineTo(x1, 4);
-        g.stroke();
-      }
-      this.tentImg = c;
-
-      // 모닥불 쪽 천을 물들이는 빛
-      const [rc, rg] = make();
-      this.tentPath(rg);
-      const toFire = this.cx < this.tent.x ? -1 : 1;
-      const rim = rg.createLinearGradient(toFire * 140, 0, -toFire * 40, 0);
-      rim.addColorStop(0, 'rgba(255,150,70,1)');
-      rim.addColorStop(1, 'rgba(255,150,70,0)');
-      rg.fillStyle = rim;
-      rg.fill();
-      this.tentRim = rc;
-      this.tentSize = { W, H };
-    }
-
+    // 줄전구: 불 양옆의 두 기둥 사이에 느슨하게 (불꽃 위로는 지나가지 않게)
     buildLights() {
       const s = this.s;
-      const t = this.tent;
-      const p0 = { x: t.x, y: t.y - 246 * t.k };
-      const px = this.portrait ? this.w * 0.1 : this.cx - (t.x - this.cx);
-      const p1 = { x: px, y: p0.y - 10 * s };
+      const w = this.w;
+      const half = this.portrait ? w * 0.4 : MC.clamp(w * 0.34, 300 * s, 520 * s);
+      const xl = Math.max(w * 0.06, this.cx - half);
+      const xr = Math.min(w * 0.94, this.cx + half);
+      const top = this.ground - 150 * s;
+      const p0 = { x: xr, y: top };
+      const p1 = { x: xl, y: top - 10 * s };
       const flameTop = this.by - 290 * s;
       let cy = Math.max(p0.y, p1.y) + 110 * s;
       cy = Math.min(cy, 2 * flameTop - 0.5 * (p0.y + p1.y));
@@ -848,7 +668,8 @@
         this.bulbs.push({ x, y: y + 5 * s, ph: i * 1.7 });
       }
       this.wire = { p0, p1, c };
-      this.pole = { x: px, top: p1.y, bottom: t.y + 8 * s };
+      const bottom = this.ground + (this.by - this.ground) * 0.28;
+      this.poles = [{ x: xl, top: p1.y, bottom }, { x: xr, top: p0.y, bottom }];
     }
 
     // ── 장작 넣기 ─────────────────────────────────────────
@@ -913,12 +734,6 @@
       // 함께 앉은 다른 멍이에게 하트
       if (this.crowd && this.crowd.boopAt(x, y)) {
         if (this.onCute) this.onCute('boop');
-        return true;
-      }
-      if (this.entering) return true;
-      // 텐트를 톡: 걸어가서 안으로 들어간다
-      if (this.crowd && !this.worry && this.hitTent(x, y)) {
-        this.goTent();
         return true;
       }
       // 불 가까이를 톡 건드리면 불티가 날린다
@@ -1195,13 +1010,6 @@
 
       if (this.crowd) {
         this.crowd.update(dt);
-        const c = this.crowd;
-        if (this.toTent && !c.target && !c.portal) {
-          if (this.nearTent()) this.enterTent();
-          else this.toTent = false;
-        }
-        // 텐트 문 앞에서 위쪽(문 쪽) 방향키를 누르면 들어간다
-        if (!this.entering && !c.portal && c.keys.y < 0 && !c.keys.x && this.nearTent() && c.me.Z <= c.cfg.bounds().z0 + 2) this.enterTent();
       }
       this.pup.update(dt, { E, cold: !this.preview && E < 0.22, walking: !!(this.crowd && this.crowd.moving) });
       if (this.comfortAt && t >= this.comfortAt) {
@@ -1473,26 +1281,17 @@
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
 
-      // 텐트와 줄전구
-      const tn = this.tent;
-      const tw = this.tentSize.W * tn.k;
-      const th = this.tentSize.H * tn.k;
-      g.drawImage(this.tentImg, tn.x - tw / 2, tn.y - th + 16 * tn.k, tw, th);
-      g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = Math.min(1, 0.32 * E * flick);
-      g.drawImage(this.tentRim, tn.x - tw / 2, tn.y - th + 16 * tn.k, tw, th);
-      g.globalAlpha = 0.25 + 0.05 * Math.sin(t * 0.9);
-      g.drawImage(S.hot, tn.x - 70 * tn.k, tn.y - 120 * tn.k, 140 * tn.k, 130 * tn.k);
-      g.globalAlpha = 1;
-      g.globalCompositeOperation = 'source-over';
       // 밤이 깊으면 반딧불이
       this.drawBugs(g);
 
+      // 줄전구 기둥 둘
       g.strokeStyle = '#0a0a0f';
       g.lineWidth = Math.max(2, 3 * s);
       g.beginPath();
-      g.moveTo(this.pole.x, this.pole.top);
-      g.lineTo(this.pole.x, this.pole.bottom);
+      for (const pl of this.poles) {
+        g.moveTo(pl.x, pl.top);
+        g.lineTo(pl.x, pl.bottom);
+      }
       g.stroke();
       const wr = this.wire;
       g.strokeStyle = 'rgba(20,16,14,0.9)';

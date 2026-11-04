@@ -1,40 +1,63 @@
 /* 멍캠프 — 캠프 마을: 멍이를 데리고 걸어 다니는 지도
-   해 질 녘의 작은 캠프. 오솔길을 따라 연등이 켜져 있고, 가까이 가면 그 자리에 앉을 수 있다.
+   해 질 녘의 캠프 마을. 마을을 한 바퀴 도는 둘레길과 모닥불에서 뻗은 지름길을 따라 연등이 켜져 있고,
+   모닥불·바다·숲·글램핑장에 가까이 가면 들어갈 수 있다. 연못가에는 긴 의자가 있다.
    정자에는 목탁이 있다. 똑 치면 번뇌가 하나 줄어든다. */
 (function (MC) {
   'use strict';
 
-  const W = 2000;
-  const H = 1500;
+  const W = 2600;
+  const H = 2100;
   const INK = 'rgba(30,40,34,0.85)';
 
-  // 오른쪽이 바다. 물가 선은 조금씩 굽이친다
-  const shoreX = (y) => 1560 + 40 * Math.sin(y * 0.004) + 22 * Math.sin(y * 0.011 + 1);
-  const DOCK = { y0: 742, y1: 780, len: 210 };
+  // 오른쪽 끝은 언제나 바다. 물가 선은 조금씩 굽이친다
+  const shoreX = (y) => 2170 + 40 * Math.sin(y * 0.004) + 22 * Math.sin(y * 0.011 + 1);
+  const DOCK = { y0: 1022, y1: 1060, len: 210 };
+  const DOCK_Y = 1041;
 
-  const FIRE = { x: 880, y: 905 };
-  const TENT = { x: 1060, y: 845 };
-  const PAVILION = { x: 1240, y: 372 };
-  const STUMP = { x: 470, y: 446 };
+  const FIRE = { x: 1120, y: 1060 };
+  const PAVILION = { x: 1480, y: 520 };
+  const STUMP = { x: 600, y: 600 };
+  // 글램핑장: 모닥불에서 남쪽으로 내려간 끝. 나무 데크 위 벨텐트 셋, 줄전구, 가운데 작은 화로
+  const GLAMP = { x: 1290, y: 1690 }; // 가운데 큰 텐트 (들어가는 곳)
+  const TENTS = [
+    { x: 1030, y: 1735, s: 0.8 },
+    { x: GLAMP.x, y: GLAMP.y, s: 1 },
+    { x: 1550, y: 1742, s: 0.8 },
+  ];
+  const BRAZIER = { x: 1290, y: 1838 };
+  const POSTS = [[900, 1700], [970, 1905], [1610, 1910], [1690, 1712]];
+  // 연못: 서쪽 둘레길 곁, 연잎과 갈대, 바라보는 긴 의자
+  const POND = { x: 470, y: 1480, rx: 175, ry: 92 };
+  const BENCH = { x: 470, y: 1640 };
 
   const SPOTS = [
-    { id: 'fire', label: '모닥불 글램핑', tone: 'ember', x: FIRE.x - 30, y: FIRE.y + 40, r: 150, act: '앉기', ax: FIRE.x, ay: FIRE.y - 112 },
-    { id: 'water', label: '달빛 바다', tone: 'sea', x: shoreX(760) + 160, y: 761, r: 120, act: '앉기', ax: shoreX(760) + 170, ay: 690 },
-    { id: 'forest', label: '편백 숲', tone: 'moss', x: STUMP.x + 20, y: STUMP.y + 30, r: 140, act: '앉기', ax: STUMP.x, ay: STUMP.y - 110 },
+    { id: 'fire', label: '모닥불', tone: 'ember', x: FIRE.x - 30, y: FIRE.y + 40, r: 150, act: '들어가기', ax: FIRE.x, ay: FIRE.y - 112 },
+    { id: 'water', label: '달빛 바다', tone: 'sea', x: shoreX(DOCK_Y) + 160, y: DOCK_Y, r: 120, act: '들어가기', ax: shoreX(DOCK_Y) + 170, ay: DOCK_Y - 70 },
+    { id: 'forest', label: '편백 숲', tone: 'moss', x: STUMP.x + 20, y: STUMP.y + 30, r: 140, act: '들어가기', ax: STUMP.x, ay: STUMP.y - 110 },
+    { id: 'tent', label: '글램핑', tone: 'glamp', x: GLAMP.x, y: GLAMP.y + 46, r: 135, act: '들어가기', ax: GLAMP.x, ay: GLAMP.y - 152 },
     { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 120, act: '똑', ax: PAVILION.x, ay: PAVILION.y - 204 },
   ];
 
-  // 오솔길: 몇 개의 점을 부드럽게 잇는다
+  // 오솔길: 몇 개의 점을 부드럽게 잇는다.
+  // 둘레길은 마을을 한 바퀴 돈다: 숲 → 정자 → 바닷가 모래길 → 글램핑장 앞 → 연못 → 다시 숲.
+  // 가운데 모닥불에서 네 곳으로 지름길이 나 있다
+  const RING = [
+    [660, 652], [900, 560], [1180, 520], [1405, 566], [1700, 556], [1930, 690], [2010, 900],
+    [2018, 1180], [1950, 1450], [1760, 1640], [1640, 1860], [1290, 1950], [960, 1890], [780, 1700],
+    [720, 1440], [640, 1290], [430, 1150], [350, 900], [430, 712],
+  ];
   const PATH_KEYS = [
-    [[FIRE.x - 10, FIRE.y + 70], [1080, 930], [1300, 830], [shoreX(760) - 30, 761]],
-    [[FIRE.x - 40, FIRE.y + 40], [740, 780], [590, 610], [STUMP.x + 20, STUMP.y + 40]],
-    [[FIRE.x + 30, FIRE.y + 40], [1010, 720], [1150, 540], [PAVILION.x, PAVILION.y + 40]],
-    [[STUMP.x + 60, STUMP.y + 30], [780, 470], [1030, 470], [PAVILION.x - 60, PAVILION.y + 34]],
+    [[FIRE.x + 30, FIRE.y - 40], [1230, 860], [1380, 690], [PAVILION.x, PAVILION.y + 46]],
+    [[FIRE.x + 60, FIRE.y + 34], [1420, 1090], [1760, 1046], [shoreX(DOCK_Y) - 30, DOCK_Y]],
+    [[FIRE.x - 60, FIRE.y + 20], [900, 900], [720, 760], [STUMP.x + 20, STUMP.y + 44]],
+    // 모닥불에서 더 밑으로: 텐트 사이로 내려가 글램핑장 마당에 닿는다
+    [[FIRE.x, FIRE.y + 70], [1150, 1300], [1160, 1560], [1185, 1790], [GLAMP.x, GLAMP.y + 70]],
   ];
 
-  function catmull(keys, step = 12) {
+  function catmull(keys, step = 12, loop = false) {
     const out = [];
-    const p = [keys[0], ...keys, keys[keys.length - 1]];
+    const n0 = keys.length;
+    const p = loop ? [keys[n0 - 1], ...keys, keys[0], keys[1]] : [keys[0], ...keys, keys[n0 - 1]];
     for (let i = 1; i < p.length - 2; i++) {
       const [p0, p1, p2, p3] = [p[i - 1], p[i], p[i + 1], p[i + 2]];
       const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
@@ -47,10 +70,10 @@
         out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
       }
     }
-    out.push(keys[keys.length - 1]);
+    out.push(loop ? keys[0] : keys[n0 - 1]);
     return out;
   }
-  const PATHS = PATH_KEYS.map((k) => catmull(k));
+  const PATHS = [catmull(RING, 12, true), ...PATH_KEYS.map((k) => catmull(k))];
 
   const LANTERN_COLORS = [[255, 170, 190], [255, 214, 120], [255, 178, 118], [214, 240, 190], [255, 206, 222]];
 
@@ -116,9 +139,10 @@
       this.rnd = MC.rng(1717);
       this.layout();
       this.flies = [];
-      for (let i = 0; i < 34; i++) {
+      // 반딧불이: 숲, 정자 언저리, 연못가, 글램핑장 뒤 풀밭
+      for (let i = 0; i < 52; i++) {
         const r = this.rnd();
-        const zone = r < 0.45 ? [140, 120, 760, 600] : r < 0.75 ? [1050, 230, 1450, 560] : [300, 900, 1450, 1400];
+        const zone = r < 0.35 ? [140, 120, 960, 760] : r < 0.5 ? [1250, 260, 1800, 680] : r < 0.75 ? [250, 1300, 800, 1760] : [820, 1450, 1800, 1700];
         this.flies.push({ x: zone[0] + this.rnd() * (zone[2] - zone[0]), y: zone[1] + this.rnd() * (zone[3] - zone[1]), ph: this.rnd() * 9, sp: 0.6 + this.rnd() });
       }
     }
@@ -138,42 +162,53 @@
     clearOf(x, y, d) {
       if (this.nearPath(x, y, d)) return false;
       if (x > shoreX(y) - 190) return false;
-      for (const [ox, oy, r] of [[FIRE.x, FIRE.y, 190], [TENT.x, TENT.y, 120], [PAVILION.x, PAVILION.y - 40, 170], [STUMP.x, STUMP.y, 110]]) {
+      for (const [ox, oy, r] of [[FIRE.x, FIRE.y, 190], [PAVILION.x, PAVILION.y - 40, 170], [STUMP.x, STUMP.y, 110], [BRAZIER.x, BRAZIER.y, 120]]) {
         if ((x - ox) ** 2 + (y - oy) ** 2 < r * r) return false;
       }
+      // 글램핑장 마당과 텐트, 연못과 긴 의자
+      if (((x - 1290) / 470) ** 2 + ((y - 1790) / 220) ** 2 < 1) return false;
+      if (((x - POND.x) / (POND.rx + 70)) ** 2 + ((y - POND.y) / (POND.ry + 60)) ** 2 < 1) return false;
+      if (Math.hypot(x - BENCH.x, y - BENCH.y) < 80) return false;
       return true;
     }
 
     layout() {
       const rnd = this.rnd;
       this.trees = [];
+      const add = (kind, x, y, gap) => {
+        if (!this.clearOf(x, y, kind === 'cypress' ? 46 : 54)) return false;
+        if (this.trees.some((t) => (t.x - x) ** 2 + (t.y - y) ** 2 < gap * gap)) return false;
+        this.trees.push({ kind, v: (rnd() * 3) | 0, x, y, sway: rnd() * 6 });
+        return true;
+      };
       // 편백 숲: 왼쪽 위에 빽빽하게
-      for (let i = 0; i < 240 && this.trees.length < 46; i++) {
-        const x = 90 + rnd() * 720;
-        const y = 90 + rnd() * 520;
-        if (!this.clearOf(x, y, 46)) continue;
-        if (this.trees.some((t) => (t.x - x) ** 2 + (t.y - y) ** 2 < 46 * 46)) continue;
-        this.trees.push({ kind: 'cypress', v: (rnd() * 3) | 0, x, y, sway: rnd() * 6 });
-      }
-      // 둥근 나무와 덤불: 가장자리를 따라
-      for (let i = 0; i < 600 && this.trees.length < 96; i++) {
+      for (let i = 0; i < 420; i++) add('cypress', 90 + rnd() * 900, 90 + rnd() * 700, 46);
+      // 둥근 나무와 덤불: 마을 가장자리를 따라
+      for (let i = 0; i < 900; i++) {
         const edge = rnd();
         let x;
         let y;
-        if (edge < 0.4) {
-          x = 60 + rnd() * 1450;
-          y = 1180 + rnd() * 280;
-        } else if (edge < 0.7) {
-          x = 60 + rnd() * 260;
-          y = 600 + rnd() * 860;
+        if (edge < 0.3) {
+          x = 60 + rnd() * 1950;
+          y = 1990 + rnd() * 80;
+        } else if (edge < 0.55) {
+          x = 60 + rnd() * 240;
+          y = 800 + rnd() * 1250;
+        } else if (edge < 0.8) {
+          x = 1000 + rnd() * 1000;
+          y = 70 + rnd() * 300;
         } else {
-          x = 820 + rnd() * 650;
-          y = 70 + rnd() * 220;
+          // 둘레길 안쪽 들판에 드문드문
+          x = 650 + rnd() * 1350;
+          y = 700 + rnd() * 1150;
+          if (rnd() < 0.68) continue;
         }
-        if (!this.clearOf(x, y, 54)) continue;
-        if (this.trees.some((t) => (t.x - x) ** 2 + (t.y - y) ** 2 < 58 * 58)) continue;
-        const bush = rnd() < 0.35;
-        this.trees.push({ kind: bush ? 'bush' : 'round', v: (rnd() * 3) | 0, x, y, sway: rnd() * 6 });
+        add(rnd() < 0.35 ? 'bush' : 'round', x, y, 58);
+      }
+      // 연못가에는 덤불을 몇 포기
+      for (let i = 0; i < 60; i++) {
+        const a = rnd() * Math.PI * 2;
+        add('bush', POND.x + Math.cos(a) * (POND.rx + 95), POND.y + Math.sin(a) * (POND.ry + 75), 50);
       }
       // 길가의 연등
       this.lanterns = [];
@@ -181,7 +216,7 @@
         let acc = 0;
         for (let i = 1; i < path.length; i++) {
           acc += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-          if (acc < 150) continue;
+          if (acc < 160) continue;
           acc = 0;
           const [x0, y0] = path[i - 1];
           const [x1, y1] = path[i];
@@ -191,16 +226,52 @@
           const y = y1 + ((x1 - x0) / len) * 42 * side;
           if ((x - FIRE.x) ** 2 + (y - FIRE.y) ** 2 < 120 * 120) continue;
           if (x > shoreX(y) - 30) continue;
+          if (((x - 1290) / 420) ** 2 + ((y - 1790) / 190) ** 2 < 1) continue;
+          if (((x - POND.x) / (POND.rx + 20)) ** 2 + ((y - POND.y) / (POND.ry + 20)) ** 2 < 1) continue;
+          if (this.lanterns.some((l) => (l.x - x) ** 2 + (l.y - y) ** 2 < 60 * 60)) continue;
+          if (SPOTS.some((q) => Math.hypot(q.x - x, q.y - y) < 70)) continue;
           this.lanterns.push({ x, y, c: LANTERN_COLORS[this.lanterns.length % LANTERN_COLORS.length], ph: rnd() * 6 });
         }
       });
+      // 연잎과 갈대
+      this.pads = [];
+      for (let i = 0; i < 9; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = 0.35 + rnd() * 0.5;
+        this.pads.push({ x: POND.x + Math.cos(a) * POND.rx * r, y: POND.y + Math.sin(a) * POND.ry * r, r: 9 + rnd() * 8, a: rnd() * 6, flower: rnd() < 0.3 });
+      }
+      // 줄전구: 기둥 넷을 ㄷ자로 잇고, 처진 줄에 작은 전구가 줄줄이
+      this.wires = [];
+      this.bulbs = [];
+      for (let i = 0; i < POSTS.length - 1; i++) {
+        const [ax, ay] = POSTS[i];
+        const [bx, by] = POSTS[i + 1];
+        const pts = [];
+        const len = Math.hypot(bx - ax, by - ay);
+        const sag = Math.min(34, len * 0.06);
+        const n = Math.max(6, Math.round(len / 16));
+        for (let k = 0; k <= n; k++) {
+          const u = k / n;
+          pts.push([MC.lerp(ax, bx, u), MC.lerp(ay, by, u) - 80 + sag * 4 * u * (1 - u)]);
+        }
+        this.wires.push(pts);
+        const nb = Math.max(3, Math.round(len / 38));
+        for (let k = 1; k < nb; k++) {
+          const u = k / nb;
+          this.bulbs.push({ x: MC.lerp(ax, bx, u), y: MC.lerp(ay, by, u) - 80 + sag * 4 * u * (1 - u) + 5, c: k % 3 ? [255, 214, 140] : [255, 186, 120], ph: rnd() * 6 });
+        }
+      }
       // 부딪히는 것들: 나무와 덤불은 줄기 밑동, 연등은 기둥, 큰 물건은 바닥 자리. 위아래로 납작한 타원
       this.blockers = [
         { x: FIRE.x, y: FIRE.y, r: 52, sy: 1.6 },
-        { x: TENT.x, y: TENT.y - 14, r: 62, sy: 1.6 },
         { x: PAVILION.x, y: PAVILION.y - 26, r: 84, sy: 1.6 },
         { x: STUMP.x, y: STUMP.y - 6, r: 30, sy: 1.6 },
+        { x: BRAZIER.x, y: BRAZIER.y - 4, r: 26, sy: 1.6 },
+        { x: BENCH.x, y: BENCH.y - 6, r: 46, sy: 2.6 },
+        { x: POND.x, y: POND.y, r: POND.rx + 8, sy: (POND.rx + 8) / (POND.ry + 8) },
       ];
+      for (const tn of TENTS) this.blockers.push({ x: tn.x, y: tn.y - 14 * tn.s, r: 62 * tn.s, sy: 1.6 });
+      for (const [x, y] of POSTS) this.blockers.push({ x, y, r: 8, sy: 1.6 });
       for (const tr of this.trees) {
         const r = tr.kind === 'cypress' ? 15 : tr.kind === 'round' ? 17 : 22;
         this.blockers.push({ x: tr.x, y: tr.y - 2, r, sy: 1.8 });
@@ -261,7 +332,8 @@
       this.dpr = dpr;
       // 세로 화면(휴대폰)은 지도를 조금 당겨 보여 준다: 멍이가 크게 보이고, 위아래로도 끌어 둘러볼 수 있다
       this.z = w < h * 0.9 ? MC.clamp(h / 1050, 0.7, 1.05) : MC.clamp(Math.min(w / 1150, h / 820), 0.62, 1.25);
-      const gs = Math.min(1.25, this.z * dpr);
+      // 땅 그림은 지도 전체 크기라 메모리를 아끼려고 1.1배까지만
+      const gs = Math.min(1.1, this.z * dpr);
       if (!this.ground || Math.abs(gs - this.gs) / this.gs > 0.15) {
         this.gs = gs;
         this.buildGround();
@@ -285,13 +357,13 @@
       base.addColorStop(1, '#3a6b4f');
       g.fillStyle = base;
       g.fillRect(0, 0, W, H);
-      for (let i = 0; i < 280; i++) {
+      for (let i = 0; i < 480; i++) {
         g.fillStyle = rnd() < 0.5 ? `rgba(120,178,120,${0.05 + rnd() * 0.07})` : `rgba(40,86,60,${0.05 + rnd() * 0.08})`;
         ellipse(g, rnd() * W, rnd() * H, 30 + rnd() * 90, 20 + rnd() * 60);
         g.fill();
       }
       // 편백 숲 바닥은 이끼빛으로 짙게
-      const moss = g.createRadialGradient(430, 370, 40, 430, 370, 480);
+      const moss = g.createRadialGradient(520, 430, 40, 520, 430, 600);
       moss.addColorStop(0, 'rgba(36,72,48,0.55)');
       moss.addColorStop(1, 'rgba(36,72,48,0)');
       g.fillStyle = moss;
@@ -311,7 +383,7 @@
       g.fillStyle = '#c6b088';
       g.fill();
       band(0, 0);
-      const sea = g.createLinearGradient(1500, 0, W, 0);
+      const sea = g.createLinearGradient(2100, 0, W, 0);
       sea.addColorStop(0, '#5aa0b8');
       sea.addColorStop(0.25, '#3c7aa0');
       sea.addColorStop(1, '#264a78');
@@ -352,11 +424,109 @@
       g.fillStyle = yard;
       ellipse(g, FIRE.x, FIRE.y, 170, 120);
       g.fill();
+      // 글램핑장 마당: 고운 자갈을 깐 너른 터
+      const gy = g.createRadialGradient(1290, 1800, 30, 1290, 1800, 380);
+      gy.addColorStop(0, 'rgba(206,186,150,0.95)');
+      gy.addColorStop(0.75, 'rgba(200,178,140,0.7)');
+      gy.addColorStop(1, 'rgba(200,178,140,0)');
+      g.fillStyle = gy;
+      ellipse(g, 1290, 1800, 420, 170);
+      g.fill();
+      for (let i = 0; i < 420; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = Math.sqrt(rnd());
+        g.fillStyle = `rgba(${rnd() < 0.5 ? '120,104,84' : '236,224,200'},${0.25 + rnd() * 0.25})`;
+        ellipse(g, 1290 + Math.cos(a) * 380 * r, 1800 + Math.sin(a) * 150 * r, 1.6 + rnd() * 1.6, 1.2 + rnd());
+        g.fill();
+      }
+      // 텐트 밑의 나무 데크
+      for (const tn of TENTS) {
+        const dw = 96 * tn.s;
+        const dh = 30 * tn.s;
+        g.fillStyle = 'rgba(0,0,0,0.22)';
+        MC.roundRect(g, tn.x - dw + 4, tn.y - dh + 10, dw * 2, dh * 2, 8);
+        g.fill();
+        MC.roundRect(g, tn.x - dw, tn.y - dh + 4, dw * 2, dh * 2, 8);
+        g.fillStyle = '#a27a55';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2;
+        g.stroke();
+        g.strokeStyle = 'rgba(80,52,32,0.45)';
+        g.lineWidth = 1.2;
+        for (let yy = tn.y - dh + 4 + 9; yy < tn.y + dh + 2; yy += 9) {
+          g.beginPath();
+          g.moveTo(tn.x - dw + 4, yy);
+          g.lineTo(tn.x + dw - 4, yy);
+          g.stroke();
+        }
+      }
+      // 연못: 둘레에 젖은 흙, 가운데로 갈수록 깊은 물빛
+      g.fillStyle = 'rgba(70,58,40,0.45)';
+      ellipse(g, POND.x, POND.y + 4, POND.rx + 14, POND.ry + 12);
+      g.fill();
+      const pond = g.createRadialGradient(POND.x - 30, POND.y - 20, 10, POND.x, POND.y, POND.rx);
+      pond.addColorStop(0, '#3f7f96');
+      pond.addColorStop(0.7, '#2f6680');
+      pond.addColorStop(1, '#2a5a6e');
+      g.fillStyle = pond;
+      ellipse(g, POND.x, POND.y, POND.rx, POND.ry);
+      g.fill();
+      g.strokeStyle = 'rgba(30,50,40,0.6)';
+      g.lineWidth = 2.4;
+      g.stroke();
+      // 연잎과 꽃
+      for (const pd of this.pads) {
+        g.save();
+        g.translate(pd.x, pd.y);
+        g.rotate(pd.a);
+        g.beginPath();
+        g.ellipse(0, 0, pd.r, pd.r * 0.62, 0, 0.35, Math.PI * 2 - 0.05);
+        g.lineTo(0, 0);
+        g.closePath();
+        g.fillStyle = '#5c9a5e';
+        g.fill();
+        g.strokeStyle = 'rgba(30,60,36,0.7)';
+        g.lineWidth = 1.4;
+        g.stroke();
+        g.restore();
+        if (pd.flower) {
+          g.fillStyle = '#ffd3e0';
+          for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2;
+            ellipse(g, pd.x + Math.cos(a) * 3.4, pd.y - 2 + Math.sin(a) * 2.2, 3, 1.8, a);
+            g.fill();
+          }
+          g.fillStyle = '#ffe58a';
+          ellipse(g, pd.x, pd.y - 2, 1.6, 1.3);
+          g.fill();
+        }
+      }
+      // 갈대
+      for (let i = 0; i < 70; i++) {
+        const a = Math.PI * (0.05 + rnd() * 0.9) + (rnd() < 0.5 ? Math.PI : 0);
+        const x = POND.x + Math.cos(a) * (POND.rx + 4 + rnd() * 10);
+        const y = POND.y + Math.sin(a) * (POND.ry + 3 + rnd() * 8);
+        const hgt = 14 + rnd() * 16;
+        g.strokeStyle = `rgba(${rnd() < 0.5 ? '96,140,80' : '70,110,62'},0.9)`;
+        g.lineWidth = 1.6;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.quadraticCurveTo(x + 2, y - hgt * 0.6, x + (rnd() - 0.5) * 6, y - hgt);
+        g.stroke();
+        if (rnd() < 0.3) {
+          g.fillStyle = '#7a5a3a';
+          ellipse(g, x + 1, y - hgt * 0.8, 1.8, 4.5);
+          g.fill();
+        }
+      }
       // 풀 포기와 들꽃
-      for (let i = 0; i < 1100; i++) {
+      for (let i = 0; i < 2000; i++) {
         const x = rnd() * W;
         const y = rnd() * H;
         if (x > shoreX(y) - 175 || this.nearPath(x, y, 30)) continue;
+        if (((x - POND.x) / (POND.rx + 16)) ** 2 + ((y - POND.y) / (POND.ry + 14)) ** 2 < 1) continue;
+        if (((x - 1290) / 400) ** 2 + ((y - 1800) / 160) ** 2 < 1) continue;
         if (rnd() < 0.7) {
           g.strokeStyle = `rgba(${rnd() < 0.5 ? '120,180,120' : '50,100,70'},0.6)`;
           g.lineWidth = 1.4;
@@ -471,8 +641,8 @@
           }
         }
       }));
-      // 벨텐트
-      sp.tent = sprite(170, 160, 85, 140, ss, (g) => {
+      // 벨텐트 (글램핑장의 세 채는 천 빛깔이 조금씩 다르다)
+      sp.tent = [['#fbecd2', '#d8bc92'], ['#f4ead8', '#cdbb9b'], ['#f6e4cc', '#cfae86']].map(([c0, c1]) => sprite(170, 160, 85, 140, ss, (g) => {
         g.fillStyle = 'rgba(0,0,0,0.25)';
         ellipse(g, 0, 2, 74, 14);
         g.fill();
@@ -483,8 +653,8 @@
         g.quadraticCurveTo(0, 14, -64, 0);
         g.closePath();
         const grd = g.createLinearGradient(-64, 0, 64, 0);
-        grd.addColorStop(0, '#fbecd2');
-        grd.addColorStop(1, '#d8bc92');
+        grd.addColorStop(0, c0);
+        grd.addColorStop(1, c1);
         g.fillStyle = grd;
         g.fill();
         g.strokeStyle = INK;
@@ -521,6 +691,85 @@
         g.closePath();
         g.fillStyle = '#e4664b';
         g.fill();
+      }));
+      // 줄전구 기둥
+      sp.post = sprite(30, 96, 15, 88, ss, (g) => {
+        g.fillStyle = 'rgba(0,0,0,0.2)';
+        ellipse(g, 0, 0, 7, 2.6);
+        g.fill();
+        MC.roundRect(g, -3, -80, 6, 80, 2);
+        g.fillStyle = '#6e4b33';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 1.6;
+        g.stroke();
+        ellipse(g, 0, -80, 4.4, 2.4);
+        g.fillStyle = '#4a3324';
+        g.fill();
+      });
+      // 화로: 세 발 무쇠 그릇 안에 장작
+      sp.brazier = sprite(90, 70, 45, 52, ss, (g) => {
+        g.fillStyle = 'rgba(0,0,0,0.25)';
+        ellipse(g, 0, 2, 30, 7);
+        g.fill();
+        g.strokeStyle = '#2b2622';
+        g.lineWidth = 3;
+        for (const [x0, x1] of [[-14, -20], [14, 20], [0, 0]]) {
+          g.beginPath();
+          g.moveTo(x0, -14);
+          g.lineTo(x1, 0);
+          g.stroke();
+        }
+        g.beginPath();
+        g.moveTo(-26, -24);
+        g.quadraticCurveTo(-24, -6, 0, -6);
+        g.quadraticCurveTo(24, -6, 26, -24);
+        g.closePath();
+        g.fillStyle = '#3a332e';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2;
+        g.stroke();
+        ellipse(g, 0, -24, 26, 6);
+        g.fillStyle = '#1e1714';
+        g.fill();
+        g.stroke();
+        for (const [x, a] of [[-8, -0.4], [8, 0.4]]) {
+          g.save();
+          g.translate(x, -26);
+          g.rotate(a);
+          MC.roundRect(g, -10, -3.5, 20, 7, 3.5);
+          g.fillStyle = '#6b4a33';
+          g.fill();
+          g.strokeStyle = INK;
+          g.lineWidth = 1.4;
+          g.stroke();
+          g.restore();
+        }
+      });
+      // 연못을 바라보는 긴 나무 의자 (뒤에서 본 모습)
+      sp.bench = sprite(150, 80, 75, 66, ss, (g) => {
+        g.fillStyle = 'rgba(0,0,0,0.22)';
+        ellipse(g, 0, 1, 62, 8);
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2;
+        for (const x of [-48, 48]) {
+          MC.roundRect(g, x - 4, -40, 8, 40, 2);
+          g.fillStyle = '#5e4330';
+          g.fill();
+          g.stroke();
+        }
+        MC.roundRect(g, -60, -26, 120, 9, 3);
+        g.fillStyle = '#9a7150';
+        g.fill();
+        g.stroke();
+        for (const y of [-54, -42]) {
+          MC.roundRect(g, -62, y, 124, 9, 3);
+          g.fillStyle = '#a97d58';
+          g.fill();
+          g.stroke();
+        }
       });
       // 모닥불 자리: 돌 둘레, 재, 엇갈린 장작
       sp.pit = sprite(130, 80, 65, 52, ss, (g) => {
@@ -840,6 +1089,18 @@
       return 'walk';
     }
 
+    // 의자: 펴고 앉아 책 읽기 ↔ 접고 일어서기. 걷기 시작하면 저절로 접는다
+    toggleChair() {
+      const on = !this.pup.chairOn;
+      this.pup.setChair(on);
+      if (on) {
+        this.target = null;
+        this.pup.view = this.pup.restView = 'front';
+        this.pup.baseTurn = 0;
+      }
+      return on;
+    }
+
     moktakPos() {
       return { x: PAVILION.x, y: PAVILION.y - 34 };
     }
@@ -887,6 +1148,7 @@
         f: 1,
         z: p.sleeping ? 1 : 0,
         hp: p.heartBursts || 0,
+        ch: p.chairOn ? 1 : 0,
       };
     }
 
@@ -897,8 +1159,9 @@
       return {
         fire: near(Math.hypot(p.x - FIRE.x, p.y - FIRE.y), 60, 760),
         water: near(Math.max(0, shoreX(p.y) - p.x), 40, 820),
-        forest: near(Math.hypot(p.x - 420, p.y - 370), 120, 900),
+        forest: near(Math.hypot(p.x - 500, p.y - 420), 120, 900),
         pavilion: near(Math.hypot(p.x - PAVILION.x, p.y - PAVILION.y), 60, 520),
+        glamp: near(Math.hypot(p.x - BRAZIER.x, p.y - BRAZIER.y), 50, 520),
       };
     }
 
@@ -909,7 +1172,12 @@
       let vx = 0;
       let vy = 0;
       const speed = 170;
-      if (this.keys.x || this.keys.y) {
+      // 의자에 앉아 있다가 걸으려 하면: 먼저 의자를 접고 내려온다
+      const wants = !!(this.keys.x || this.keys.y || this.target);
+      if (wants && pup.chairOn) pup.setChair(false);
+      if (pup.chair > 0.25) {
+        // 접는 동안은 그 자리에
+      } else if (this.keys.x || this.keys.y) {
         const l = Math.hypot(this.keys.x, this.keys.y);
         vx = (this.keys.x / l) * speed;
         vy = (this.keys.y / l) * speed;
@@ -1019,6 +1287,7 @@
         s.x += s.vx * dt;
         s.y += s.vy * dt;
       }
+      if (Math.random() < dt * 1.4) this.sparks.push({ x: BRAZIER.x + MC.gauss() * 5, y: BRAZIER.y - 34, vx: MC.gauss() * 10, vy: -MC.rand(30, 70), f: 0, max: MC.rand(0.6, 1.2) });
       this.sparks = this.sparks.filter((s) => s.f < 1);
     }
 
@@ -1084,8 +1353,10 @@
 
       // 앞뒤 순서대로 세우기 (아래에 있을수록 앞)
       const items = [];
+      const left = vx0 - 120;
+      const right = vx0 + w / z + 120;
       for (const tr of this.trees) {
-        if (tr.y < top || tr.y > bottom + 160) continue;
+        if (tr.y < top || tr.y > bottom + 160 || tr.x < left || tr.x > right) continue;
         items.push({ y: tr.y, d: () => {
           const s = sp[tr.kind][tr.v];
           const sway = Math.sin(t * 0.7 + tr.sway) * (tr.kind === 'bush' ? 0 : 0.8);
@@ -1093,18 +1364,23 @@
         } });
       }
       for (const ln of this.lanterns) {
+        if (ln.y < top || ln.y > bottom + 80 || ln.x < left || ln.x > right) continue;
         const i = LANTERN_COLORS.indexOf(ln.c);
         items.push({ y: ln.y, d: () => { const s = sp.lantern[i]; g.drawImage(s.c, ln.x - s.ax, ln.y - s.ay, s.w, s.h); } });
       }
       const put = (s, x, y) => items.push({ y, d: () => g.drawImage(s.c, x - s.ax, y - s.ay, s.w, s.h) });
-      put(sp.tent, TENT.x, TENT.y);
+      TENTS.forEach((tn, i) => {
+        const tsp = sp.tent[i];
+        items.push({ y: tn.y, d: () => g.drawImage(tsp.c, tn.x - tsp.ax * tn.s, tn.y - tsp.ay * tn.s, tsp.w * tn.s, tsp.h * tn.s) });
+      });
+      for (const [x, y] of POSTS) put(sp.post, x, y);
+      put(sp.brazier, BRAZIER.x, BRAZIER.y);
+      put(sp.bench, BENCH.x, BENCH.y);
       put(sp.pit, FIRE.x, FIRE.y);
       put(sp.pavilion, PAVILION.x, PAVILION.y);
       put(sp.stump, STUMP.x, STUMP.y);
       items.push({ y: PAVILION.y + 0.5, d: () => this.drawMoktak(g) });
       items.push({ y: PAVILION.y + 0.6, d: () => this.drawChime(g) });
-      const left = vx0 - 120;
-      const right = vx0 + w / z + 120;
       // 화면 안의 사람 가운데 내 곁부터 (MC.crowdMaxDrawn: 기기가 버거우면 줄어든다)
       let near = [];
       for (const v of this.visitors.values()) {
@@ -1133,6 +1409,33 @@
       } });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.d();
+      // 줄전구 줄
+      g.strokeStyle = 'rgba(40,30,24,0.75)';
+      g.lineWidth = 1.3;
+      for (const pts of this.wires) {
+        g.beginPath();
+        pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.stroke();
+      }
+      // 연못에 이는 잔물결
+      if (POND.y + POND.ry > top && POND.y - POND.ry < bottom) {
+        g.save();
+        g.beginPath();
+        g.ellipse(POND.x, POND.y, POND.rx - 4, POND.ry - 4, 0, 0, Math.PI * 2);
+        g.clip();
+        g.strokeStyle = 'rgba(210,235,255,0.22)';
+        g.lineWidth = 1.4;
+        for (let i = 0; i < 6; i++) {
+          const u = ((t * 0.07 + i / 6) % 1);
+          const cx = POND.x - 60 + MC.hash(i * 3.3) * 120;
+          const cy = POND.y - 30 + MC.hash(i * 7.1) * 60;
+          g.globalAlpha = Math.sin(Math.PI * u);
+          ellipse(g, cx, cy, 8 + u * 46, (8 + u * 46) * 0.4);
+          g.stroke();
+        }
+        g.globalAlpha = 1;
+        g.restore();
+      }
       if (this.hiddenBehind()) {
         g.globalAlpha = 0.45;
         this.pup.draw(g, z * (this.dpr || 1), true);
@@ -1156,9 +1459,26 @@
         g.drawImage(this.glow(rgb), x - r, y - r * 0.7, r * 2, r * 1.4);
       };
       glow([255, 140, 60], FIRE.x, FIRE.y - 10, 260 * fl, 0.42);
-      glow([255, 200, 120], TENT.x, TENT.y - 24, 70, 0.55);
+      for (const tn of TENTS) glow([255, 200, 120], tn.x, tn.y - 24 * tn.s, 70 * tn.s, 0.55);
       glow([255, 214, 150], PAVILION.x, PAVILION.y - 70, 110, 0.35);
+      // 글램핑장 화로
+      const bf = 0.8 + 0.2 * MC.fbm(t * 3.7 + 5);
+      glow([255, 150, 70], BRAZIER.x, BRAZIER.y - 30, 150 * bf, 0.36);
+      for (let i = 0; i < 3; i++) {
+        const hh = (18 + 9 * MC.fbm(t * (2.4 + i * 0.5) + i * 4)) * bf;
+        g.globalAlpha = 0.55;
+        g.drawImage(this.glow([255, 170 - i * 25, 70]), BRAZIER.x - 12 + i * 6 - 7, BRAZIER.y - 26 - hh, 18, hh + 6);
+      }
+      for (const b of this.bulbs) {
+        if (b.y < top || b.y > bottom) continue;
+        const a = 0.75 + 0.15 * Math.sin(t * 0.9 + b.ph);
+        glow(b.c, b.x, b.y, 22, a * 0.7);
+        glow([255, 246, 220], b.x, b.y, 5, a);
+      }
+      const lx0 = vx0 - 80;
+      const lx1 = vx0 + w / z + 80;
       for (const ln of this.lanterns) {
+        if (ln.y < top || ln.y > bottom + 80 || ln.x < lx0 || ln.x > lx1) continue;
         const a = 0.5 + 0.12 * Math.sin(t * 1.3 + ln.ph);
         glow(ln.c, ln.x + 9, ln.y - 34, 56, a);
         glow(MC.mix(ln.c, [255, 255, 255], 0.35), ln.x + 9, ln.y - 34, 14, 0.4);
@@ -1208,7 +1528,10 @@
         if (tr.y <= p.y || tr.y - p.y > 180 || tr.kind === 'bush') continue;
         if (covers(this.sp[tr.kind][tr.v], tr.x, tr.y, 14)) return true;
       }
-      if (TENT.y > p.y && covers(this.sp.tent, TENT.x, TENT.y, 24)) return true;
+      for (let i = 0; i < TENTS.length; i++) {
+        const tn = TENTS[i];
+        if (tn.y > p.y && hx > tn.x - 60 * tn.s && hx < tn.x + 60 * tn.s && hy > tn.y - 118 * tn.s && hy < tn.y - 8) return true;
+      }
       if (PAVILION.y > p.y && covers(this.sp.pavilion, PAVILION.x, PAVILION.y, 26)) return true;
       return false;
     }
@@ -1307,4 +1630,5 @@
 
   MC.CampMap = CampMap;
   MC.CAMP_SPOTS = SPOTS;
+  MC.CAMP_PATHS = PATHS; // 첫째가 마을을 한 바퀴 도는 둘레길
 })(window.MC = window.MC || {});

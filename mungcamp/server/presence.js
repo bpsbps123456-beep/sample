@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /* 멍캠프 — 함께 있는 사람들 서버 (의존성 없음, Node 18+)
 
-   하는 일은 하나: 같은 장소에 있는 사람들끼리 서로의 멍이 자리를 나눠 준다.
-   닉네임(열 글자) 말고는 글을 받지 않고, 아무것도 남기지 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
+   하는 일: 같은 장소에 있는 사람들끼리 서로의 멍이 자리를 나눠 준다.
+   함께 모이기에서는 닉네임(열 글자) 말고는 글을 받지 않고, 아무것도 남기지 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
+   따로, 건의함(server/suggest.js)이 사람들이 보낸 건의를 받아 운영자만 보게 남긴다.
 
    - 장소(map, fire, water, forest)마다 방을 나누고, 한 방이 차면 다음 방을 연다
      (모닥불·바다·숲은 ROOM_CAP=16, 텐트 안은 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
@@ -22,6 +23,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const suggest = require('./suggest');
 
 const PORT = +(process.env.PORT || 8787);
 // 마을 지도는 넉넉하게, 모닥불·바다·숲은 오붓하게
@@ -85,6 +87,7 @@ function clean(raw) {
     bp,
     g: gx != null && gy != null ? [Math.round(gx), Math.round(gy)] : null,
     l: num(raw.l, 0, 9) | 0,
+    ch: raw.ch ? 1 : 0,
     n: cleanName(raw.n),
   };
 }
@@ -403,6 +406,8 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ ok: true, clients: clients.size }));
     return;
   }
+  // 건의함: 누구나 보내고, 운영자만 본다 (server/suggest.js)
+  if (suggest.handle(req, res, ALLOWED_ORIGINS)) return;
   if (STATIC) {
     serveFile(req, res);
     return;

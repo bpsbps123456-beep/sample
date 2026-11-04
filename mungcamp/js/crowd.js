@@ -85,6 +85,7 @@
       // 눕는지와 어디에 눕는지는 장면이 정한다 (튜브, 나뭇가지, 침대). 폴짝 뛰는 동안은 눕지 않는다
       const lie = env.lieOf ? env.lieOf(st) : !!st.l;
       p.setLie(lie && !this.jumpFrom);
+      p.setChair(!!st.ch && !lie && !st.q && !this.jumpFrom);
       p.rest = this.jumpFrom ? null : env.restOf ? env.restOf(st) : null;
       if (this.jumpFrom) this.jumpT += dt;
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
@@ -504,8 +505,30 @@
       if (pose.turn != null) pup.baseTurn = pose.turn;
       pup.flip = pose.flip || 1;
       pup.stickTip = pose.tip || null;
-      pup.setStick(!!pose.stick);
+      pup.setStick(!!pose.stick && !pup.chairOn);
       this.posed = true;
+    }
+
+    // 의자를 펼 수 있는 곳인지: 땅 위에서만 (올라앉았거나 물에 떠 있거나 드나드는 중이면 아니다)
+    canChair() {
+      const cfg = this.cfg;
+      return !this.perched && !this.portal && !this.toPerch && !(cfg.drifting && cfg.drifting(this.me.X, this.me.Z)) && !(cfg.noChair && cfg.noChair(this.me.X, this.me.Z));
+    }
+
+    // 의자를 펴거나 접는다. 펼 수 없는 곳이면 null
+    toggleChair() {
+      const pup = this.pup;
+      if (pup.chairOn) {
+        pup.setChair(false);
+        this.posed = false;
+        return false;
+      }
+      if (!this.canChair()) return null;
+      this.target = null;
+      this.path = null;
+      pup.setStick(false);
+      pup.setChair(true);
+      return true;
     }
 
     // 화면 크기가 바뀌면 자리를 다시 잡는다
@@ -555,6 +578,9 @@
       let vy = 0;
       let moved = false;
       const keyed = !this.portal && (this.keys.x || this.keys.y);
+      // 의자에 앉아 있다가 걸으려 하면 먼저 의자를 접는다 (접는 동안은 그 자리에)
+      if (pup.chairOn && (keyed || this.target || this.portal || this.perched)) pup.setChair(false);
+      const folding = pup.chair > 0.25;
       if (this.portal) {
         const P = this.portal;
         P.t += dt;
@@ -572,7 +598,7 @@
           if (P.done) P.done();
         }
       } else if (keyed && this.perched) this.hopDown();
-      if (!this.perched && !this.portal && !moved) {
+      if (!this.perched && !this.portal && !moved && !folding) {
         const sp = cfg.speed();
         const cur = cfg.toScreen(this.me.X, this.me.Z);
         if (keyed) {
@@ -615,7 +641,7 @@
       this.moving = moved;
       // 자리 고르기는 사람마다 조금씩 늦춰서, 같이 들어와도 먼저 고른 사람의 자리가 전해진 뒤에 고른다
       if (this.roomAt == null) this.roomAt = 1.3 + Math.random() * 1.4;
-      if (!this.roomMade && this.t > this.roomAt) this.makeRoom();
+      if (!this.roomMade && this.t > this.roomAt && !pup.chairOn) this.makeRoom();
       // 둘이 같이 와서 같은 자리에 겹쳐 앉았으면, 꼬리표가 큰 쪽이 빈자리로 옮긴다 (양쪽이 같은 규칙으로 정한다)
       this.clashT = (this.clashT || 0) + dt;
       if (this.clashGap == null) this.clashGap = 1 + Math.random() * 1.2;
@@ -716,6 +742,7 @@
         // 가려는 자리: 돌아가는 디딤돌이 아니라 마지막에 앉을 곳 (다른 사람이 그 자리를 피한다)
         g: this.target ? ((q) => [Math.round(q.X), Math.round(q.Z)])(this.path && this.path.length ? this.path[this.path.length - 1] : this.target) : null,
         l: this.cfg.extra ? this.cfg.extra().l || 0 : 0,
+        ch: p.chairOn ? 1 : 0,
       };
     }
 
