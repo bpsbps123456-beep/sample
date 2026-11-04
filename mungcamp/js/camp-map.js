@@ -1977,9 +1977,11 @@
       g.fillStyle = '#eed7ad'; g.strokeStyle = '#70583e'; g.lineWidth = 2.5;
       MC.roundRect(g, -57, -71, 114, 42, 6); g.fill(); g.stroke();
       g.fillStyle = '#513e2e';
-      g.font = '22px "Jua", sans-serif';
-      g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(text, 0, -49, 99);
+      g.font = '700 38px "Dongle", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      const metrics = g.measureText(text);
+      const baseline = -50 + (metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2;
+      g.fillText(text, 0, baseline, 99);
       g.restore();
     }
 

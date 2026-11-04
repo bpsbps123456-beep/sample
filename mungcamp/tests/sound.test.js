@@ -62,7 +62,8 @@ main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
     await open(P, name);
     const ok = await until(P, allReady, null, 15000);
     check(ok, `${name}: 녹음 줄기가 모두 흐른다`, await beds(P));
-    await sleep(1500);
+    // 장면의 5초 페이드인이 끝난 뒤 평상시 음량을 잰다.
+    await sleep(5500);
     const db = await level(P);
     check(db > -45 && db < -12, `${name}: 알맞은 크기로 들린다`, db + ' dB');
   }

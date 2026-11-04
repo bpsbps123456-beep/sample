@@ -688,13 +688,13 @@
     constructor(snd) {
       super(snd, FireScape.layers);
       const s = snd;
-      // 불길의 낮은 숨: 느리게 일렁이는 웅웅거림 (발밑을 울리는 아주 낮은 소리는 덜어 내어 불꽃 소리답게)
-      this.roar = this.noiseLayer('brown', [['lowpass', 300, 0.6], ['highpass', 85, 0.5]], 0.15, this.layers.fire);
-      this.modulate(this.roar.gain.gain, 1.2, 0.07);
+      // 낮게 웅웅거리는 공기 소리는 바람에 묶는다. 녹음이 없어도 바람 조절로 줄일 수 있게.
+      this.roar = this.noiseLayer('brown', [['lowpass', 300, 0.6], ['highpass', 85, 0.5]], 0.04, this.layers.wind);
+      this.modulate(this.roar.gain.gain, 1.2, 0.012);
       // 지글지글: 빠르게 흔들리는 옅은 고음
       this.hiss = this.noiseLayer('pink', [['bandpass', 3000, 0.8]], 0.006, this.layers.fire);
       this.modulate(this.hiss.gain.gain, 16, 0.02);
-      this.wind = this.noiseLayer('pink', [['bandpass', 380, 0.5]], 0.05, this.layers.wind);
+      this.wind = this.noiseLayer('pink', [['bandpass', 380, 0.5]], 0.012, this.layers.wind);
       this.crackBus = s.gain(1);
       const soft = s.filter('lowpass', 9500, 0.5);
       this.crackBus.connect(soft);
@@ -745,10 +745,20 @@
       comp.release.value = 0.09;
       this.fireTone = s.filter('lowpass', 8000, 0.3);
       this.fireBus.connect(comp);
-      comp.connect(this.fireTone);
+      // 녹음 속 낮은 웅웅거림도 바람으로 분리하고, 장작의 타닥거림은 또렷하게 남긴다.
+      const crackle = s.filter('highpass', 240, Math.SQRT1_2);
+      const detail = s.gain(1.4);
+      const rumble = s.filter('lowpass', 240, Math.SQRT1_2);
+      const air = s.gain(0.25);
+      comp.connect(crackle);
+      crackle.connect(detail);
+      detail.connect(this.fireTone);
+      comp.connect(rumble);
+      rumble.connect(air);
+      air.connect(this.layers.wind);
       this.fireTone.connect(dest);
       const send = s.gain(0.07);
-      this.fireTone.connect(send);
+      dest.connect(send);
       send.connect(s.verbIn);
       const B = FireScape.BED;
       this.fireA = this.rec('fire', this.fireBus, { level: B * 0.85, len: [5, 9], xf: 1.6, pan: -0.12, spread: 0.08, rate: [0.97, 1.03] });
@@ -787,7 +797,7 @@
       const now = this.snd.ctx.currentTime;
       const I = Math.min(1.2, p.intensity);
       this.intensity = I;
-      this.roar.gain.gain.setTargetAtTime(0.07 + 0.2 * I, now, 0.6);
+      this.roar.gain.gain.setTargetAtTime(0.015 + 0.04 * I, now, 0.6);
       this.roar.filters[0].frequency.setTargetAtTime(170 + 360 * I, now, 0.6);
       this.hiss.gain.gain.setTargetAtTime(0.002 + 0.006 * I, now, 0.6);
       // 장작을 넣은 뒤 몇 초는 불이 확 살아난다
@@ -839,7 +849,7 @@
         }
       }
       if (now > this.nextGust) {
-        this.wind.gain.gain.setTargetAtTime(0.025 + Math.random() * 0.07, this.snd.ctx.currentTime, 2);
+        this.wind.gain.gain.setTargetAtTime(0.006 + Math.random() * 0.018, this.snd.ctx.currentTime, 2);
         this.nextGust = now + MC.rand(3, 7);
       }
     }
@@ -1019,7 +1029,7 @@
   FireScape.layers = [
     { key: 'fire', label: '장작', value: 1 },
     { key: 'crickets', label: '풀벌레', value: 0.45 },
-    { key: 'wind', label: '바람', value: 0.5 },
+    { key: 'wind', label: '바람', value: 0.25 },
   ];
 
   // ── 물멍 ────────────────────────────────────────────────
@@ -1721,23 +1731,20 @@
       const s = snd;
       const ctx = s.ctx;
       const T = LodgeScape.LEVELS;
-      // 주전자 → (코타츠 속이면 닫히는) 저역 통과 → 주전자 층. 방 안이라 아주 조금 울린다
-      this.kettleLp = s.filter('lowpass', 6500, 0.5);
+      // 주전자 고음을 누그러뜨리고 잔향 없이 작게. 코타츠 안에서는 한층 더 포근하게.
+      this.kettleLp = s.filter('lowpass', 1200, 0.5);
       this.kettleLp.connect(this.layers.kettle);
-      const send = s.gain(0.1);
-      this.kettleLp.connect(send);
-      send.connect(s.verbIn);
       this.kettleBus = s.gain(1);
       this.kettleBus.connect(this.kettleLp);
-      this.kettle = this.rec('kettle', this.kettleBus, { level: T.kettle, len: [5, 8], xf: 1.8, pan: 0.3, spread: 0.06 });
+      this.kettle = this.rec('kettle', this.kettleBus, { level: T.kettle, len: [6, 10], xf: 2.4, pan: 0.3, spread: 0.06, rate: [0.84, 0.92] });
       this.kettle.onReady = () => { this.realKettle = true; };
       // 보글보글: 거품이 밀려왔다 잦아든다 (swell 을 천천히 오르내린다)
-      this.swell = s.gain(0.5);
+      this.swell = s.gain(0.22);
       this.swell.connect(this.kettleBus);
-      this.bubbles = this.rec('bubbles', this.swell, { level: T.bubbles, len: [2.2, 3.6], xf: 0.9, pan: 0.34, spread: 0.08, rate: [0.9, 1.04] });
+      this.bubbles = this.rec('bubbles', this.swell, { level: T.bubbles, len: [3, 5], xf: 1.4, pan: 0.34, spread: 0.08, rate: [0.72, 0.86] });
       this.bubbles.onReady = () => { this.realBubbles = true; };
       // 녹음을 못 받으면: 끓는 물의 쉬이 (합성)
-      this.simmer = this.noiseLayer('pink', [['bandpass', 900, 0.7]], 0, this.kettleBus);
+      this.simmer = this.noiseLayer('pink', [['lowpass', 650, 0.7]], 0, this.kettleBus);
       // 방 안의 낮은 숨 (따뜻한 공기)
       this.room = this.noiseLayer('brown', [['lowpass', 180, 0.6]], 0.04, this.layers.kettle);
       this.modulate(this.room.gain.gain, 0.3, 0.012);
@@ -1760,7 +1767,6 @@
       const now = MC.clock();
       this.nextSwell = now + 1;
       this.nextBlub = now + 0.2;
-      this.nextLid = now + MC.rand(14, 26);
     }
 
     setParams(p) {
@@ -1772,12 +1778,12 @@
       const I = this.inside;
       const G = this.gust;
       // 코타츠 속이면 주전자도 바람도 이불 너머로
-      this.kettleLp.frequency.setTargetAtTime(6500 * Math.pow(800 / 6500, I), now, 0.4);
+      this.kettleLp.frequency.setTargetAtTime(1200 * Math.pow(600 / 1200, I), now, 0.8);
       this.kettleBus.gain.setTargetAtTime(1 - 0.35 * I, now, 0.4);
       this.outLp.frequency.setTargetAtTime((620 + 520 * G) * (1 - 0.55 * I), now, 0.6);
       this.outBus.gain.setTargetAtTime((0.8 + 0.55 * G) * (1 - 0.45 * I), now, 0.8);
       this.quilt.gain.gain.setTargetAtTime(0.06 * I, now, 0.5);
-      this.simmer.gain.gain.setTargetAtTime(this.realKettle ? 0 : 0.05, now, 0.5);
+      this.simmer.gain.gain.setTargetAtTime(this.realKettle ? 0 : 0.02, now, 0.5);
       this.wind.setLevel(T.wind * (0.85 + 0.4 * G), 1.2);
     }
 
@@ -1787,20 +1793,14 @@
       const until = now + 1.3;
       // 거품이 밀려왔다 잦아든다: 몇 초마다 다음 크기로 천천히
       if (now > this.nextSwell) {
-        const v = Math.random() < 0.25 ? MC.rand(0.75, 1) : MC.rand(0.2, 0.6);
-        this.swell.gain.setTargetAtTime(v, s.ctx.currentTime, MC.rand(0.8, 1.6));
-        this.nextSwell = now + MC.rand(3, 7);
+        this.swell.gain.setTargetAtTime(MC.rand(0.18, 0.32), s.ctx.currentTime, MC.rand(1.8, 3.2));
+        this.nextSwell = now + MC.rand(6, 12);
       }
       // 녹음이 없으면 작은 거품을 합성해 보글보글
       if (this.realKettle && this.realBubbles) this.nextBlub = until;
       while (this.nextBlub < until) {
         if (this.nextBlub > now - 0.05) this.blub(this.nextBlub);
-        this.nextBlub += -Math.log(1 - Math.random()) / 6;
-      }
-      // 이따금 뚜껑이 들썩 '달각' 하고 김이 쉬이
-      if (now > this.nextLid) {
-        this.nextLid = now + MC.rand(16, 34);
-        this.lid(0.5);
+        this.nextBlub += -Math.log(1 - Math.random()) / 1.2;
       }
     }
 
@@ -1808,23 +1808,21 @@
     blub(t) {
       const s = this.snd;
       const at = Math.max(s.ctx.currentTime + 0.005, s.toCtx(t));
-      const f = MC.rand(320, 620);
-      this.blip(at, this.kettleBus, f, f * MC.rand(1.6, 2.2), MC.rand(0.045, 0.08), MC.rand(0.006, 0.018));
+      const f = MC.rand(160, 280);
+      this.blip(at, this.kettleBus, f, f * MC.rand(1.2, 1.5), MC.rand(0.07, 0.12), MC.rand(0.0015, 0.004));
     }
 
-    // 주전자 뚜껑이 '달각', 이어서 김이 쉬이
+    // 톡 건드리면 작은 김만 스윽. 날카로운 뚜껑 소리나 높은 증기 소리는 내지 않는다.
     lid(amp = 1) {
       const s = this.snd;
       const ctx = s.ctx;
       const at = ctx.currentTime + 0.02;
-      this.blip(at, this.kettleBus, 2650, 2450, 0.05, 0.016 * amp, 'triangle');
-      this.blip(at + 0.07, this.kettleBus, 2500, 2300, 0.04, 0.01 * amp, 'triangle');
       const src = ctx.createBufferSource();
-      src.buffer = s.noise.white;
-      const bp = s.filter('bandpass', 4200, 0.8);
+      src.buffer = s.noise.brown;
+      const bp = s.filter('lowpass', 850, 0.7);
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, at + 0.05);
-      g.gain.exponentialRampToValueAtTime(0.022 * amp, at + 0.25);
+      g.gain.exponentialRampToValueAtTime(0.006 * amp, at + 0.25);
       g.gain.exponentialRampToValueAtTime(0.0001, at + 1.1);
       src.connect(bp);
       bp.connect(g);
@@ -1862,7 +1860,7 @@
     { key: 'outside', label: '바깥', value: 0.7 },
   ];
   // 녹음의 크기 (README 의 sounds/ 처리 뒤 -1~-2dBFS 봉우리 기준)
-  LodgeScape.LEVELS = { kettle: 0.5, bubbles: 0.22, wind: 0.6 };
+  LodgeScape.LEVELS = { kettle: 0.1, bubbles: 0.045, wind: 0.6 };
 
   MC.Sound = Sound;
   MC.LodgeScape = LodgeScape;
