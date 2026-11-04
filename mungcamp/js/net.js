@@ -14,7 +14,7 @@
   const BEAT = 2.5; // 탭끼리는 가만히 있어도 가끔 '여기 있어요'
   const STALE = 9; // 이만큼 소식이 없으면 떠난 것으로 본다 (탭끼리)
   const PLACES = ['map', 'fire', 'water', 'forest', 'tent'];
-  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null, l: 0 };
+  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null, l: 0, ch: 0 };
 
   // 처음 온 날 털빛과 모자를 하나 골라 두고 계속 입는다
   function myLook() {
@@ -78,6 +78,7 @@
       bp, // 누구에게 하트를 보냈는지 [그 사람, 몇 번째]
       g, // 걸어가는 중이면 가려는 자리
       l: num(raw.l, 0, 9) | 0, // 침대 몇 번 자리에 엎드려 누웠는지 (0이면 아님)
+      ch: raw.ch ? 1 : 0, // 접이식 의자를 펴고 앉아 책을 읽는 중
       n: cleanName(raw.n), // 닉네임 (멍이를 눌러야 보인다)
     };
   }

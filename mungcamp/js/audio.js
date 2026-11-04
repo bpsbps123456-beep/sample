@@ -1,12 +1,104 @@
-/* 멍캠프 — 소리. 음원 파일 없이 Web Audio로 실시간 합성한다 */
+/* 멍캠프 — 소리.
+   바탕은 실제로 녹음한 자연의 소리(sounds/: 장작불, 풀벌레, 새, 계곡물, 비, 바닷물)이고,
+   그 위에 화면과 맞물리는 작은 소리(불티, 파도의 부서짐, 물방울, 다람쥐…)를 Web Audio로 합성해 얹는다.
+   녹음을 받기 전이나 받지 못하면(인터넷 없이 처음 열 때 등) 합성한 소리만으로도 온전히 난다 */
 (function (MC) {
   'use strict';
+
+  // ── 녹음한 소리 ─────────────────────────────────────────
+  // 처음 쓸 때 한 번만 받아 풀어 두고 여러 장면이 함께 쓴다. 출처와 허락은 README '소리의 출처'
+  const SAMPLES = {
+    // 모닥불 (amether, CC BY 4.0). 타닥이 또렷해야 해서 조금 더 촘촘히 풀어 둔다.
+    // marks: 녹음 속 '타닥'의 자리(밀리초):세기(0~99). vis 보다 센 타닥에 맞춰 불티가 튄다
+    fire: {
+      url: 'sounds/fire.mp3',
+      rate: 32000,
+      vis: 0.9,
+      marks: '290:39,518:36,758:23,850:23,952:53,1356:99,1582:99,1892:26,1952:20,2450:52,2748:28,2874:87,3400:99,3650:44,3746:24,3904:68,4104:34,4408:99,4626:28,4766:93,5034:97,5276:99,5382:70,5510:94,5654:74,6054:99,6356:99,6414:78,6976:94,7250:66,7496:56,7624:56,7668:22,7722:22,7914:90,7970:38,8052:24,8180:63,8382:22,8816:99,8922:20,9076:99,9422:99,9668:43,9720:90,9846:46,10168:99,10230:31,10412:27,10686:50,10798:24,10866:99,11130:40,11270:27,11628:34,12066:37,12294:35,12534:23,12626:23,12728:54,13132:99,13360:99,13420:22,13668:28,13730:20,14228:56,14526:28,14650:88,15178:99,15428:41,15522:24,15680:67,15882:35,16184:99,16402:23,16544:92,16796:77,17296:99,17830:44,17930:22,18058:38,18296:26,18390:23,18492:50,18754:23,18896:99,19122:99,19184:31,19432:27,19492:21,19990:56,20288:25,20414:90,20940:99,21048:22,21190:53,21444:72,21644:32,21842:31,21946:99,22008:36,22166:37,22306:99,22574:89,22922:58,23050:98,23194:79,23340:21,23594:92,23896:99,23954:88,24516:91,24790:71,25036:60,25164:68,25208:22,25260:26,25456:78,25510:25,25592:23,25720:52,25860:25,25922:42,26356:99,26614:99,26916:20,26962:99,27206:46,27260:99,27386:34,27708:99,27952:54,28226:53,28340:32,28406:99,28564:20,28670:43,28810:23,28854:22,29166:42,29606:44,29706:22,29834:40,30074:27,30168:24,30270:51,30530:25,30672:99,30900:99,30962:35,31208:30,31268:21,31768:58,32064:24,32190:91,32716:99,32824:22,32968:51,33220:71,33422:30,33618:34,33724:99,33786:37,33942:37,34084:99,34334:81,34836:99',
+    },
+    // 벽난로 장작불 (ezwa, 퍼블릭 도메인): 텐트 안 무쇠 난로
+    stove: {
+      url: 'sounds/stove.mp3',
+      vis: 0.3,
+      marks: '652:18,882:44,1162:7,1508:7,1768:29,2220:6,3688:28,4440:47,4928:11,5938:8,6056:61,6996:17,7574:30,7702:78,7746:16,8196:5,8538:15,8886:6,9480:6,9534:33,9866:43,9954:22,10268:9,10372:11,10502:11,11758:23,12476:24,12782:7,13052:20,13924:7,14012:40,14256:14,15320:7,15928:6,16220:9,16554:18,16720:6,17444:7,18476:25,18834:8,19002:32,19522:5,19640:6,20832:6,21084:34,21974:11,22768:7,23170:12,23562:6,24552:17,24938:28,25148:5,25200:15',
+    },
+    crickets: { url: 'sounds/crickets.mp3' }, // 여름밤 풀벌레 (Lisa Redfern, 퍼블릭 도메인)
+    birds: { url: 'sounds/birds.mp3' }, // 숲의 새 (kvgarlic, CC0)
+    stream: { url: 'sounds/stream.mp3' }, // 계곡물 (gluckose, CC0)
+    rain: { url: 'sounds/rain.mp3' }, // 비 (alex36917, CC BY)
+    sea: { url: 'sounds/sea.mp3' }, // 바닷물결 (Luftrum, CC BY). 크기를 고르게 눌러 두어 물의 결로만 쓴다
+  };
+  // 풀어 둘 때의 표본률. 전체 소리가 10.5kHz 아래로 걸러지니 낮춰서 메모리를 아낀다
+  const DECODE_RATE = 22050;
+
+  function parseMarks(str) {
+    return str.split(',').map((p) => {
+      const [t, v] = p.split(':');
+      return { t: +t / 1000, s: +v / 99 };
+    });
+  }
+
+  // 지금 값에서 부드럽게 옮겨 간다 (앞서 잡아 둔 변화는 지운다)
+  function glide(param, v, tc, ctx) {
+    const now = ctx.currentTime;
+    if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(now);
+    else {
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+    }
+    param.setTargetAtTime(v, now, tc);
+  }
 
   class Sound {
     constructor() {
       this.ctx = null;
       this.volume = MC.store.get('volume', 0.7);
       this.muted = false;
+      this.samples = {};
+    }
+
+    // 녹음 하나를 받아 풀어 둔다. 같은 이름은 한 번만 받는다. 받지 못하면 null
+    sample(name) {
+      if (name in this.samples) return this.samples[name];
+      const def = SAMPLES[name];
+      if (!def || !this.ctx || MC.noSamples || typeof fetch !== 'function') return Promise.resolve(null);
+      const p = fetch(def.url)
+        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .then((ab) => (ab ? this.decode(ab, def.rate || DECODE_RATE) : null))
+        .catch(() => null)
+        .then((buf) => {
+          if (buf && def.marks) {
+            buf.marks = parseMarks(def.marks);
+            buf.vis = def.vis || 0.3;
+          }
+          // 받지 못했으면 다음에 다른 곳에 갈 때 다시 받아 본다
+          if (!buf) delete this.samples[name];
+          return buf;
+        });
+      this.samples[name] = p;
+      return p;
+    }
+
+    decode(ab, rate) {
+      const run = (ctx, data) => new Promise((res, rej) => {
+        try {
+          const p = ctx.decodeAudioData(data, res, rej);
+          if (p && p.then) p.then(res, rej);
+        } catch (e) {
+          rej(e);
+        }
+      });
+      let off = null;
+      try {
+        const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (OAC && rate < this.ctx.sampleRate) off = new OAC(1, 1, rate);
+      } catch (e) {
+        off = null;
+      }
+      if (!off) return run(this.ctx, ab);
+      // 낮은 표본률로 풀지 못하는 브라우저면 원래대로 (풀면 원본이 비워지므로 사본을 둔다)
+      const copy = ab.slice(0);
+      return run(off, ab).catch(() => run(this.ctx, copy));
     }
 
     ensure() {
@@ -229,7 +321,32 @@
       } else if (kind === 'crab') {
         tone(2100, 1800, 0.03, 0.018);
         tone(2300, 1900, 0.03, 0.018, 0.09);
+      } else if (kind === 'chair') {
+        // 접이식 의자를 펴는 소리: 나무 다리가 딸깍, 딸깍, 천이 팽팽해지는 툭
+        tone(1500, 1350, 0.03, 0.03, 0, 'triangle');
+        tone(1250, 1100, 0.03, 0.026, 0.16, 'triangle');
+        this.rustle(0.34, 0.09, 700, 0.025);
+      } else if (kind === 'page') {
+        // 책장 넘기는 사르륵
+        this.rustle(0.01, 0.32, 2600, 0.016);
       }
+    }
+
+    // 종이나 천이 스치는 짧은 잡음 (delay 뒤, dur 동안, f 언저리)
+    rustle(delay, dur, f, amp) {
+      const ctx = this.ctx;
+      const at = ctx.currentTime + 0.01 + delay;
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise.pink;
+      const bp = this.filter('bandpass', f, 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(amp, at + dur * 0.3);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.master);
+      src.start(at, Math.random() * 3, dur + 0.05);
     }
 
     // 호흡 안내음: 들숨은 조금 높게, 날숨은 조금 낮게
@@ -253,6 +370,131 @@
     }
   }
 
+  // 녹음 한 줄기를 끝없이 흘려보낸다: 녹음의 아무 대목이나 몇 초씩 떼어 와 천천히 겹쳐 잇는다.
+  // 같은 대목이 되풀이되어 들리지 않게 고르는 자리는 매번 다르고, 좌우를 바꾸거나 빠르기를 아주 살짝 바꾸기도 한다.
+  // 녹음이 오기 전에는 소리가 없다가, 오면 천천히 피어난다
+  class Bed {
+    constructor(snd, name, dest, o = {}) {
+      this.snd = snd;
+      this.o = Object.assign({ level: 1, len: [6, 11], xf: 2.2, pan: 0, spread: 0, rate: [0.985, 1.015], mirror: true, fade: 3 }, o);
+      this.out = snd.gain(0);
+      this.out.connect(dest);
+      this.buf = null;
+      this.ready = false;
+      this.dead = false;
+      this.next = 0;
+      this.recent = [];
+      this.voices = new Set();
+      this.onReady = null;
+      this.onChunk = null;
+      snd.sample(name).then((buf) => {
+        if (!buf || this.dead) return;
+        this.buf = buf;
+        this.ready = true;
+        const now = snd.ctx.currentTime;
+        this.out.gain.setValueAtTime(0, now);
+        this.out.gain.linearRampToValueAtTime(this.o.level, now + this.o.fade);
+        this.next = now + 0.05;
+        if (this.onReady) this.onReady(this);
+        this.tick();
+      });
+    }
+
+    setLevel(v, tc = 0.6) {
+      if (Math.abs(v - this.o.level) < 0.002) return;
+      this.o.level = v;
+      if (this.ready) glide(this.out.gain, v, tc, this.snd.ctx);
+    }
+
+    // 앞으로 3.5초는 늘 미리 이어 둔다 (탭이 뒤로 가 타이머가 느려져도 끊기지 않게)
+    tick() {
+      if (!this.ready || this.dead) return;
+      const now = this.snd.ctx.currentTime;
+      if (this.next < now) this.next = now + 0.05;
+      while (this.next < now + 3.5) this.queue();
+    }
+
+    queue() {
+      const b = this.buf;
+      const o = this.o;
+      const rate = MC.rand(o.rate[0], o.rate[1]);
+      const len = Math.min(MC.rand(o.len[0], o.len[1]), b.duration - 0.2);
+      const xf = Math.min(o.xf, len * 0.4);
+      // 최근에 쓴 대목과 되도록 겹치지 않는 자리
+      let off = 0;
+      for (let i = 0; i < 8; i++) {
+        off = Math.random() * Math.max(0.01, b.duration - len - 0.05);
+        if (this.recent.every((r) => Math.abs(r - off) > len * 0.75)) break;
+      }
+      this.recent.push(off);
+      if (this.recent.length > 3) this.recent.shift();
+      const at = Math.max(this.next, this.snd.ctx.currentTime + 0.03);
+      this.voice(at, off, len, rate, xf, xf, 1);
+      this.next = at + len / rate - xf;
+      if (this.onChunk) this.onChunk(off, len, rate, at, xf);
+    }
+
+    // 한 대목: 들어올 때 xin초, 나갈 때 xout초에 걸쳐 같은 힘으로 겹친다
+    voice(at, off, len, rate, xin, xout, peak, pan = null) {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const b = this.buf;
+      const o = this.o;
+      const dur = len / rate;
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      src.playbackRate.value = rate;
+      const env = ctx.createGain();
+      env.gain.value = 0;
+      const P = env.gain;
+      const N = 8;
+      P.setValueAtTime(0, at);
+      for (let i = 1; i <= N; i++) P.linearRampToValueAtTime(peak * Math.sin((Math.PI / 2) * (i / N)), at + (xin * i) / N);
+      const t2 = Math.max(at + xin + 0.005, at + dur - xout);
+      P.setValueAtTime(peak, t2);
+      for (let i = 1; i <= N; i++) P.linearRampToValueAtTime(peak * Math.cos((Math.PI / 2) * (i / N)), t2 + (xout * i) / N);
+      const nodes = [src, env];
+      let head = src;
+      if (b.numberOfChannels > 1 && o.mirror && Math.random() < 0.5) {
+        // 좌우를 바꿔서
+        const sp = ctx.createChannelSplitter(2);
+        const mg = ctx.createChannelMerger(2);
+        src.connect(sp);
+        sp.connect(mg, 0, 1);
+        sp.connect(mg, 1, 0);
+        head = mg;
+        nodes.push(sp, mg);
+      }
+      head.connect(env);
+      const pv = pan != null ? pan : o.pan + (o.spread ? MC.rand(-o.spread, o.spread) : 0);
+      if (pv || b.numberOfChannels === 1) {
+        const p = s.pan(pv);
+        env.connect(p);
+        p.connect(this.out);
+        nodes.push(p);
+      } else env.connect(this.out);
+      src.start(at, off, len);
+      src.stop(t2 + xout + 0.05);
+      this.voices.add(src);
+      src.onended = () => {
+        this.voices.delete(src);
+        for (const n of nodes) {
+          try { n.disconnect(); } catch (e) { /* 이미 끊김 */ }
+        }
+      };
+      return src;
+    }
+
+    stop() {
+      this.dead = true;
+      for (const v of this.voices) {
+        try { v.stop(); } catch (e) { /* 이미 멈춤 */ }
+      }
+      this.voices.clear();
+      try { this.out.disconnect(); } catch (e) { /* 이미 끊김 */ }
+    }
+  }
+
   // 장면 하나의 소리 묶음. 층(layer)마다 따로 크기를 조절할 수 있다
   class Scape {
     constructor(snd, layers) {
@@ -268,6 +510,7 @@
         this.levels[L.key] = L.value;
       }
       this.sources = [];
+      this.beds = [];
       this.timer = null;
       this.lastParams = 0;
     }
@@ -279,8 +522,28 @@
       this.out.gain.setValueAtTime(0, now);
       this.out.gain.linearRampToValueAtTime(1, now + fade);
       // 탭이 백그라운드로 가도 끊기지 않게 1초 넘게 미리 예약해 둔다
-      this.timer = setInterval(() => this.schedule(), 200);
+      this.timer = setInterval(() => this.pump(), 200);
+      this.pump();
+    }
+
+    pump() {
+      for (const b of this.beds) b.tick();
       this.schedule();
+    }
+
+    // 녹음 한 줄기 (Bed)
+    rec(name, dest, o) {
+      const b = new Bed(this.snd, name, dest, o);
+      this.beds.push(b);
+      return b;
+    }
+
+    // 합성한 잡음 층을 녹음의 결로 바꾼다: 녹음이 오면 같은 필터와 크기 변화를 그대로 두고 잡음만 천천히 물러난다
+    texture(layer, name, level, o) {
+      const b = this.rec(name, layer.head, Object.assign({ level }, o));
+      b.onReady = () => glide(layer.pre.gain, 0, 0.9, this.snd.ctx);
+      layer.bed = b;
+      return b;
     }
 
     setLevel(key, v) {
@@ -323,8 +586,10 @@
         for (const s of this.sources) {
           try { s.stop(); } catch (e) { /* 이미 멈춤 */ }
         }
+        for (const b of this.beds) b.stop();
         this.out.disconnect();
       }, fade * 1000 + 200);
+      for (const b of this.beds) b.dead = b.dead || !b.ready; // 아직 받는 중이면 와도 틀지 않는다
     }
 
     params(p) {
@@ -347,8 +612,11 @@
         head = chain[i];
       }
       g.connect(dest);
-      this.sources.push(s.loop(s.noise[type], head));
-      return { gain: g, filters: chain };
+      // 잡음은 pre 를 거쳐 들어간다 (녹음으로 바꿀 때 잡음만 물리려고)
+      const pre = s.gain(1);
+      pre.connect(head);
+      this.sources.push(s.loop(s.noise[type], pre));
+      return { gain: g, filters: chain, head, pre };
     }
 
     // 새 울음 한 음: 비브라토와 약한 배음을 넣어 전자음처럼 들리지 않게
@@ -404,8 +672,8 @@
     constructor(snd) {
       super(snd, FireScape.layers);
       const s = snd;
-      // 불길의 낮은 숨: 느리게 일렁이는 웅웅거림
-      this.roar = this.noiseLayer('brown', [['lowpass', 300, 0.6]], 0.15, this.layers.fire);
+      // 불길의 낮은 숨: 느리게 일렁이는 웅웅거림 (발밑을 울리는 아주 낮은 소리는 덜어 내어 불꽃 소리답게)
+      this.roar = this.noiseLayer('brown', [['lowpass', 300, 0.6], ['highpass', 85, 0.5]], 0.15, this.layers.fire);
       this.modulate(this.roar.gain.gain, 1.2, 0.07);
       // 지글지글: 빠르게 흔들리는 옅은 고음
       this.hiss = this.noiseLayer('pink', [['bandpass', 3000, 0.8]], 0.006, this.layers.fire);
@@ -425,6 +693,7 @@
       this.cricketBus.connect(csend);
       csend.connect(s.verbIn);
       this.intensity = 0.7;
+      this.flareAt = -99;
       const now = MC.clock();
       this.nextCluster = now + 0.25;
       this.nextTick = now + 0.1;
@@ -435,6 +704,67 @@
       ];
       this.nextGust = now;
       this.visual = [];
+      this.realFire(this.layers.fire, 1);
+      // 진짜 풀벌레: 넓게 퍼져 우는 여름밤. 녹음 속 공간이 있어 울림은 조금만
+      const cr = s.gain(1);
+      cr.connect(this.layers.crickets);
+      const crs = s.gain(0.25);
+      cr.connect(crs);
+      crs.connect(s.verbIn);
+      this.cricketBed = this.rec('crickets', cr, { level: FireScape.CRICKETS, len: [7, 12], xf: 2.5, spread: 0.55, rate: [0.97, 1.03] });
+      this.cricketBed.onReady = () => { this.realCrickets = true; };
+    }
+
+    // 진짜 장작불 두 줄기: 하나는 늘, 하나는 불이 셀수록 더해져 타닥이 촘촘해진다.
+    // 녹음 속 타닥의 순간(marks)을 화면에 알려 그때 불티가 튄다
+    realFire(dest, level) {
+      const s = this.snd;
+      this.fireBus = s.gain(level);
+      // 가끔 아주 센 '탁!'에 놀라지 않게 순간만 살짝 눌러 준다
+      const comp = s.ctx.createDynamicsCompressor();
+      comp.threshold.value = -24;
+      comp.knee.value = 6;
+      comp.ratio.value = 6;
+      comp.attack.value = 0.001;
+      comp.release.value = 0.09;
+      this.fireTone = s.filter('lowpass', 8000, 0.3);
+      this.fireBus.connect(comp);
+      comp.connect(this.fireTone);
+      this.fireTone.connect(dest);
+      const send = s.gain(0.07);
+      this.fireTone.connect(send);
+      send.connect(s.verbIn);
+      const B = FireScape.BED;
+      this.fireA = this.rec('fire', this.fireBus, { level: B * 0.85, len: [5, 9], xf: 1.6, pan: -0.12, spread: 0.08, rate: [0.97, 1.03] });
+      this.fireB = this.rec('fire', this.fireBus, { level: B * 0.3, len: [5, 9], xf: 1.6, pan: 0.22, spread: 0.1, rate: [0.95, 1.02] });
+      for (const b of [this.fireA, this.fireB]) b.onChunk = (off, len, rate, at, xf) => this.marksFrom(b, off, len, rate, at, xf);
+      this.fireA.onReady = () => {
+        this.real = true;
+        this.setParams({ intensity: this.intensity });
+      };
+      // 장작이 타며 내는 옅은 지글거림: 벽난로 녹음을 아주 작게 깔고, 합성한 지글거림은 물린다
+      const sz = s.filter('lowpass', 6500, 0.3);
+      sz.connect(dest);
+      this.sizzle = this.rec('stove', sz, { level: FireScape.SIZZLE, len: [6, 10], xf: 2.2, spread: 0.4 });
+      this.sizzle.onReady = () => glide(this.hiss.pre.gain, 0, 1.2, s.ctx);
+    }
+
+    marksFrom(bed, off, len, rate, at, xf) {
+      const marks = bed.buf.marks;
+      if (!marks) return;
+      const ctx = this.snd.ctx;
+      const end = at + len / rate;
+      const lv = bed.o.level / (bed.o.ref || FireScape.BED);
+      const vis = bed.buf.vis;
+      for (const m of marks) {
+        if (m.t < off || m.t >= off + len) continue;
+        const ta = at + (m.t - off) / rate;
+        const w = Math.min(1, (ta - at) / xf, (end - ta) / xf);
+        const st = m.s * Math.max(0, w) * lv * (this.markGain || 1);
+        if (st < vis) continue;
+        this.visual.push({ t: MC.clock() + (ta - ctx.currentTime), strength: Math.min(1, 0.3 + (0.55 * (st - vis)) / (1 - vis)) });
+      }
+      if (this.visual.length > 120) this.visual.splice(0, this.visual.length - 120);
     }
 
     setParams(p) {
@@ -444,12 +774,22 @@
       this.roar.gain.gain.setTargetAtTime(0.07 + 0.2 * I, now, 0.6);
       this.roar.filters[0].frequency.setTargetAtTime(170 + 360 * I, now, 0.6);
       this.hiss.gain.gain.setTargetAtTime(0.002 + 0.006 * I, now, 0.6);
+      // 장작을 넣은 뒤 몇 초는 불이 확 살아난다
+      const fl = Math.exp(-Math.max(0, MC.clock() - this.flareAt) / 3.5);
+      const B = FireScape.BED;
+      this.fireA.setLevel(B * (0.6 + 0.4 * Math.min(1, I / 0.8) + 0.25 * fl));
+      this.fireB.setLevel(B * Math.min(0.95, Math.max(0, (I - 0.4) * 1.25) + 0.8 * fl));
+      this.fireTone.frequency.setTargetAtTime(2400 + 7000 * Math.min(1, I) + 2500 * fl, now, 0.5);
     }
 
     schedule() {
       const now = MC.clock();
       const until = now + 1.3;
       const I = this.intensity;
+      if (this.real) {
+        // 녹음이 타닥이는 동안은 합성한 타닥을 쉬어 둔다
+        this.nextCluster = this.nextTick = this.nextPop = until;
+      }
       // 타닥타닥: 바삭한 소리가 두세 개에서 대여섯 개씩 묶여 온다
       while (this.nextCluster < until) {
         const t0 = this.nextCluster;
@@ -478,7 +818,7 @@
       }
       for (const c of this.crickets) {
         while (c.next < until) {
-          if (c.next > now - 0.05) this.chirp(c, c.next);
+          if (c.next > now - 0.05 && !this.realCrickets) this.chirp(c, c.next);
           c.next += Math.random() < 0.05 ? MC.rand(3, 9) : MC.rand(0.55, 0.85);
         }
       }
@@ -488,12 +828,27 @@
       }
     }
 
-    // 화면이 불티를 튀길 때 가져가는 '탁' 소리 목록
+    // 화면이 불티를 튀길 때 가져가는 '탁' 소리 목록 (때가 된 것만)
     drain() {
       const now = MC.clock();
+      if (!this.visual.length) return [];
       const out = [];
-      while (this.visual.length && this.visual[0].t <= now) out.push(this.visual.shift());
+      const keep = [];
+      for (const e of this.visual) (e.t <= now ? out : keep).push(e);
+      this.visual = keep;
       return out;
+    }
+
+    // 녹음 속 센 타닥 하나를 골라 바로 들려준다 (불을 톡 건드렸을 때)
+    realCrack(bed, peak = 1.2) {
+      const marks = bed && bed.ready && bed.buf.marks;
+      if (!marks) return false;
+      const strong = marks.filter((m) => m.s >= bed.buf.vis);
+      const m = strong[(Math.random() * strong.length) | 0];
+      const at = this.snd.ctx.currentTime + 0.01;
+      const off = Math.max(0, m.t - 0.05);
+      bed.voice(at, off, Math.min(1.1, bed.buf.duration - off), MC.rand(0.96, 1.04), 0.01, 0.45, peak, MC.rand(-0.3, 0.3));
+      return true;
     }
 
     // 바삭한 '딱': 아주 짧은 잡음 터짐 + 나무가 울리는 짧은 '톡'
@@ -621,6 +976,14 @@
       src.start(at, Math.random() * 1.0, 2.8);
       const now = MC.clock();
       let t = now + 0.18;
+      if (this.real) {
+        // 진짜 불이 확 살아나고(두 줄기가 함께 커진다), 녹음 속 타닥 몇 개가 먼저 튄다
+        this.flareAt = now;
+        this.setParams({ intensity: this.intensity });
+        this.realCrack(this.fireB, 1.1);
+        setTimeout(() => this.realCrack(this.fireA, 0.9), 350);
+        return;
+      }
       for (let i = 0; i < 9; i++) {
         this.crack(t, MC.rand(0.35, 0.9));
         t += MC.rand(0.04, 0.22);
@@ -628,10 +991,15 @@
     }
 
     poke() {
+      if (this.realCrack(this.fireA)) return;
       const now = MC.clock();
       for (let i = 0; i < 4; i++) this.crack(now + i * MC.rand(0.03, 0.12), MC.rand(0.5, 1));
     }
   }
+  // 녹음한 장작불과 풀벌레의 크기 (녹음 파일은 최고점을 -1dBFS 로 맞춰 두었다)
+  FireScape.BED = 0.5;
+  FireScape.SIZZLE = 0.12;
+  FireScape.CRICKETS = 0.05;
   FireScape.layers = [
     { key: 'fire', label: '장작', value: 1 },
     { key: 'crickets', label: '풀벌레', value: 0.45 },
@@ -667,6 +1035,13 @@
       const wsend = snd.gain(0.8);
       this.deep.connect(wsend);
       wsend.connect(snd.verbIn);
+      // 진짜 바닷물의 결: 파도가 밀려오고 부서지고 쓸려 가는 때는 화면과 맞춘 그대로 두고,
+      // 그 안을 채우는 소리만 녹음으로 바꾼다 (녹음의 크기는 고르게 눌러 두었다)
+      const W = WaterScape.SEA;
+      this.texture(this.swell, 'sea', W.swell, { len: [6, 10], xf: 2.2 });
+      this.texture(this.crash, 'sea', W.crash, { len: [6, 10], xf: 2.2 });
+      this.texture(this.fizz, 'sea', W.fizz, { len: [6, 10], xf: 2.2 });
+      this.texture(this.lap, 'sea', W.lap, { len: [5, 9], xf: 1.8 });
     }
 
     setParams(p) {
@@ -820,6 +1195,8 @@
     { key: 'waves', label: '파도', value: 1 },
     { key: 'wind', label: '바람', value: 0.4 },
   ];
+  // 녹음한 바닷물을 합성 잡음 대신 넣을 때의 크기 (같은 필터를 지난 잡음과 비슷하게)
+  WaterScape.SEA = { swell: 2, crash: 1.4, fizz: 1.4, lap: 1.2 };
 
   // ── 숲멍 ────────────────────────────────────────────────
   class ForestScape extends Scape {
@@ -848,6 +1225,31 @@
       this.nextBird = now + 1.5;
       this.nextJitter = now;
       this.windLevel = 0.3;
+      // 진짜 계곡물과 새소리. 오면 합성한 물소리와 먼 새 울음은 물러나고,
+      // 화면과 맞물린 소리(가까이 내려앉은 오목눈이, 다람쥐, 바람)만 합성으로 남는다
+      // 계곡물은 낮고 느리게: 조금 느리게 흘려 물소리를 낮추고, 쉬익거리는 고음은 덜어 낸다
+      const st = snd.pan(-0.3);
+      st.connect(this.layers.stream);
+      const sl = snd.filter('lowpass', 1500, 0.2);
+      sl.connect(st);
+      this.streamBed = this.rec('stream', sl, { level: ForestScape.STREAM, len: [8, 13], xf: 3, rate: [0.76, 0.82] });
+      this.streamBed.onReady = () => {
+        this.realStream = true;
+        for (const L of [this.streamBody, this.streamLo, this.streamHi]) glide(L.pre.gain, 0, 1.2, snd.ctx);
+      };
+      const bs = snd.gain(0.18);
+      bs.connect(snd.verbIn);
+      // 바로 곁에서 우는 새는 살짝 눌러, 먼 새와 가까운 새가 고르게 들리게
+      const bb = snd.ctx.createDynamicsCompressor();
+      bb.threshold.value = -34;
+      bb.knee.value = 8;
+      bb.ratio.value = 4;
+      bb.attack.value = 0.004;
+      bb.release.value = 0.25;
+      bb.connect(this.layers.birds);
+      bb.connect(bs);
+      this.birdBed = this.rec('birds', bb, { level: ForestScape.BIRDS, len: [9, 16], xf: 3, rate: [0.98, 1.02] });
+      this.birdBed.onReady = () => { this.realBirds = true; };
     }
 
     setParams(p) {
@@ -859,17 +1261,17 @@
       const s = this.snd;
       const now = MC.clock();
       const until = now + 1.3;
-      // 계곡물: 작은 물방울 소리를 잔뜩 겹친다
+      // 계곡물: 작은 물방울 소리를 잔뜩 겹친다 (진짜 계곡물이 오면 쉰다)
       while (this.nextBubble < until) {
         const t = this.nextBubble;
-        if (t > now - 0.05) {
+        if (t > now - 0.05 && !this.realStream) {
           const f = MC.rand(320, 1000);
           this.blip(Math.max(s.ctx.currentTime, s.toCtx(t)), this.bubbleBus, f, f * MC.rand(1.3, 1.7), MC.rand(0.04, 0.08), MC.rand(0.01, 0.03));
         }
         this.nextBubble += -Math.log(1 - Math.random()) / 16;
       }
       while (this.nextBird < until) {
-        if (this.nextBird > now - 0.05) this.bird(Math.max(s.ctx.currentTime, s.toCtx(this.nextBird)));
+        if (this.nextBird > now - 0.05 && !this.realBirds) this.bird(Math.max(s.ctx.currentTime, s.toCtx(this.nextBird)));
         this.nextBird += MC.rand(4, 12);
       }
       if (now > this.nextJitter) {
@@ -973,9 +1375,11 @@
       const ct = this.snd.ctx.currentTime;
       g.setTargetAtTime(0.38, ct, 0.5);
       g.setTargetAtTime(0.04 + 0.3 * this.windLevel, ct + 1.8, 1.4);
-      if (Math.random() < 0.6) this.bird(ct + MC.rand(0.6, 1.5));
+      if (Math.random() < 0.6 && !this.realBirds) this.bird(ct + MC.rand(0.6, 1.5));
     }
   }
+  ForestScape.STREAM = 0.34;
+  ForestScape.BIRDS = 0.42;
   ForestScape.layers = [
     { key: 'stream', label: '계곡물', value: 0.8 },
     { key: 'birds', label: '새소리', value: 0.6 },
@@ -1000,6 +1404,14 @@
       ];
       this.nextChime = now + 1.5;
       this.pavilion = 0;
+      // 마을 들판의 진짜 풀벌레: 조금 멀리, 조금 먹먹하게
+      const far = snd.filter('lowpass', 5200, 0.3);
+      far.connect(this.layers.night);
+      const fs = snd.gain(0.35);
+      far.connect(fs);
+      fs.connect(snd.verbIn);
+      this.cricketBed = this.rec('crickets', far, { level: MapScape.CRICKETS, len: [7, 12], xf: 2.5, spread: 0.7, rate: [0.96, 1.03] });
+      this.cricketBed.onReady = () => { this.realCrickets = true; };
     }
 
     setParams(p) {
@@ -1012,7 +1424,7 @@
       const until = now + 1.3;
       for (const c of this.crickets) {
         while (c.next < until) {
-          if (c.next > now - 0.05) FireScape.prototype.chirp.call(this, c, c.next);
+          if (c.next > now - 0.05 && !this.realCrickets) FireScape.prototype.chirp.call(this, c, c.next);
           c.next += Math.random() < 0.06 ? MC.rand(3, 9) : MC.rand(0.6, 0.9);
         }
       }
@@ -1045,6 +1457,7 @@
     }
   }
   MapScape.layers = [{ key: 'night', label: '밤', value: 1 }];
+  MapScape.CRICKETS = 0.035;
 
   // ── 텐트 안 ─────────────────────────────────────────────
   // 무쇠 난로 안의 낮은 불 소리와 조금 먹먹한 타닥, 천막 너머로 들리는 모닥불과 풀벌레와 바람,
@@ -1098,6 +1511,21 @@
         { next: now + 2.3, f: 4740, pan: 0.55 },
       ];
       this.visual = [];
+      this.markGain = 0.85;
+      // 진짜 장작불: 무쇠 난로 안이라 먹먹하게. 녹음 속 타닥에 맞춰 난로 창에 불티가 튄다
+      const sf = s.filter('lowpass', 3200, 0.3);
+      sf.connect(this.layers.stove);
+      const T = TentScape.LEVELS;
+      this.stoveBed = this.rec('stove', sf, { level: T.stove, ref: T.stove, len: [5, 9], xf: 1.6, pan: 0.12, spread: 0.05 });
+      this.stoveBed.onChunk = (off, len, rate, at, xf) => FireScape.prototype.marksFrom.call(this, this.stoveBed, off, len, rate, at, xf);
+      this.stoveBed.onReady = () => { this.realStove = true; };
+      // 천막 너머 모닥불과 풀벌레: 더 멀고 더 먹먹하게
+      this.outFire = this.rec('fire', this.outBus, { level: T.outFire, len: [6, 10], xf: 2, pan: -0.35, spread: 0.1 });
+      this.outFire.onReady = () => { this.realOut = true; };
+      this.cricketBed = this.rec('crickets', this.cricketBus, { level: T.crickets, len: [7, 12], xf: 2.5, spread: 0.6, rate: [0.97, 1.03] });
+      this.cricketBed.onReady = () => { this.realCrickets = true; };
+      // 진짜 빗소리가 천막 너머로 (천을 두드리는 토독토독은 합성으로 얹는다)
+      this.texture(this.rainBed, 'rain', T.rain, { len: [6, 10], xf: 2.2 });
     }
 
     setParams(p) {
@@ -1106,6 +1534,10 @@
       this.rain = p.rain || 0;
       this.draft.gain.gain.setTargetAtTime(0.13 + 0.19 * this.E, now, 0.8);
       this.rainBed.gain.gain.setTargetAtTime(0.3 * this.rain, now, 1.2);
+      this.stoveBed.setLevel(TentScape.LEVELS.stove * (0.4 + 0.6 * this.E));
+      // 비가 오면 바깥 모닥불은 잦아든다
+      this.outFire.setLevel(TentScape.LEVELS.outFire * (1 - 0.65 * this.rain));
+      this.cricketBed.setLevel(TentScape.LEVELS.crickets * (1 - 0.85 * this.rain), 1.5);
     }
 
     crack(t, st) {
@@ -1129,6 +1561,9 @@
       const until = now + 1.3;
       const E = this.E;
       const R = this.rain;
+      // 진짜 장작불이 오면 합성한 타닥은 쉰다
+      if (this.realStove) this.nextCluster = this.nextTick = this.nextPop = until;
+      if (this.realOut) this.nextOut = until;
       // 난로 안의 타닥: 모닥불보다 드문드문, 묶음도 작게
       while (this.nextCluster < until) {
         const t0 = this.nextCluster;
@@ -1163,7 +1598,7 @@
       }
       for (const c of this.crickets) {
         while (c.next < until) {
-          if (c.next > now - 0.05 && Math.random() > R) FireScape.prototype.chirp.call(this, c, c.next);
+          if (c.next > now - 0.05 && Math.random() > R && !this.realCrickets) FireScape.prototype.chirp.call(this, c, c.next);
           c.next += Math.random() < 0.06 ? MC.rand(3, 9) : MC.rand(0.6, 0.9);
         }
       }
@@ -1225,6 +1660,10 @@
       const at = s.ctx.currentTime + 0.01;
       this.blip(at, this.stoveBus, 1900, 1700, 0.09, 0.05, 'triangle');
       this.blip(at + 0.22, this.stoveBus, 120, 60, 0.3, 0.2);
+      if (this.realStove) {
+        setTimeout(() => FireScape.prototype.realCrack.call(this, this.stoveBed, 1.1), 420);
+        return;
+      }
       const now = MC.clock();
       let t = now + 0.4;
       for (let i = 0; i < 8; i++) {
@@ -1238,6 +1677,7 @@
     { key: 'outside', label: '바깥', value: 0.7 },
     { key: 'rain', label: '비', value: 0.9 },
   ];
+  TentScape.LEVELS = { stove: 3.2, outFire: 0.5, crickets: 0.06, rain: 1 };
 
   MC.Sound = Sound;
   MC.TentScape = TentScape;

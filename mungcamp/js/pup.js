@@ -33,6 +33,11 @@
     [0.72, [234, 174, 98]],
     [1, [176, 102, 48]],
   ];
+  // 접이식 캠핑 의자: 나무 테에 머스터드빛 캔버스 천
+  const CHAIR = { seat: 26, frame: '#9a6a44', frameDark: '#6e4a2f', fabric: '#e0a24e', fabricDark: '#c4863a', stripe: 'rgba(255,248,230,0.55)', mug: '#f0ebe1' };
+  // 책 표지 빛깔 (털빛마다 다르게)
+  const BOOK = ['#b85a4a', '#3f6f8f', '#5f8a4f', '#8a5a9a', '#c48a3a'];
+
   function toastColor(t, dark = 0) {
     for (let i = 1; i < TOAST.length; i++) {
       if (t <= TOAST[i][0]) {
@@ -118,6 +123,11 @@
       this.lieTo = 0;
       this.rest = null; // 어디에 엎드렸는지: null(바닥·침대), 'tube'(바다의 튜브), 'branch'(편백 가지)
       this.paddle = 0; // 튜브 위에서 앞발로 물을 젓는 정도 (0..1)
+      // 접이식 의자: 펴고 올라앉아 책을 읽는다 (0 접힘 … 1 앉아 읽는 중)
+      this.chair = 0;
+      this.chairTo = 0;
+      this.pageT = -1;
+      this.nextPage = MC.rand(6, 11);
       this.walkPhase = 0;
       this.cv = null;
     }
@@ -139,9 +149,23 @@
       this.lieTo = on ? 1 : 0;
     }
 
-    // 누우면 머리가 이만큼 내려간다 (하트·zZ도 같이)
+    // 의자를 펴고 앉아 책 읽기 / 일어나 접기
+    setChair(on) {
+      this.chairTo = on ? 1 : 0;
+    }
+
+    get chairOn() {
+      return this.chairTo > 0;
+    }
+
+    // 의자에 앉으면 이만큼 높아진다
+    get seatLift() {
+      return CHAIR.seat * MC.smooth(0.45, 0.85, this.chair);
+    }
+
+    // 누우면 머리가 이만큼 내려간다 (하트·zZ도 같이). 의자에 앉으면 그만큼 올라간다
     get lieDrop() {
-      return this.lie >= 0.5 ? 40 : 0;
+      return (this.lie >= 0.5 ? 40 : 0) - this.seatLift;
     }
 
     // 모닥불 곁에 앉으면 꼬치를 꺼내고, 일어서면 넣는다
@@ -240,7 +264,7 @@
 
     hit(x, y) {
       const lx = ((x - this.x) / this.k) * this.flip;
-      const ly = (y - this.y) / this.k;
+      const ly = (y - this.y) / this.k + this.seatLift;
       if (this.lie >= 0.5) {
         const head = ((lx / 42) ** 2 + ((ly + 31) / 34) ** 2) <= 1;
         return head || (lx > -48 && lx < 48 && ly > -50 && ly < 6);
@@ -294,6 +318,31 @@
         }
       }
 
+      // 의자: 펼 때는 천천히 펴고 폴짝 올라앉고, 접을 때는 얼른
+      if (this.chair !== this.chairTo) {
+        const was = this.chair;
+        const up = this.chairTo > this.chair;
+        this.chair = MC.clamp(this.chair + (up ? 1 : -1) * dt * (up ? 1 / 0.9 : 1 / 0.4), 0, 1);
+        if (up && was < 0.06 && this.chair >= 0.06) this.emit('chair');
+        if (up && was < 0.5 && this.chair >= 0.5) {
+          this.hopV = -34;
+          this.emit('hop');
+        }
+      }
+      // 책장을 가끔 넘긴다 (조는 동안은 쉰다)
+      if (this.chair >= 1 && !sleeping) {
+        this.nextPage -= dt;
+        if (this.nextPage <= 0) {
+          this.pageT = 0;
+          this.nextPage = MC.rand(8, 15);
+          this.emit('page');
+        }
+      }
+      if (this.pageT >= 0) {
+        this.pageT += dt / 0.75;
+        if (this.pageT >= 1) this.pageT = -1;
+      }
+
       // 걷기
       const walking = !!env.walking;
       this.walk += ((walking ? 1 : 0) - this.walk) * Math.min(1, dt * 8);
@@ -321,8 +370,9 @@
 
       const facing = this.glanceT > 0 || this.mood === 'cold' || this.mood === 'startled' || this.spinHold > 0;
       this.turn += ((facing ? 0 : this.baseTurn) - this.turn) * Math.min(1, dt * 3);
-      let lx = facing ? 0 : this.baseTurn * 0.7;
-      let ly = this.stick && !facing ? -0.2 : 0;
+      const reading = this.chair > 0.7 && !facing;
+      let lx = facing ? 0 : reading ? 0 : this.baseTurn * 0.7;
+      let ly = reading ? 0.6 : this.stick && !facing ? -0.2 : 0;
       if (this.lookUpT > 0) {
         this.lookUpT -= dt;
         ly = -1;
@@ -464,7 +514,7 @@
 
     // ── 그리기 ───────────────────────────────────────────
     bounds() {
-      return { x0: -78, y0: -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 42 : 14 };
+      return { x0: -78, y0: this.chair > 0 ? -170 : -140, x1: this.stick ? 240 : 78, y1: this.rest === 'branch' ? 42 : 14 };
     }
 
     draw(g, dpr, bodyOnly) {
@@ -527,9 +577,232 @@
         const sq = L < 0.5 ? 1 - 0.6 * L : 0.7 + 0.6 * (L - 0.5);
         o.scale(1 + (1 - sq) * 0.35, sq);
       }
-      if (L >= 0.5) this.paintLying(o, b);
+      const C = L < 0.5 ? this.chair : 0;
+      if (C > 0.01) {
+        // 의자 등받이와 뒷다리 → 올라앉은 멍이 → 앞쪽 천과 엇갈린 다리, 팔걸이, 늘어뜨린 뒷발
+        this.paintChairBack(o, C);
+        const lift = this.seatLift;
+        o.save();
+        o.translate(0, -lift);
+        this.paintFront(o, b);
+        o.restore();
+        this.paintChairFront(o, C, lift);
+      } else if (L >= 0.5) this.paintLying(o, b);
       else if (this.view === 'back') this.paintBack(o, b);
       else this.paintFront(o, b);
+      o.restore();
+    }
+
+    // ── 접이식 캠핑 의자와 책 ─────────────────────────────
+    // 펴지는 정도 C(0..1): 다리가 X로 벌어지고 등받이가 펴진다
+    paintChairBack(o, C) {
+      const open = MC.smooth(0, 0.55, C);
+      const S = CHAIR.seat;
+      o.save();
+      o.globalAlpha *= Math.min(1, C * 4);
+      // 뒷다리
+      o.strokeStyle = CHAIR.frameDark;
+      o.lineWidth = 4;
+      for (const side of [-1, 1]) {
+        o.beginPath();
+        o.moveTo(side * 30 * open, -S);
+        o.lineTo(side * (22 + 10 * open), 0);
+        o.stroke();
+      }
+      // 등받이: 아래가 좁고 위가 살짝 넓은 천, 가운데 줄무늬
+      const top = -S - 64 * open;
+      o.beginPath();
+      o.moveTo(-31 * open, -S);
+      o.lineTo(-38 * open, top);
+      o.quadraticCurveTo(0, top + 5, 38 * open, top);
+      o.lineTo(31 * open, -S);
+      o.closePath();
+      o.fillStyle = CHAIR.fabric;
+      o.fill();
+      o.save();
+      o.clip();
+      o.fillStyle = CHAIR.stripe;
+      o.fillRect(-8, top - 4, 16, 80);
+      o.restore();
+      o.lineWidth = 2.2;
+      o.strokeStyle = INK;
+      o.stroke();
+      // 등받이 위 나무 막대
+      MC.roundRect(o, -41 * open, top - 4, 82 * open, 6, 3);
+      o.fillStyle = CHAIR.frame;
+      o.fill();
+      o.lineWidth = 1.8;
+      o.stroke();
+      o.restore();
+    }
+
+    paintChairFront(o, C, lift) {
+      const open = MC.smooth(0, 0.55, C);
+      const S = CHAIR.seat;
+      o.save();
+      o.globalAlpha *= Math.min(1, C * 4);
+      // 엉덩이를 받치는 천: 가운데가 살짝 처진다
+      o.beginPath();
+      o.moveTo(-35 * open, -S - 2);
+      o.quadraticCurveTo(0, -S + 9, 35 * open, -S - 2);
+      o.lineTo(33 * open, -S + 3);
+      o.quadraticCurveTo(0, -S + 13, -33 * open, -S + 3);
+      o.closePath();
+      o.fillStyle = CHAIR.fabricDark;
+      o.fill();
+      o.lineWidth = 2;
+      o.strokeStyle = INK;
+      o.stroke();
+      // 앞쪽 엇갈린 다리와 가운데 고정 못
+      o.strokeStyle = CHAIR.frame;
+      o.lineWidth = 4.2;
+      o.beginPath();
+      o.moveTo(-32 * open, -S + 2);
+      o.lineTo(28 * open + 3, 0);
+      o.moveTo(32 * open, -S + 2);
+      o.lineTo(-28 * open - 3, 0);
+      o.stroke();
+      o.strokeStyle = 'rgba(40,26,16,0.5)';
+      o.lineWidth = 1.2;
+      o.stroke();
+      ellipse(o, 0, -S / 2 + 1, 2.4, 2.4);
+      o.fillStyle = '#d8c8a0';
+      o.fill();
+      // 팔걸이 (오른쪽에는 작은 머그잔과 김)
+      if (open > 0.6) {
+        for (const side of [-1, 1]) {
+          o.strokeStyle = CHAIR.frame;
+          o.lineWidth = 3.4;
+          o.beginPath();
+          o.moveTo(side * 37, -S - 1);
+          o.lineTo(side * 39, -S - 20);
+          o.stroke();
+          MC.roundRect(o, side > 0 ? 33 : -47, -S - 24, 14, 5, 2.5);
+          o.fillStyle = CHAIR.frame;
+          o.fill();
+          o.lineWidth = 1.6;
+          o.strokeStyle = INK;
+          o.stroke();
+        }
+        if (C > 0.95) {
+          MC.roundRect(o, 36, -S - 35, 9, 11, 2.5);
+          o.fillStyle = CHAIR.mug;
+          o.fill();
+          o.lineWidth = 1.5;
+          o.strokeStyle = INK;
+          o.stroke();
+          o.beginPath();
+          o.arc(46, -S - 29.5, 3, -Math.PI / 2, Math.PI / 2);
+          o.stroke();
+          // 김
+          o.strokeStyle = 'rgba(255,255,255,0.55)';
+          o.lineWidth = 1.4;
+          for (let i = 0; i < 2; i++) {
+            const u = (this.t * 0.35 + i * 0.5) % 1;
+            o.globalAlpha = Math.sin(Math.PI * u) * 0.8;
+            o.beginPath();
+            o.moveTo(39 + i * 3, -S - 37 - u * 4);
+            o.quadraticCurveTo(37 + i * 3 + Math.sin(this.t * 2 + i) * 2, -S - 43 - u * 10, 40 + i * 3, -S - 48 - u * 14);
+            o.stroke();
+          }
+        }
+      }
+      o.restore();
+      // 뒷발은 의자 천 위로 쏙: 발바닥을 이쪽으로 보이며 앉는다 (가끔 발가락을 꼼지락)
+      if (lift > 2) this.paintSeatFeet(o, S, MC.smooth(0.55, 0.9, C));
+    }
+
+    paintSeatFeet(o, S, a) {
+      const wig = this.sleeping ? 0 : Math.sin(this.t * 1.7) * Math.sin(this.t * 0.43) * (0.08 + 0.12 * this.wag);
+      for (const side of [-1, 1]) {
+        o.save();
+        o.translate(side * 15, -S + 1 - 3 * a);
+        o.rotate(side * (0.22 + wig));
+        o.scale(a, a);
+        // 짧은 뒷다리가 엉덩이에서 앞으로
+        o.beginPath();
+        o.moveTo(-side * 4 - 7, -8);
+        o.quadraticCurveTo(-side * 2, -13, side * 2 + 7, -8);
+        o.lineTo(6.5, 0);
+        o.lineTo(-6.5, 0);
+        o.closePath();
+        o.fillStyle = this.coat.fur;
+        o.fill();
+        o.lineWidth = 2;
+        o.strokeStyle = INK;
+        o.stroke();
+        // 이쪽을 보는 발바닥
+        ellipse(o, 0, 0, 9, 10);
+        o.fillStyle = '#fffaf1';
+        o.fill();
+        o.lineWidth = 2.2;
+        o.stroke();
+        o.fillStyle = '#ffb3c1';
+        ellipse(o, 0, 3, 4.2, 3.4);
+        o.fill();
+        for (const [tx, ty] of [[-4.6, -3.6], [0, -5.6], [4.6, -3.6]]) {
+          ellipse(o, tx, ty, 1.9, 2.1);
+          o.fill();
+        }
+        o.restore();
+      }
+    }
+
+    // 펼친 책: 앞발로 가슴 앞에 받쳐 든다. 졸면 무릎으로 툭 내려온다
+    paintBook(o) {
+      const a = MC.smooth(0.72, 1, this.chair);
+      if (a <= 0.01) return;
+      const drop = this.sleeping ? 9 * this.droop : 0;
+      o.save();
+      o.translate(0, -22 + (1 - a) * 8 + drop);
+      o.rotate(this.sleeping ? 0.12 * this.droop : 0);
+      o.scale(0.4 + 0.6 * a, a);
+      // 겉표지
+      MC.roundRect(o, -25, -14, 50, 28, 3);
+      o.fillStyle = BOOK[this.coatId % BOOK.length];
+      o.fill();
+      o.lineWidth = 2;
+      o.strokeStyle = INK;
+      o.stroke();
+      // 펼친 두 쪽: 가운데가 살짝 접힌다
+      for (const side of [-1, 1]) {
+        o.beginPath();
+        o.moveTo(0, -11);
+        o.quadraticCurveTo(side * 11, -14, side * 22, -11.5);
+        o.lineTo(side * 22, 11);
+        o.quadraticCurveTo(side * 11, 8.5, 0, 12);
+        o.closePath();
+        o.fillStyle = side < 0 ? '#fffaf0' : '#fbf3e4';
+        o.fill();
+        o.lineWidth = 1.5;
+        o.strokeStyle = 'rgba(60,44,32,0.8)';
+        o.stroke();
+        o.strokeStyle = 'rgba(90,72,58,0.35)';
+        o.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+          const y = -6 + i * 4.4;
+          o.beginPath();
+          o.moveTo(side * 4.5, y);
+          o.lineTo(side * (i === 3 ? 13 : 18), y);
+          o.stroke();
+        }
+      }
+      // 넘어가는 책장
+      if (this.pageT >= 0) {
+        const u = this.pageT;
+        const w = Math.cos(Math.PI * u) * 22;
+        o.beginPath();
+        o.moveTo(0, -11);
+        o.quadraticCurveTo(w * 0.5, -15 - 4 * Math.sin(Math.PI * u), w, -12);
+        o.lineTo(w, 11);
+        o.quadraticCurveTo(w * 0.5, 7, 0, 12);
+        o.closePath();
+        o.fillStyle = '#fffdf6';
+        o.fill();
+        o.lineWidth = 1.3;
+        o.strokeStyle = 'rgba(60,44,32,0.8)';
+        o.stroke();
+      }
       o.restore();
     }
 
@@ -674,7 +947,9 @@
       this.paintBody(o, false);
       o.restore();
       if (this.outfit === 'scarf') this.paintScarf(o, false);
-      if (this.stick) this.paintStick(o);
+      const reading = this.chair > 0.72;
+      if (this.stick && !reading) this.paintStick(o);
+      if (reading) this.paintBook(o);
       this.paintPaws(o);
       this.paintHeadGroup(o, b);
     }
@@ -741,9 +1016,11 @@
     }
 
     paintPaws(o) {
-      const holding = this.stick;
+      const reading = this.chair > 0.72;
+      const holding = this.stick && !reading;
       const step = Math.sin(this.walkPhase) * 2.2 * this.walk;
-      const paws = holding ? [[-4, -29, 0.35], [8.5, -32, -0.25]] : [[-10, -3 + step, 0], [10, -3 - step, 0]];
+      const bd = this.sleeping ? 9 * this.droop : 0;
+      const paws = reading ? [[-23, -19 + bd, 0.9], [23, -19 + bd, -0.9]] : holding ? [[-4, -29, 0.35], [8.5, -32, -0.25]] : [[-10, -3 + step, 0], [10, -3 - step, 0]];
       for (const [x, y, rot] of paws) {
         ellipse(o, x, y, 8, 5.8, rot);
         o.fillStyle = '#fffaf1';

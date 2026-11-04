@@ -256,7 +256,7 @@
       this.crab = new Crab();
       this.floating = false;
       this.ph = [Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28];
-      this.star = null;
+      this.meteors = new MC.Meteors();
       this.nextStar = MC.rand(12, 28);
       this.whale = null;
       this.whaleK = null;
@@ -932,16 +932,14 @@
       }
       // 별똥별
       this.nextStar -= dt;
-      if (this.nextStar <= 0) {
-        this.nextStar = MC.rand(30, 70);
+      if (this.nextStar <= 0 && !this.meteors.busy) {
+        this.nextStar = MC.rand(35, 75);
+        // 천천히 미끄러지는 별똥별, 바다에 옅게 비친다. 가끔은 한두 개가 뒤따른다
         const dir = Math.random() < 0.5 ? -1 : 1;
-        const a = MC.rand(0.35, 0.6);
-        this.star = { x: this.w * MC.rand(0.15, 0.85), y: this.hy * MC.rand(0.06, 0.3), dx: dir * Math.cos(a), dy: Math.sin(a), t: 0, dur: MC.rand(0.8, 1.2), len: MC.rand(80, 140) * s, speed: MC.rand(240, 340) * s };
+        const x = (dir > 0 ? MC.rand(0.06, 0.5) : MC.rand(0.5, 0.94)) * this.w;
+        this.meteors.spawn(x, this.hy * MC.rand(0.06, 0.26), dir, s, MC.rand(0.28, 0.48), 0.3);
       }
-      if (this.star) {
-        this.star.t += dt;
-        if (this.star.t > this.star.dur) this.star = null;
-      }
+      this.meteors.update(dt);
       // 고래
       const wh = this.whaleNow();
       if (wh) {
@@ -1172,29 +1170,20 @@
       g.globalAlpha = 0.12 + 0.25 * flash;
       g.drawImage(SPR.lamp, L.x - 3 * s, hy, 6 * s, 50 * s);
       g.globalAlpha = 1;
-      // 별똥별
-      const st = this.star;
-      if (st) {
-        const u = st.t / st.dur;
-        const hx = st.x + st.dx * st.speed * st.t;
-        const hy2 = st.y + st.dy * st.speed * st.t;
-        if (hy2 < hy - 6) {
-          const a = Math.sin(Math.PI * u) * 0.75;
-          const tx = hx - st.dx * st.len;
-          const ty = hy2 - st.dy * st.len;
-          const grd = g.createLinearGradient(tx, ty, hx, hy2);
-          grd.addColorStop(0, 'rgba(220,230,255,0)');
-          grd.addColorStop(1, `rgba(244,248,255,${a})`);
-          g.strokeStyle = grd;
-          g.lineWidth = 1.5 * s;
-          g.beginPath();
-          g.moveTo(tx, ty);
-          g.lineTo(hx, hy2);
-          g.stroke();
-          g.globalAlpha = a;
-          g.drawImage(SPR.star, hx - 5 * s, hy2 - 5 * s, 10 * s, 10 * s);
-          g.globalAlpha = 1;
-        }
+      // 별똥별: 하늘에서만, 그리고 수평선 아래 물에 옅게
+      if (this.meteors.list.length) {
+        g.save();
+        g.beginPath();
+        g.rect(0, 0, w, hy - 2);
+        g.clip();
+        this.meteors.draw(g, SPR.star);
+        g.restore();
+        g.save();
+        g.beginPath();
+        g.rect(0, hy + 1, w, this.sandTop - hy);
+        g.clip();
+        this.meteors.drawReflection(g, SPR.star, hy, 0.32);
+        g.restore();
       }
       g.globalCompositeOperation = 'source-over';
 

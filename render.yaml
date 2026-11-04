@@ -9,3 +9,7 @@ services:
     buildCommand: node --version
     startCommand: node server/presence.js
     healthCheckPath: /health
+    envVars:
+      # 건의함 열쇠: Render 가 긴 값을 저절로 만든다. /suggestions?key=이 값 (README '건의함')
+      - key: OWNER_KEY
+        generateValue: true
