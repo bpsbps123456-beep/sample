@@ -13,6 +13,14 @@
   const BRANCH = { x0: BERTH.x - 48, x1: BERTH.x + 48, y0: PIER.y1 - 12, y1: BERTH.y + 28 };
   const FISH = [{ name: '전갱이', min: 13, max: 25 }, { name: '고등어', min: 19, max: 36 }, { name: '도미', min: 16, max: 33 }];
 
+  function hullPath(g, sx = 1, sy = 1) {
+    g.beginPath(); g.moveTo(78 * sx, 0);
+    g.bezierCurveTo(40 * sx, -38 * sy, -28 * sx, -44 * sy, -63 * sx, -25 * sy);
+    g.quadraticCurveTo(-72 * sx, 0, -63 * sx, 25 * sy);
+    g.bezierCurveTo(-28 * sx, 44 * sy, 40 * sx, 38 * sy, 78 * sx, 0);
+    g.closePath();
+  }
+
   class CampSea {
     constructor(camp) {
       this.camp = camp;
@@ -224,47 +232,163 @@
         }
       }
       // 누구나 자기 보트를 탈 수 있다. 빈 보트 한 척이 항상 선착장을 알려 준다.
-      this.drawBoat(g, LAUNCH.x, LAUNCH.y, 0, false, null, .6);
+      this.drawBoat(g, LAUNCH.x, LAUNCH.y, 0, false, null, .95);
       g.strokeStyle = '#d4bf91'; g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(BERTH.x + 40, BERTH.y); g.quadraticCurveTo(BERTH.x + 76, BERTH.y + 10, LAUNCH.x - 38, LAUNCH.y); g.stroke();
     }
 
+    // 나무 결과 작은 철물은 고해상도로 한 번만 그려, 여러 보트가 있어도 가볍게 쓴다.
+    buildBoatArt() {
+      const make = paint => {
+        const c = MC.canvas(192 * 3, 112 * 3), o = c.getContext('2d');
+        o.scale(3, 3); o.translate(92, 52); o.lineJoin = o.lineCap = 'round';
+        paint(o); return c;
+      };
+      const rim = o => {
+        hullPath(o); o.strokeStyle = '#4c382c'; o.lineWidth = 7; o.stroke();
+        const varnish = o.createLinearGradient(0, -34, 0, 36);
+        varnish.addColorStop(0, '#edd0a0'); varnish.addColorStop(.45, '#c39a68'); varnish.addColorStop(1, '#ac784d');
+        o.strokeStyle = varnish; o.lineWidth = 4.6; o.stroke();
+        hullPath(o, .965, .91); o.strokeStyle = 'rgba(255,231,186,.67)'; o.lineWidth = .9; o.stroke();
+        // 선수의 작은 황동 고리와 양옆 노 받침.
+        for (const side of [-1, 1]) {
+          o.fillStyle = '#6a5140'; MC.roundRect(o, -22, side * 31 - 3.5, 12, 7, 2); o.fill();
+          o.strokeStyle = '#d3b77c'; o.lineWidth = 2.1;
+          o.beginPath(); o.ellipse(-16, side * 31, 4.2, 3.1, 0, 0, Math.PI * 2); o.stroke();
+          o.fillStyle = '#f1d99e'; o.beginPath(); o.arc(-21, side * 31, .9, 0, Math.PI * 2); o.fill();
+        }
+        o.strokeStyle = '#c9b07c'; o.lineWidth = 2;
+        o.beginPath(); o.moveTo(65, -3.5); o.lineTo(69, 0); o.lineTo(65, 3.5); o.stroke();
+        o.fillStyle = '#eee0bb'; o.beginPath(); o.arc(67, 0, 1, 0, Math.PI * 2); o.fill();
+      };
+      this.boatArt = {
+        hull: make(o => {
+          // 물에 잠기는 아래 선체와 가로로 겹친 판재의 이음매.
+          o.save(); o.translate(0, 7); hullPath(o);
+          const side = o.createLinearGradient(0, -30, 0, 42);
+          side.addColorStop(0, '#a66f49'); side.addColorStop(.6, '#9a6340'); side.addColorStop(1, '#513c30');
+          o.fillStyle = side; o.fill(); o.strokeStyle = '#493b32'; o.lineWidth = 2.5; o.stroke();
+          for (const inset of [.95, .84]) {
+            hullPath(o, .98, inset); o.strokeStyle = '#70492f'; o.lineWidth = 1.2; o.stroke();
+          }
+          o.restore();
+          hullPath(o); o.fillStyle = '#735039'; o.fill();
+          hullPath(o, .91, .8); o.fillStyle = '#9a764f'; o.fill();
+          // 안쪽 늑재 위에 길게 깐 바닥판. 좁아지는 선수 안쪽까지 잘라 넣는다.
+          o.save(); hullPath(o, .87, .73); o.clip();
+          const floor = o.createLinearGradient(0, -29, 0, 28);
+          floor.addColorStop(0, '#aa8259'); floor.addColorStop(.45, '#d9b88a'); floor.addColorStop(1, '#b38960');
+          o.fillStyle = floor; o.fillRect(-75, -35, 150, 70);
+          for (let y = -28, row = 0; y <= 28; y += 7, row++) {
+            o.strokeStyle = '#8c6949'; o.lineWidth = 1;
+            o.beginPath(); o.moveTo(-69, y); o.lineTo(74, y); o.stroke();
+            o.strokeStyle = 'rgba(255,231,191,.5)'; o.lineWidth = .6;
+            o.beginPath(); o.moveTo(-65, y + 1.3); o.lineTo(70, y + 1.3); o.stroke();
+            for (let j = 0; j < 3; j++) {
+              const x = -57 + j * 42 + row % 3 * 3;
+              o.strokeStyle = 'rgba(115,78,47,.32)'; o.lineWidth = .55;
+              o.beginPath(); o.moveTo(x, y + 3);
+              o.bezierCurveTo(x + 8, y + 1.6, x + 16, y + 4.8, x + 28, y + 3.2); o.stroke();
+            }
+          }
+          for (const x of [-48, -8, 35, 57]) {
+            o.strokeStyle = 'rgba(76,50,32,.28)'; o.lineWidth = 3;
+            o.beginPath(); o.moveTo(x, -29); o.quadraticCurveTo(x - 5, 0, x, 29); o.stroke();
+            o.strokeStyle = '#e2c399'; o.lineWidth = 1.2; o.stroke();
+          }
+          // 가는 나무 결 사이에 작은 옹이를 더한다.
+          for (const [x, y] of [[-37, 11], [14, -17], [45, 4]]) {
+            o.strokeStyle = 'rgba(117,76,44,.42)'; o.lineWidth = .65;
+            o.beginPath(); o.ellipse(x, y, 5, 1.1, 0, 0, Math.PI * 2); o.stroke();
+          }
+          o.restore();
+          // 두꺼운 나무 좌석 두 개, 둥근 못 머리와 닳은 모서리.
+          for (const [x, width, height] of [[-38, 15, 55], [22, 13, 49]]) {
+            o.fillStyle = 'rgba(48,31,21,.26)'; MC.roundRect(o, x - 1, -height / 2 + 3, width + 2, height + 2, 2); o.fill();
+            const seat = o.createLinearGradient(x, 0, x + width, 0);
+            seat.addColorStop(0, '#b58b5e'); seat.addColorStop(.3, '#e0bb87'); seat.addColorStop(1, '#b38656');
+            o.fillStyle = seat; o.strokeStyle = '#7b5539'; o.lineWidth = 1.1;
+            MC.roundRect(o, x, -height / 2, width, height, 2); o.fill(); o.stroke();
+            o.strokeStyle = 'rgba(114,73,40,.4)'; o.lineWidth = .6;
+            o.beginPath(); o.moveTo(x + 6, -height / 2 + 4); o.quadraticCurveTo(x + 9, 0, x + 5, height / 2 - 4); o.stroke();
+            for (const y of [-height / 2 + 4, height / 2 - 4]) {
+              o.fillStyle = '#71523a'; o.beginPath(); o.arc(x + width / 2, y, 1.25, 0, Math.PI * 2); o.fill();
+              o.fillStyle = '#e6d3a6'; o.beginPath(); o.arc(x + width / 2 - .25, y - .35, .55, 0, Math.PI * 2); o.fill();
+            }
+          }
+          // 선수의 삼각 보강판과 단정히 감은 계류 밧줄.
+          o.fillStyle = '#ba9163'; o.strokeStyle = '#87603e'; o.lineWidth = 1;
+          o.beginPath(); o.moveTo(48, -13); o.lineTo(70, 0); o.lineTo(48, 13); o.closePath(); o.fill(); o.stroke();
+          o.strokeStyle = '#7d6547'; o.lineWidth = 2;
+          for (let i = 0; i < 4; i++) { o.beginPath(); o.ellipse(52, 0, 8 - i * 1.4, 5 - i * .8, -.18, 0, Math.PI * 2); o.stroke(); }
+          o.strokeStyle = '#ead7ad'; o.lineWidth = 1.1;
+          for (let i = 0; i < 4; i++) { o.beginPath(); o.ellipse(52, -.5, 8 - i * 1.4, 5 - i * .8, -.18, 0, Math.PI * 2); o.stroke(); }
+          o.beginPath(); o.moveTo(58, -3); o.quadraticCurveTo(65, -6, 65, 0); o.stroke();
+          rim(o);
+        }),
+        rim: make(rim),
+      };
+    }
+
+    drawOar(g, side, moving) {
+      const stroke = moving ? Math.sin(this.time * 3.4) : -.45;
+      g.save(); g.translate(-16, side * 31); g.rotate(side * stroke * .38);
+      g.scale(1, side);
+      // 노 받침을 중심으로 한 자루가 회전하고, 끝에는 넓은 노깃이 이어진다.
+      g.strokeStyle = '#654730'; g.lineWidth = 4.8;
+      g.beginPath(); g.moveTo(0, -18); g.lineTo(0, 57); g.stroke();
+      g.strokeStyle = '#d6b483'; g.lineWidth = 2.6; g.stroke();
+      g.strokeStyle = '#eed7aa'; g.lineWidth = .7;
+      g.beginPath(); g.moveTo(-.7, -15); g.lineTo(-.7, 54); g.stroke();
+      const blade = g.createLinearGradient(-7, 0, 7, 0);
+      blade.addColorStop(0, '#8b603f'); blade.addColorStop(.45, '#d5b17b'); blade.addColorStop(1, '#aa7c4f');
+      g.fillStyle = blade; g.strokeStyle = '#755034'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(-2, 43); g.bezierCurveTo(-6, 47, -8, 61, -7, 72);
+      g.quadraticCurveTo(0, 78, 7, 72); g.bezierCurveTo(8, 61, 6, 47, 2, 43); g.closePath(); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(102,66,36,.48)'; g.lineWidth = .8;
+      for (const x of [-3, 2]) { g.beginPath(); g.moveTo(x * .5, 48); g.quadraticCurveTo(x * 1.6, 61, x, 71); g.stroke(); }
+      g.strokeStyle = '#b89c6b'; g.lineWidth = 5.8;
+      g.beginPath(); g.moveTo(0, -2.5); g.lineTo(0, 3); g.stroke();
+      g.strokeStyle = '#ead4a4'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(-2.6, -1); g.lineTo(2.6, -1); g.moveTo(-2.6, 2); g.lineTo(2.6, 2); g.stroke();
+      g.restore();
+    }
+
     drawBoat(g, x, y, angle, moving, pup, alpha = 1) {
+      if (!this.boatArt) this.buildBoatArt();
       const bob = Math.sin(this.time * 1.7 + x * .02) * 1.7;
       g.save(); g.globalAlpha *= alpha;
       g.translate(x, y + bob);
+      const opacity = g.globalAlpha;
+      g.save(); g.scale(1, .65); g.rotate(angle);
+      g.fillStyle = 'rgba(10,29,43,.23)'; g.beginPath(); g.ellipse(0, 9, 81, 42, 0, 0, Math.PI * 2); g.fill();
+      g.restore();
       if (moving) {
         g.save(); g.scale(1, .65); g.rotate(angle);
         g.strokeStyle = 'rgba(216,242,246,.42)'; g.lineWidth = 2;
         for (let i = 0; i < 3; i++) {
           const d = (this.time * 55 + i * 28) % 90;
-          g.globalAlpha = alpha * (1 - d / 100);
+          g.globalAlpha = opacity * (1 - d / 100);
           g.beginPath(); g.ellipse(-65 - d * .5, 0, 10 + d * .3, 23 + d * .2, 0, -.9, .9); g.stroke();
         }
         g.restore();
       }
       g.save(); g.scale(1, .65); g.rotate(angle);
-      g.fillStyle = 'rgba(10,29,43,.24)'; g.beginPath(); g.ellipse(1, 10, 71, 37, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#95613f'; g.strokeStyle = '#493b30'; g.lineWidth = 3;
-      g.beginPath(); g.moveTo(70, 0); g.bezierCurveTo(24, -48, -49, -43, -61, -20); g.quadraticCurveTo(-71, 0, -61, 20); g.bezierCurveTo(-49, 43, 24, 48, 70, 0); g.fill(); g.stroke();
-      g.fillStyle = '#d1b581'; g.beginPath(); g.ellipse(-7, -2, 51, 23, 0, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = '#94794f'; g.lineWidth = 1;
-      for (let x = -42; x < 47; x += 14) { g.beginPath(); g.moveTo(x, -18); g.lineTo(x, 17); g.stroke(); }
-      g.fillStyle = '#8d6240'; g.fillRect(-27, -25, 14, 49); g.fillRect(25, -18, 10, 36);
-      g.strokeStyle = '#715033'; g.lineWidth = 5; g.lineCap = 'round';
-      const row = moving ? Math.sin(this.time * 4) * 19 : 7;
-      for (const side of [-1, 1]) {
-        g.beginPath(); g.moveTo(-10, side * 18); g.lineTo(-35 + row, side * 66); g.stroke();
-        g.strokeStyle = '#bd9963'; g.lineWidth = 9; g.beginPath(); g.moveTo(-35 + row, side * 59); g.lineTo(-40 + row, side * 76); g.stroke();
-        g.strokeStyle = '#715033'; g.lineWidth = 5;
-      }
+      g.drawImage(this.boatArt.hull, -92, -52, 192, 112);
+      for (const side of [-1, 1]) this.drawOar(g, side, moving);
       g.restore();
       if (pup) {
-        g.save(); g.translate(-x, -y - bob - 12);
+        g.save(); g.translate(-x, -y - 12);
         pup.draw(g, this.camp.z * (this.camp.dpr || 1)); g.restore();
-        g.strokeStyle = '#b78250'; g.lineWidth = 7;
-        g.beginPath(); g.moveTo(-54, 14); g.quadraticCurveTo(1, 32, 55, 12); g.stroke();
+        // 배가 돌아도 화면 앞쪽 뱃전만 강아지 발 앞에 겹친다.
+        g.save(); g.beginPath(); g.rect(-115, 0, 230, 110); g.clip();
+        g.scale(1, .65); g.rotate(angle);
+        g.drawImage(this.boatArt.rim, -92, -52, 192, 112); g.restore();
       }
+      // 선체를 따라 비치는 가느다란 물빛도 배 방향과 함께 움직인다.
+      g.save(); g.scale(1, .65); g.rotate(angle);
+      g.strokeStyle = 'rgba(202,230,228,.36)'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(2, 7, 77, 37, 0, .16, 1.18); g.stroke(); g.restore();
       g.restore();
     }
 
@@ -272,19 +396,93 @@
       if (!stage) return;
       const bx = DECK.x1 + 80, by = p.y + 44;
       const bite = stage === 2;
-      const bob = Math.sin(this.time * (bite ? 15 : 2)) * (bite ? 5 : 1.3);
-      g.save(); g.strokeStyle = '#c0a67b'; g.lineWidth = 3; g.lineCap = 'round';
-      g.beginPath(); g.moveTo(p.x + 22, p.y - 28); g.quadraticCurveTo(p.x + 58, p.y - 112, p.x + 94, p.y - 94); g.stroke();
-      g.strokeStyle = 'rgba(240,230,202,.72)'; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(p.x + 94, p.y - 94); g.quadraticCurveTo(bx - 8, p.y - 40, bx, by + bob); g.stroke();
-      g.strokeStyle = 'rgba(220,247,250,.55)';
-      for (let i = 0; i < 2; i++) {
-        const phase = (this.time * (bite ? 1.5 : .35) + i * .5) % 1;
-        g.globalAlpha *= 1 - phase * .6;
-        g.beginPath(); g.ellipse(bx, by + 3, 5 + phase * 18, 2 + phase * 7, 0, 0, Math.PI * 2); g.stroke();
+      const bob = Math.sin(this.time * (bite ? 12 : 2)) * (bite ? 3.3 : 1.1);
+      const bend = bite ? 9 + Math.sin(this.time * 12) * 2 : Math.sin(this.time * 1.6) * 1.1;
+      const point = t => {
+        const v = 1 - t;
+        return {x: p.x + v ** 3 * 17 + 3 * v * v * t * 43 + 3 * v * t * t * 81 + t ** 3 * 108,
+          y: p.y - v ** 3 * 24 - 3 * v * v * t * 85 + 3 * v * t * t * (-123 + bend) + t ** 3 * (-100 + bend)};
+      };
+      const trace = (from, to) => {
+        g.beginPath();
+        for (let i = 0; i <= 12; i++) { const q = point(MC.lerp(from, to, i / 12)); if (i) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+      };
+      g.save(); g.lineCap = g.lineJoin = 'round';
+      const opacity = g.globalAlpha;
+      // 끝으로 갈수록 가늘어지는 진녹색 낚싯대와 마디의 금색 감김.
+      for (let i = 0; i < 8; i++) {
+        trace(i / 8, (i + 1) / 8); g.strokeStyle = '#213b39'; g.lineWidth = 3.7 - i * .36; g.stroke();
+        g.strokeStyle = '#8eaaa0'; g.lineWidth = Math.max(.45, 1.1 - i * .08); g.stroke();
       }
-      g.globalAlpha = 1; g.fillStyle = '#f4e9c9'; g.fillRect(bx - 2, by - 10 + bob, 4, 10);
-      g.fillStyle = '#eb805a'; g.fillRect(bx - 2, by - 10 + bob, 4, 5);
+      for (const t of [.19, .43, .69]) {
+        const q = point(t), next = point(t + .005), angle = Math.atan2(next.y - q.y, next.x - q.x);
+        g.save(); g.translate(q.x, q.y); g.rotate(angle);
+        g.fillStyle = '#d3b272'; g.fillRect(-1.2, -2, 2.4, 4);
+        g.strokeStyle = '#6c6953'; g.lineWidth = .55;
+        g.beginPath(); g.moveTo(-.4, -2); g.lineTo(-.4, 2); g.moveTo(.6, -2); g.lineTo(.6, 2); g.stroke(); g.restore();
+      }
+      // 코르크 손잡이, 릴 고정대, 줄이 감긴 둥근 릴과 작은 손잡이.
+      const grip = point(0), next = point(.03), gripAngle = Math.atan2(next.y - grip.y, next.x - grip.x);
+      g.save(); g.translate(grip.x, grip.y); g.rotate(gripAngle);
+      g.strokeStyle = '#65503a'; g.lineWidth = 6.5;
+      g.beginPath(); g.moveTo(-12, 0); g.lineTo(9, 0); g.stroke();
+      g.strokeStyle = '#d7b985'; g.lineWidth = 4.5; g.stroke();
+      g.strokeStyle = 'rgba(112,81,45,.56)'; g.lineWidth = .8;
+      for (let i = -9; i < 8; i += 3) { g.beginPath(); g.moveTo(i, -1.7); g.lineTo(i + 1.1, -.2); g.stroke(); }
+      g.fillStyle = '#39413a'; g.fillRect(-1, -3, 5, 6);
+      g.fillStyle = '#c6c3a4'; g.fillRect(-.7, -3.2, 1, 6.4); g.fillRect(3, -3.2, 1, 6.4);
+      g.restore();
+      const rx = grip.x + 9, ry = grip.y + 3;
+      g.strokeStyle = '#434c46'; g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(grip.x + 1, grip.y); g.lineTo(rx, ry); g.stroke();
+      const metal = g.createLinearGradient(rx - 6, ry - 5, rx + 6, ry + 5);
+      metal.addColorStop(0, '#ede4bf'); metal.addColorStop(.45, '#929c8b'); metal.addColorStop(1, '#3e504b');
+      g.fillStyle = metal; g.strokeStyle = '#37463f'; g.lineWidth = 1.1;
+      g.beginPath(); g.ellipse(rx, ry, 6.2, 5.4, -.25, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.strokeStyle = '#e5d4a7'; g.lineWidth = .8;
+      for (const r of [2.5, 3.6, 4.6]) { g.beginPath(); g.ellipse(rx, ry, r, r * .7, -.25, 0, Math.PI * 2); g.stroke(); }
+      g.strokeStyle = '#c0c4ad'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(rx + .8, ry - 1.8, 7, 5, -.35, Math.PI, Math.PI * 2); g.stroke();
+      g.strokeStyle = '#4e5d50'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(rx + 4, ry + 1); g.lineTo(rx + 9, ry + 5); g.lineTo(rx + 12, ry + 4); g.stroke();
+      g.fillStyle = '#ad8c5b'; g.beginPath(); g.ellipse(rx + 12, ry + 4, 2.5, 1.7, -.4, 0, Math.PI * 2); g.fill();
+      // 가이드 고리를 지나는 가는 줄은 끝에서 찌까지 부드럽게 처진다.
+      const guides = [.22, .43, .64, .82, 1].map(t => {
+        const q = point(t), prev = point(Math.max(0, t - .01));
+        return {...q, angle: Math.atan2(q.y - prev.y, q.x - prev.x)};
+      });
+      g.strokeStyle = 'rgba(226,238,222,.73)'; g.lineWidth = .65;
+      g.beginPath(); g.moveTo(rx + 4, ry - 3);
+      for (const q of guides) g.lineTo(q.x + 1.7, q.y + 1.3);
+      const tip = guides[guides.length - 1];
+      g.quadraticCurveTo(bite ? bx - 10 : bx - 23, p.y - 26, bx, by + bob - 5); g.stroke();
+      for (const q of guides) {
+        g.save(); g.translate(q.x + 1.7, q.y + 1.3); g.rotate(q.angle);
+        g.strokeStyle = '#43564d'; g.lineWidth = 1.5;
+        g.beginPath(); g.ellipse(0, 0, 1.3, 2.4, 0, 0, Math.PI * 2); g.stroke();
+        g.strokeStyle = '#c6cbb7'; g.lineWidth = .65; g.stroke(); g.restore();
+      }
+      // 물결, 빨강과 크림색의 찌, 가는 안테나와 흔들리는 반사.
+      g.strokeStyle = 'rgba(213,242,240,.63)'; g.lineWidth = .8;
+      for (let i = 0; i < 3; i++) {
+        const phase = (this.time * (bite ? 1.1 : .28) + i / 3) % 1;
+        g.globalAlpha = opacity * (1 - phase) * .7;
+        g.beginPath(); g.ellipse(bx, by + 3, 4 + phase * 21, 1.6 + phase * 7, 0, 0, Math.PI * 2); g.stroke();
+      }
+      g.globalAlpha = opacity * .2; g.fillStyle = '#f4c197';
+      g.beginPath(); g.ellipse(bx + 1, by + 9, 2.2, 5, .25, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = opacity; g.save(); g.translate(bx, by + bob); g.rotate(bite ? Math.sin(this.time * 12) * .16 : .06);
+      g.strokeStyle = '#d8cbb0'; g.lineWidth = .9;
+      g.beginPath(); g.moveTo(0, 3); g.lineTo(0, -18); g.stroke();
+      g.fillStyle = '#e9dbc1'; g.strokeStyle = '#715b4b'; g.lineWidth = .7;
+      g.beginPath(); g.ellipse(0, -5, 3.1, 6.2, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.save(); g.beginPath(); g.rect(-4, -12, 8, 7); g.clip();
+      g.fillStyle = '#df795d'; g.beginPath(); g.ellipse(0, -5, 3, 6.2, 0, 0, Math.PI * 2); g.fill(); g.restore();
+      g.strokeStyle = '#f2d89b'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(-2.7, -5); g.lineTo(2.7, -5); g.stroke();
+      g.fillStyle = '#e88e65'; g.beginPath(); g.arc(0, -17, 1.5, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = 'rgba(255,249,224,.7)'; g.lineWidth = .7;
+      g.beginPath(); g.moveTo(-1, -9); g.lineTo(-1.5, -6); g.stroke(); g.restore();
       if (bite) {
         g.font = '700 32px Dongle, sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffe3a1'; g.fillText('!', bx, by - 20);
       }
