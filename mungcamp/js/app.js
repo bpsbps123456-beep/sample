@@ -822,10 +822,11 @@
   });
 
   camp.sea.onToast = msg => toast(msg);
-  const seaControls = $('#seaControls'), seaAction = $('#seaAction'), seaStop = $('#seaStop'), seaStatus = $('#seaStatus');
+  const seaControls = $('#seaControls'), seaAction = $('#seaAction'), seaStop = $('#seaStop'), seaTravel = $('#seaTravel'), seaStatus = $('#seaStatus');
   let seaLayoutKey = '';
   seaAction.addEventListener('click', () => { camp.sea.action(); campCanvas.focus({ preventScroll: true }); });
   seaStop.addEventListener('click', () => { camp.sea.stopFishing(); campCanvas.focus({ preventScroll: true }); });
+  seaTravel.addEventListener('click', () => { camp.sea.travel(); campCanvas.focus({ preventScroll: true }); });
   const seaLabels = [
     ['낚시 잔교', (MC.CampSea.deck.x0 + MC.CampSea.deck.x1) / 2, MC.CampSea.deck.y0 - 30],
     ['작은 선착장', MC.CampSea.berth.x, MC.CampSea.berth.y + 88],
@@ -853,9 +854,11 @@
       if (seaAction.textContent !== sea.label) seaAction.textContent = sea.label;
       if (seaStatus.textContent !== sea.detail) seaStatus.textContent = sea.detail;
       seaStop.hidden = !sea.stop;
+      seaTravel.hidden = !sea.travel;
+      if (sea.travel && seaTravel.textContent !== sea.travel) seaTravel.textContent = sea.travel;
       seaAction.disabled = !!sea.waiting;
       seaControls.classList.toggle('is-biting', !!sea.bite);
-      const layoutKey = sea.label + sea.detail + camp.w;
+      const layoutKey = sea.label + sea.detail + sea.travel + camp.w;
       if (layoutKey !== seaLayoutKey) {
         seaLayoutKey = layoutKey;
         $('#camp').style.setProperty('--sea-ui-height', seaControls.offsetHeight + 'px');

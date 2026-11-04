@@ -87,7 +87,7 @@
       sg: p === 'map' ? cleanSign(raw.sg) : '',
       bt: p === 'map' && raw.bt ? 1 : 0,
       ba: p === 'map' ? num(raw.ba, -180, 180) || 0 : 0,
-      fs: p === 'map' && !raw.bt ? num(raw.fs, 0, 2) | 0 : 0,
+      fs: p === 'map' && !raw.w ? num(raw.fs, 0, 2) | 0 : 0,
     };
   }
 
