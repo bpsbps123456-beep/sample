@@ -149,7 +149,8 @@ main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
     const at = (t) => new Promise((r) => setTimeout(() => r(M.pos(m)), t));
     const p1 = await at(500);
     const p2 = await at(1000);
-    await new Promise((r) => setTimeout(r, 1300));
+    // 최단 재생 시간은 2.8초다. 그 경계에서 타이머·프레임 순서에 따라 끝난 것으로 재지 않는다.
+    await new Promise((r) => setTimeout(r, 1000));
     const alive = M.list.includes(m) && m.t < m.dur;
     // 뒤따르는 별똥별
     let followed = false;
@@ -160,7 +161,7 @@ main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
     return { speed: Math.hypot(p2.x - p1.x, p2.y - p1.y) / 1.0 / sc.s, alive, dur: m.dur, followed };
   });
   check(met.speed > 20 && met.speed < 160, '별똥별은 천천히 미끄러진다 (예전엔 화면 크기당 초속 800쯤)', Math.round(met.speed));
-  check(met.alive && met.dur >= 2.8, '별똥별이 3초 넘게 머문다', met.dur);
+  check(met.alive && met.dur >= 2.8, '별똥별이 약 3초 동안 머문다', met.dur);
   check(met.followed, '가끔은 같은 쪽 하늘에서 하나가 더 (유성우)');
 
   check(who.errors.length === 0, '오류 없음', who.errors.slice(0, 3));
