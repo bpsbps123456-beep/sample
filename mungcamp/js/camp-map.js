@@ -690,26 +690,12 @@
         g.fill();
       }
       // 텐트 밑의 나무 데크
-      for (const tn of TENTS) {
-        const dw = 96 * tn.s;
-        const dh = 30 * tn.s;
-        g.fillStyle = 'rgba(0,0,0,0.22)';
-        MC.roundRect(g, tn.x - dw + 4, tn.y - dh + 10, dw * 2, dh * 2, 8);
-        g.fill();
-        MC.roundRect(g, tn.x - dw, tn.y - dh + 4, dw * 2, dh * 2, 8);
-        g.fillStyle = '#a27a55';
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 2;
-        g.stroke();
-        g.strokeStyle = 'rgba(80,52,32,0.45)';
-        g.lineWidth = 1.2;
-        for (let yy = tn.y - dh + 4 + 9; yy < tn.y + dh + 2; yy += 9) {
-          g.beginPath();
-          g.moveTo(tn.x - dw + 4, yy);
-          g.lineTo(tn.x + dw - 4, yy);
-          g.stroke();
-        }
+      for (const [i, tn] of TENTS.entries()) {
+        g.save();
+        g.translate(tn.x, tn.y);
+        g.scale(tn.s, tn.s);
+        MC.GlampingArt.paintDeck(g, 710 + i);
+        g.restore();
       }
       // 풀 포기와 들꽃
       for (let i = 0; i < 2000; i++) {
@@ -845,56 +831,8 @@
         }
       }));
       // 벨텐트 (글램핑장의 세 채는 천 빛깔이 조금씩 다르다)
-      sp.tent = [['#fbecd2', '#d8bc92'], ['#f4ead8', '#cdbb9b'], ['#f6e4cc', '#cfae86']].map(([c0, c1]) => sprite(170, 160, 85, 140, ss, (g) => {
-        g.fillStyle = 'rgba(0,0,0,0.25)';
-        ellipse(g, 0, 2, 74, 14);
-        g.fill();
-        g.beginPath();
-        g.moveTo(-64, 0);
-        g.quadraticCurveTo(-40, -70, 0, -122);
-        g.quadraticCurveTo(40, -70, 64, 0);
-        g.quadraticCurveTo(0, 14, -64, 0);
-        g.closePath();
-        const grd = g.createLinearGradient(-64, 0, 64, 0);
-        grd.addColorStop(0, c0);
-        grd.addColorStop(1, c1);
-        g.fillStyle = grd;
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 2.4;
-        g.stroke();
-        g.strokeStyle = 'rgba(120,90,60,0.35)';
-        g.lineWidth = 1.4;
-        for (const x of [-38, -14, 14, 38]) {
-          g.beginPath();
-          g.moveTo(0, -120);
-          g.quadraticCurveTo(x * 0.6, -50, x, 6);
-          g.stroke();
-        }
-        g.beginPath();
-        g.moveTo(-17, 4);
-        g.lineTo(0, -58);
-        g.lineTo(17, 4);
-        g.closePath();
-        g.fillStyle = '#ffd590';
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 2;
-        g.stroke();
-        g.strokeStyle = '#3a2a20';
-        g.lineWidth = 2.4;
-        g.beginPath();
-        g.moveTo(0, -122);
-        g.lineTo(0, -138);
-        g.stroke();
-        g.beginPath();
-        g.moveTo(0, -138);
-        g.lineTo(16, -133);
-        g.lineTo(0, -128);
-        g.closePath();
-        g.fillStyle = '#e4664b';
-        g.fill();
-      }));
+      sp.tent = [['#fbecd2', '#d8bc92'], ['#f4ead8', '#cdbb9b'], ['#f6e4cc', '#cfae86']].map(([c0, c1], i) =>
+        sprite(212, 182, 106, 150, ss, (g) => MC.GlampingArt.paintTent(g, c0, c1, i)));
       // 줄전구 기둥
       sp.post = sprite(30, 96, 15, 88, ss, (g) => {
         g.fillStyle = 'rgba(0,0,0,0.2)';

@@ -204,7 +204,7 @@
       L.wallH = h * (P ? 0.05 : 0.065);
       L.floorTop = wallY + 10 * s;
       L.floorBot = h - 12 * s;
-      L.apex = { x: w * 0.5, y: h * (P ? 0.03 : 0.045) };
+      L.apex = { x: w * (P ? 0.66 : 0.565), y: h * (P ? 0.03 : 0.045) };
       const at = (x, y) => ({ x, y, k: this.kAt(y) });
       const dx = w * (P ? 0.4 : 0.395);
       L.door = { x: dx, y: this.wallBase(dx) + 3 * s, w: (P ? 112 : 150) * s, h: (P ? 200 : 236) * s };
@@ -213,6 +213,12 @@
       L.stove = at(w * (P ? 0.16 : 0.13), h * (P ? 0.615 : 0.675));
       L.basket = at(w * (P ? 0.35 : 0.235), h * (P ? 0.65 : 0.715));
       L.bed = at(w * (P ? 0.8 : 0.835), h * (P ? 0.745 : 0.76));
+      if (P) {
+        // 좁은 화면에서는 침대 전체가 바닥 폭에 맞게 줄어든다.
+        L.bed.k = Math.min(L.bed.k, w * 0.62 / 424);
+      }
+      // 자리·그림·부딪힘이 같은 위치를 써서 베개와 발치까지 화면 안에 들어온다.
+      L.bed.x = Math.min(L.bed.x, w - 12 * s - 224 * L.bed.k);
       L.table = at(w * (P ? 0.37 : 0.415), h * (P ? 0.8 : 0.805));
       L.rug = { x: w * (P ? 0.42 : 0.43), y: h * (P ? 0.835 : 0.84), rx: w * (P ? 0.44 : 0.27), ry: h * (P ? 0.085 : 0.11) };
       L.pouf = at(w * (P ? 0.14 : 0.2), h * (P ? 0.93 : 0.935));
@@ -283,7 +289,7 @@
       g.fillStyle = roof;
       g.fillRect(0, 0, w, h);
 
-      // 솔기: 꼭대기에서 사방으로. 천 조각마다 가운데가 살짝 불룩해 보이게 밝은 띠를 얹는다
+      // 천 조각은 당겨진 솔기 사이에서 부드럽게 처진다. 빛과 접힌 그늘도 같은 곡선을 따른다.
       const ends = [];
       const N = 13;
       for (let i = 0; i <= N; i++) {
@@ -294,36 +300,55 @@
       for (const fx of [-0.3, 0.06, 0.32, 0.68, 0.94, 1.3]) ends.push([w * fx, fx < 0 || fx > 1 ? h * 0.32 : -20]);
       const ax = L.apex.x;
       const ay = L.apex.y;
+      const control = (x, y) => [(ax + x) / 2, (ay + y) / 2 + Math.hypot(x - ax, y - ay) * 0.024];
+      const roofSeam = (x, y, offset = 0) => {
+        const [cx, cy] = control(x, y), len = Math.hypot(x - ax, y - ay) || 1;
+        const nx = -(y - ay) / len, ny = (x - ax) / len;
+        g.beginPath(); g.moveTo(ax + nx * offset * 0.1, ay + ny * offset * 0.1);
+        g.quadraticCurveTo(cx + nx * offset, cy + ny * offset, x + nx * offset, y + ny * offset);
+      };
       for (let i = 0; i < ends.length - 1; i++) {
         if (i >= N) break;
         const [x0, y0] = ends[i];
         const [x1, y1] = ends[i + 1];
-        const mx = (x0 + x1) / 2;
-        const my = (y0 + y1) / 2;
-        g.strokeStyle = 'rgba(255,238,210,0.08)';
-        g.lineWidth = Math.hypot(x1 - x0, y1 - y0) * 0.42;
-        g.beginPath();
-        g.moveTo(ax, ay);
-        g.lineTo(mx, my);
-        g.stroke();
+        const [cx0, cy0] = control(x0, y0), [cx1, cy1] = control(x1, y1);
+        g.beginPath(); g.moveTo(ax, ay);
+        g.quadraticCurveTo(cx0, cy0, x0, y0); g.lineTo(x1, y1);
+        g.quadraticCurveTo(cx1, cy1, ax, ay); g.closePath();
+        g.fillStyle = lin(g, x0, y0, x1, y1, [[0, 'rgba(77,48,28,0.1)'], [0.22, 'rgba(255,235,202,0.035)'], [0.5, 'rgba(255,242,216,0.1)'], [0.82, 'rgba(255,235,202,0.02)'], [1, 'rgba(77,48,28,0.12)']]);
+        g.fill();
+        // 처마 쪽의 작은 주름은 천 중앙으로 갈수록 사라진다.
+        for (const u of [0.24, 0.74]) {
+          const x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u;
+          const tipX = ax + (x - ax) * 0.64, tipY = ay + (y - ay) * 0.64;
+          g.beginPath(); g.moveTo(x - 4 * s, y);
+          g.quadraticCurveTo((x + tipX) / 2 - 4 * s, (y + tipY) / 2, tipX, tipY);
+          g.quadraticCurveTo((x + tipX) / 2 + 2 * s, (y + tipY) / 2, x + 3 * s, y); g.closePath();
+          g.fillStyle = lin(g, tipX, tipY, x, y, [[0, 'rgba(83,51,29,0)'], [1, 'rgba(83,51,29,0.1)']]); g.fill();
+        }
       }
       for (const [x, y] of ends) {
-        g.strokeStyle = 'rgba(70,44,28,0.16)';
-        g.lineWidth = 9 * s;
-        g.beginPath();
-        g.moveTo(ax, ay);
-        g.lineTo(x, y);
+        roofSeam(x, y);
+        g.strokeStyle = 'rgba(70,44,28,0.09)'; g.lineWidth = 7 * s;
         g.stroke();
-        g.strokeStyle = 'rgba(70,44,28,0.42)';
-        g.lineWidth = 1.6 * s;
+        g.strokeStyle = 'rgba(102,70,43,0.34)'; g.lineWidth = 2.6 * s;
         g.stroke();
-        g.strokeStyle = 'rgba(255,240,214,0.16)';
-        g.lineWidth = 1 * s;
-        g.beginPath();
-        g.moveTo(ax + 2 * s, ay);
-        g.lineTo(x + 3 * s, y);
+        roofSeam(x, y, -2.4 * s);
+        g.strokeStyle = 'rgba(255,245,220,0.28)'; g.lineWidth = 1.1 * s;
         g.stroke();
+        g.setLineDash([1.5 * s, 3.5 * s]);
+        for (const offset of [-1, 1]) {
+          roofSeam(x, y, offset * 1.6 * s);
+          g.strokeStyle = 'rgba(255,236,200,0.5)'; g.lineWidth = 0.65 * s; g.stroke();
+        }
+        g.setLineDash([]);
       }
+      // 기둥 끝, 지붕 솔기, 전구선이 같은 보강 천 아래에서 만난다.
+      ell(g, ax, ay + 2 * s, 23 * s, 9 * s);
+      g.fillStyle = lin(g, ax, ay - 7 * s, ax, ay + 11 * s, [[0, '#b89168'], [0.5, '#d6b389'], [1, '#a57e57']]);
+      g.fill(); ink(g, 1 * s, 'rgba(87,58,33,0.55)');
+      ell(g, ax, ay + 2 * s, 19 * s, 6 * s);
+      g.setLineDash([2 * s, 2 * s]); ink(g, 0.7 * s, 'rgba(246,221,184,0.7)'); g.setLineDash([]);
       // 캔버스 천의 결
       g.lineWidth = Math.max(0.6, 0.8 * s);
       for (let i = 0; i < 2600; i++) {
@@ -359,25 +384,35 @@
       g.closePath();
       g.fillStyle = lin(g, 0, L.F.cy - L.F.ry - L.wallH, 0, L.F.cy - L.F.ry, [[0, '#c69d73'], [1, '#9a7253']]);
       g.fill();
-      // 옆벽 주름
-      for (let x = 0; x <= w; x += 22 * s) {
+      // 옆벽의 부드러운 주름과 바닥 쪽에 모이는 작은 접힘.
+      g.save();
+      g.clip();
+      for (let x = -12 * s; x <= w; x += 22 * s) {
         const t = this.wallTop(x);
         const b = this.wallBase(x);
-        g.strokeStyle = `rgba(70,44,28,${0.08 + rnd() * 0.08})`;
-        g.lineWidth = (1 + rnd() * 2) * s;
-        g.beginPath();
-        g.moveTo(x + rnd() * 6, t + 2);
-        g.lineTo(x + rnd() * 6, b - 2);
-        g.stroke();
+        const bend = (rnd() - 0.5) * 8 * s;
+        g.beginPath(); g.moveTo(x, t);
+        g.bezierCurveTo(x + bend, t + (b - t) * 0.4, x - bend, b - 10 * s, x + 2 * s, b);
+        g.lineTo(x + 14 * s, b);
+        g.bezierCurveTo(x + 11 * s - bend, b - 10 * s, x + 12 * s + bend, t + (b - t) * 0.4, x + 12 * s, t);
+        g.closePath();
+        g.fillStyle = lin(g, x, 0, x + 14 * s, 0, [[0, 'rgba(74,45,26,0.13)'], [0.5, 'rgba(255,227,187,0.09)'], [1, 'rgba(74,45,26,0.02)']]); g.fill();
       }
+      g.restore();
       // 처마 선과 고리
       g.beginPath();
       top.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-      ink(g, 2.2 * s, 'rgba(64,40,26,0.55)');
+      ink(g, 6 * s, 'rgba(118,82,48,0.48)');
+      ink(g, 1.2 * s, 'rgba(255,225,185,0.42)');
+      g.beginPath();
+      top.forEach(([x, y], i) => (i ? g.lineTo(x, y + 6 * s) : g.moveTo(x, y + 6 * s)));
+      g.setLineDash([2 * s, 3 * s]); ink(g, 0.8 * s, 'rgba(244,211,167,0.6)'); g.setLineDash([]);
       for (let x = 30 * s; x < w; x += 64 * s) {
-        ell(g, x, this.wallTop(x) + 4 * s, 2.6 * s, 2.6 * s);
-        g.fillStyle = 'rgba(64,40,26,0.55)';
-        g.fill();
+        const y = this.wallTop(x) + 4 * s;
+        MC.roundRect(g, x - 4 * s, y - 1 * s, 8 * s, 10 * s, 2 * s);
+        g.fillStyle = 'rgba(135,97,60,0.7)'; g.fill();
+        ell(g, x, y + 3 * s, 2.2 * s, 2.6 * s);
+        g.fillStyle = '#66503a'; g.fill(); ink(g, 1 * s, '#c9ac79');
       }
       // 바닥 깔개가 올라온 테두리 (욕조 모양)
       const tub = arc((x) => this.wallBase(x) - 9 * s, 1);
@@ -386,8 +421,11 @@
       for (const [x, y] of tub) g.lineTo(x, y);
       for (const [x, y] of base) g.lineTo(x, y + 2);
       g.closePath();
-      g.fillStyle = '#3f3a32';
+      g.fillStyle = lin(g, 0, L.F.cy - L.F.ry - 9 * s, 0, L.F.cy - L.F.ry + 2, [[0, '#6c5c43'], [1, '#494133']]);
       g.fill();
+      g.beginPath();
+      tub.forEach(([x, y], i) => (i ? g.lineTo(x, y + 2 * s) : g.moveTo(x, y + 2 * s)));
+      g.setLineDash([3 * s, 3 * s]); ink(g, 0.7 * s, 'rgba(224,199,152,0.42)'); g.setLineDash([]);
 
       // 바닥: 따뜻한 나무 마루. 먼 곳으로 모이는 널빤지
       g.save();
@@ -431,6 +469,19 @@
           g.moveTo(x0, y);
           g.lineTo(x1, y + 1);
           g.stroke();
+          // 판재 끝의 작은 못 머리와 짧은 나뭇결.
+          for (const x of [x0 + 3 * s * u, x1 - 3 * s * u]) {
+            ell(g, x, y + 3 * s * u, 0.8 * s * u, 1.1 * s * u);
+            g.fillStyle = 'rgba(39,25,14,0.48)'; g.fill();
+          }
+        }
+        for (let j = 0; j < 11; j++) {
+          const u = 0.2 + rnd() * 0.8, v = 0.12 + rnd() * 0.75;
+          const x = vp.x + (xb + pw * v - vp.x) * u, y = vp.y + (h + 20 - vp.y) * u;
+          const len = (16 + rnd() * 38) * s * u, dx = (x - vp.x) / (y - vp.y) * len;
+          g.beginPath(); g.moveTo(x, y);
+          g.bezierCurveTo(x + dx * 0.35 - 1.2 * s * u, y + len * 0.35, x + dx * 0.7 + 1.6 * s * u, y + len * 0.7, x + dx, y + len);
+          ink(g, 0.6 * s, j % 2 ? 'rgba(242,190,130,0.12)' : 'rgba(55,29,13,0.16)');
         }
       }
       g.restore();
@@ -922,13 +973,23 @@
         g.fillStyle = 'rgba(40,22,10,0.55)';
         g.fillRect(-76, y, 144, 3);
       }
-      g.strokeStyle = 'rgba(255,220,180,0.12)';
-      g.lineWidth = 1;
-      for (let i = 0; i < 8; i++) {
+      // 판재를 따라 흐르는 결과 옹이, 모서리의 작은 금속 고정판.
+      const wood = MC.rng(304);
+      for (let i = 0; i < 21; i++) {
+        const x = -74 + wood() * 99, y = -46 + wood() * 40, len = 18 + wood() * 35;
         g.beginPath();
-        g.moveTo(-74 + i * 18, -48);
-        g.quadraticCurveTo(-70 + i * 18, -30, -74 + i * 18 + 6, -4);
-        g.stroke();
+        g.moveTo(x, y); g.bezierCurveTo(x + len * 0.3, y - 1.3, x + len * 0.7, y + 1.2, x + len, y);
+        ink(g, 0.65, i % 2 ? 'rgba(245,206,157,0.22)' : 'rgba(72,40,20,0.2)');
+      }
+      ell(g, -37, -25, 6, 1.6); ink(g, 0.7, 'rgba(76,43,22,0.3)');
+      g.beginPath(); g.moveTo(-76, -48); g.lineTo(68, -48);
+      ink(g, 1.2, 'rgba(249,212,164,0.4)');
+      for (const x of [-73, 63]) {
+        MC.roundRect(g, x, -48, 5, 44, 1.5);
+        g.fillStyle = lin(g, x, 0, x + 5, 0, [[0, '#655c48'], [0.5, '#a89a77'], [1, '#665b43']]); g.fill();
+        for (const y of [-43, -9]) {
+          ell(g, x + 2.5, y, 1, 1); g.fillStyle = '#423d31'; g.fill();
+        }
       }
       // 등잔 (허리케인 랜턴)
       g.save();
@@ -1058,6 +1119,21 @@
       g.moveTo(-190, -18);
       g.lineTo(190, -18);
       g.stroke();
+      for (let row = 0; row < 2; row++) {
+        for (let i = 0; i < 8; i++) {
+          const x = -179 + i * 46, y = -29 + row * 18;
+          g.beginPath(); g.moveTo(x, y);
+          g.bezierCurveTo(x + 9, y - 1.6, x + 24, y + 1.2, x + 35, y);
+          ink(g, 0.7, 'rgba(244,194,138,0.2)');
+        }
+      }
+      for (const x of [-181, -103, -7, 89, 179]) {
+        for (const y of [-28, -9]) {
+          ell(g, x, y, 1.3, 1.3); g.fillStyle = '#5b442d'; g.fill();
+          g.beginPath(); g.moveTo(x - 0.6, y - 0.5); g.lineTo(x + 0.6, y - 0.5);
+          ink(g, 0.6, 'rgba(220,185,135,0.5)');
+        }
+      }
       // 매트리스 옆면
       MC.roundRect(g, -186, -62, 372, 28, 8);
       g.fillStyle = lin(g, 0, -62, 0, -34, [[0, '#fbf8f2'], [1, '#dcd3c4']]);
@@ -1086,6 +1162,21 @@
       g.fillStyle = lin(g, 0, -104, 0, -36, [[0, '#ffffff'], [0.6, '#f3ebdc'], [1, '#dccfba']]);
       g.fill();
       ink(g, 2.2);
+      // 푹신한 누빔은 윗면에서 앞쪽으로 휘어 내려오며, 바느질은 접힌 결을 따른다.
+      g.save(); g.clip();
+      for (const y of [-87, -64, -43]) {
+        g.beginPath(); g.moveTo(-182, y);
+        g.bezierCurveTo(-65, y - 8, 67, y + 5, 208, y - 3);
+        ink(g, 4.5, 'rgba(167,146,113,0.07)');
+        g.setLineDash([2, 3]); ink(g, 0.75, 'rgba(150,132,105,0.32)'); g.setLineDash([]);
+      }
+      for (let x = -165; x < 206; x += 47) {
+        g.beginPath(); g.moveTo(x, -105);
+        g.bezierCurveTo(x + 1, -87, x + 12, -63, x + 7, -34);
+        ink(g, 5, 'rgba(166,146,116,0.06)');
+        g.setLineDash([2, 3]); ink(g, 0.75, 'rgba(150,132,105,0.27)'); g.setLineDash([]);
+      }
+      g.restore();
       g.strokeStyle = 'rgba(160,140,110,0.4)';
       g.lineWidth = 1.6;
       for (const [x0, y0, x1, y1] of [[-120, -96, -90, -52], [-20, -98, 10, -50], [80, -96, 104, -54], [150, -98, 160, -62]]) {
@@ -1135,9 +1226,23 @@
         g.save();
         g.translate(x, y);
         g.rotate(rot);
-        MC.roundRect(g, -rw, -rh, rw * 2, rh * 2, rh * 0.8);
+        ell(g, 2, rh * 0.76, rw * 1.03, rh * 0.4);
+        g.fillStyle = 'rgba(96,75,50,0.16)'; g.fill();
+        const shape = (inset = 0) => {
+          const a = rw - inset, b = rh - inset;
+          g.beginPath(); g.moveTo(-a * 0.78, -b * 0.9);
+          g.bezierCurveTo(-a * 0.25, -b * 1.13, a * 0.5, -b * 1.1, a * 0.83, -b * 0.82);
+          g.bezierCurveTo(a * 1.08, -b * 0.43, a * 1.06, b * 0.47, a * 0.79, b * 0.85);
+          g.bezierCurveTo(a * 0.35, b * 1.13, -a * 0.46, b * 1.1, -a * 0.82, b * 0.82);
+          g.bezierCurveTo(-a * 1.1, b * 0.34, -a * 1.03, -b * 0.45, -a * 0.78, -b * 0.9); g.closePath();
+        };
+        shape();
         g.fillStyle = fill;
         g.fill();
+        g.save(); g.clip();
+        g.fillStyle = lin(g, 0, -rh, 0, rh, [[0, 'rgba(255,255,248,0.3)'], [0.5, 'rgba(255,255,248,0)'], [1, 'rgba(120,100,72,0.18)']]);
+        g.fillRect(-rw - 3, -rh - 3, rw * 2 + 6, rh * 2 + 6);
+        g.restore();
         if (stripe) {
           g.save();
           g.clip();
@@ -1150,9 +1255,15 @@
             g.stroke();
           }
           g.restore();
-          MC.roundRect(g, -rw, -rh, rw * 2, rh * 2, rh * 0.8);
+          shape();
         }
         ink(g, 2);
+        shape(2.4); g.setLineDash([1.8, 2.2]); ink(g, 0.7, 'rgba(121,104,78,0.38)'); g.setLineDash([]);
+        for (const side of [-1, 1]) {
+          g.beginPath(); g.moveTo(side * rw * 0.76, -rh * 0.75);
+          g.quadraticCurveTo(side * rw * 0.62, -rh * 0.54, side * rw * 0.65, -rh * 0.3);
+          ink(g, 0.85, 'rgba(137,120,91,0.3)');
+        }
         g.restore();
       };
       pillow(170, -118, 40, 22, -0.18, '#fbf7f0');
@@ -1481,6 +1592,14 @@
         g.fillStyle = lin(g, side * W * 0.5, 0, side * W * 0.25, 0, [[0, '#b58b62'], [1, '#e2c194']]);
         g.fill();
         ink(g, 2);
+        g.save(); g.clip();
+        for (let i = 0; i < 7; i++) {
+          const x = side * (W * 0.3 + i * 3.1);
+          g.beginPath(); g.moveTo(side * W * 0.35, -H * 0.38);
+          g.bezierCurveTo(x, -H * 0.25, x + side * 5, -H * 0.08, x + side * 7, 3);
+          ink(g, i % 2 ? 1 : 3.5, i % 2 ? 'rgba(247,216,172,0.28)' : 'rgba(77,49,29,0.08)');
+        }
+        g.restore();
         g.strokeStyle = 'rgba(80,52,32,0.35)';
         g.lineWidth = 1.4;
         for (let i = 0; i < 3; i++) {
@@ -1499,6 +1618,14 @@
         ell(g, side * W * 0.47, -H * 0.37, 3, 3);
         g.fillStyle = '#d8c39a';
         g.fill();
+        ink(g, 0.9, '#856d49');
+        g.beginPath();
+        g.moveTo(side * W * 0.46, -H * 0.37);
+        g.bezierCurveTo(side * W * 0.55, -H * 0.44, side * W * 0.56, -H * 0.31, side * W * 0.46, -H * 0.37);
+        ink(g, 1.4, '#a07d4e');
+        g.beginPath(); g.moveTo(side * W * 0.47, -H * 0.36);
+        g.quadraticCurveTo(side * W * 0.54, -H * 0.31, side * W * 0.51, -H * 0.26);
+        ink(g, 1.5, '#a07d4e');
         // 지퍼
         g.setLineDash([2, 2.5]);
         g.strokeStyle = 'rgba(60,40,26,0.55)';
