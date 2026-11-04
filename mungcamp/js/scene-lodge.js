@@ -65,7 +65,7 @@
   // 여럿이 오면 서 있는 자리 (장면 좌표)
   const FLOOR_SPOTS = [[300, 880], [700, 900], [160, 640], [840, 650], [500, 960]].map(([X, Z]) => ({ X, Z }));
   const BOWL_MAX = 6;
-  const ROLL_T = 0.95; // 한 바퀴 데굴 구르는 시간
+  const ROLL_T = 1.4; // 엎드리기 → 다리 접고 구르기 → 앞발로 바닥 짚기
   const ease = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
 
   class LodgeScene {
@@ -130,6 +130,7 @@
           floor: (x, y) => (this.inside ? y > this.IN.y0 - 30 * this.s : y > this.L.floorTop - 6 * this.s),
           // 방에서는 텐트 안과 같은 빠르기, 이불 속에서는 납작 엎드려 천천히
           speed: () => {
+            if (this.roll) return 0;
             const c = this.crowd;
             const z = c ? MC.clamp(c.me.Z / 1000, 0, 1) : 0.5;
             if (this.inside) return 95 * this.s * (0.8 + 0.6 * z);
@@ -144,9 +145,8 @@
           // 코타츠에 들어간 사람과 방에 있는 사람은 서로 보이지 않는다
           visible: (v) => !!v.st.k === this.inside,
           // 이불 속에서는 의자를 펼 수 없다
-          noChair: () => this.inside,
+          noChair: () => this.inside || !!this.roll,
           over: (g, p, me, v) => this.drawLap(g, p, me, v),
-          tilt: (p, me, v) => this.rollTilt(p, me, v),
           perch: {
             get X() {
               return sc.seatFoot(sc.seat || sc.pendingSeat || 3).X;
@@ -1074,6 +1074,7 @@
             g.lineTo(x + dx * k, y + 4.8 * k);
           }
           g.stroke();
+          if (p.gloves) { g.save(); g.translate(x, y); g.scale(k, k); p.paintGlove(g, 0, 0); g.restore(); }
         }
         g.globalAlpha = 1;
       };
@@ -1295,6 +1296,7 @@
       }
       this.roll = null;
       c.posed = false;
+      this.pup.rollPose = null;
       c.still = 0;
       c.layout();
       if (this.onInside) this.onInside(this.inside);
@@ -1382,6 +1384,8 @@
       this.toDoor = false;
       const d = dir || (c.keys.x ? Math.sign(c.keys.x) : c.me.X > 700 ? -1 : c.me.X < 300 ? 1 : Math.random() < 0.5 ? -1 : 1);
       this.roll = { t: 0, dir: d, X0: c.me.X };
+      this.pup.rollPose = { u: 0, dir: d };
+      this.pup.spin = null;
       this.rollN = (Math.abs(this.rollN) + 1) * d;
       this.pup.setLie(true);
       this.pup.wake();
@@ -1395,13 +1399,16 @@
         const R = this.roll;
         R.t += dt;
         const u = Math.min(1, R.t / ROLL_T);
+        this.pup.rollPose = u < 1 ? { u, dir: R.dir } : null;
         // 구르는 만큼 옆으로 (몸통 둘레만큼)
         const dist = (this.inside ? 250 : 110) * ease(u);
         const q = c.clampIn({ X: R.X0 + R.dir * dist, Z: c.me.Z });
         if (c.free(q.X, q.Z)) c.me.X = q.X;
-        c.posed = false;
+        c.posed = true;
+        c.still = 0;
         if (u >= 1) {
           this.roll = null;
+          c.posed = false;
           if (!this.inside) this.pup.setLie(false);
           this.pup.addHearts(1);
         }
@@ -1422,17 +1429,11 @@
         if (R.t < ROLL_T) {
           R.t += dt;
           this.rollingSt.add(v.st);
+          v.pup.spin = null;
         }
+        v.pup.rollPose = R.t < ROLL_T ? { u: R.t / ROLL_T, dir: R.dir } : null;
       }
       for (const id of this.rolls.keys()) if (!c.visitors.has(id)) this.rolls.delete(id);
-    }
-
-    rollTilt(p, me, v) {
-      const R = me ? this.roll : v ? this.rolls.get(v.id) : null;
-      if (!R || R.t >= ROLL_T || (!me && !R.dir)) return 0;
-      const u = Math.min(1, R.t / ROLL_T);
-      // 누운 멍이의 몸 가운데를 축으로 한 바퀴
-      return { a: R.dir * ease(u) * Math.PI * 2, dy: -24 * p.k };
     }
 
     // ── 이불 속에서 노는 귤 ─────────────────────────────────
