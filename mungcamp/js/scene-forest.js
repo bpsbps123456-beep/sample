@@ -1,5 +1,5 @@
-/* 멍캠프 — 숲멍: 아침 햇살이 비껴 드는 편백 숲.
-   오른쪽의 큰 편백에는 낮은 가지가 둘. 가지를 톡 하면 폴짝 올라가 엎드리고, 네 다리를 축 늘어뜨린 채 꾸벅꾸벅 존다.
+/* 멍캠프 — 숲멍: 이끼 길과 작은 들꽃 사이로 아침 햇살이 비껴 드는 편백 숲.
+   오른쪽 큰 편백의 가지를 톡 하면 폴짝 올라가 엎드리고, 네 다리를 축 늘어뜨린 채 꾸벅꾸벅 존다.
    잎 사이로 햇빛이 일렁이고, 가끔 다람쥐가 가지 끝에서 열매를 먹고, 오목눈이가 내려앉아 지저귄다 */
 (function (MC) {
   'use strict';
@@ -16,8 +16,8 @@
     return SPR;
   }
 
-  const TRUNK = [84, 56, 40];
-  const FOG = [210, 220, 200];
+  const TRUNK = [85, 76, 55];
+  const FOG = [204, 223, 195];
   const LEAF_COLORS = ['#c9b458', '#9fb04a', '#d8a54a', '#83a043'];
 
   // 팔랑이는 나비. 가끔 멍이의 새싹에 내려앉는다
@@ -95,6 +95,16 @@
         g.beginPath();
         g.arc(8.6, -5.6, 1.5, 0, Math.PI * 2);
         g.fill();
+        g.strokeStyle = this.edge;
+        g.lineWidth = 0.5;
+        g.globalAlpha = 0.55;
+        g.beginPath();
+        g.moveTo(1, 0); g.quadraticCurveTo(5, -3, 11, -6);
+        g.moveTo(4, -2); g.lineTo(6, -8);
+        g.moveTo(5, -3); g.lineTo(11, -2);
+        g.moveTo(1, 1); g.quadraticCurveTo(4, 3, 8, 5);
+        g.stroke();
+        g.globalAlpha = 1;
         g.restore();
       }
       g.fillStyle = '#4a3a2c';
@@ -161,6 +171,72 @@
     g.globalAlpha = 1;
     frond(0, 0, -0.06, size, size * 0.075, 2, 1);
     return { c, W, H, ax: 3, ay: H * 0.45 };
+  }
+
+  // 한 장씩 갈라지는 고사리 잎. 숲 바닥과 앞쪽 잎 모두 같은 형태를 쓰되,
+  // 복잡한 잎맥과 작은 갈래는 크기가 바뀔 때만 그려 둔다.
+  function fernFrond(g, x, y, len, angle, bend, light) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(angle + Math.PI / 2);
+    const pts = [];
+    g.strokeStyle = light ? '#91ad68' : '#507950';
+    g.lineWidth = Math.max(0.5, len * 0.009);
+    g.beginPath();
+    g.moveTo(0, 0);
+    for (let i = 1; i <= 19; i++) {
+      const t = i / 19;
+      const px = bend * len * t * t * 0.3;
+      const py = -len * t;
+      g.lineTo(px, py);
+      pts.push({ x: px, y: py, t });
+    }
+    g.stroke();
+    for (const p of pts) {
+      const ll = len * 0.2 * Math.pow(Math.sin(Math.PI * p.t), 0.8);
+      for (const side of [-1, 1]) {
+        const ex = p.x + side * ll;
+        const ey = p.y - ll * 0.42;
+        g.fillStyle = light ? (side < 0 ? '#8ba85e' : '#587f48') : (side < 0 ? '#365e3d' : '#254a34');
+        g.beginPath();
+        g.moveTo(p.x, p.y);
+        g.quadraticCurveTo(p.x + side * ll * 0.45, p.y - ll * 0.33, ex, ey);
+        for (let j = 6; j >= 0; j--) {
+          const u = j / 7;
+          g.lineTo(p.x + side * ll * u, p.y - ll * 0.42 * u + Math.sin(Math.PI * u) * ll * 0.25);
+          g.lineTo(p.x + side * ll * (u - 0.035), p.y - ll * 0.42 * u + Math.sin(Math.PI * u) * ll * 0.14);
+        }
+        g.closePath();
+        g.fill();
+        g.strokeStyle = light ? 'rgba(203,218,144,0.5)' : 'rgba(125,158,93,0.45)';
+        g.lineWidth = Math.max(0.35, len * 0.003);
+        g.beginPath();
+        g.moveTo(p.x, p.y);
+        g.lineTo(ex, ey);
+        g.stroke();
+      }
+    }
+    g.restore();
+  }
+
+  function woodlandFlower(g, x, y, size, tone) {
+    g.strokeStyle = '#6b8c52';
+    g.lineWidth = Math.max(0.45, size * 0.14);
+    g.beginPath();
+    g.moveTo(x - size * 0.35, y + size * 2.5);
+    g.quadraticCurveTo(x + size * 0.5, y + size, x, y);
+    g.stroke();
+    for (let j = 0; j < 5; j++) {
+      const a = j * Math.PI * 0.4;
+      g.fillStyle = tone || '#f1edce';
+      g.beginPath();
+      g.ellipse(x + Math.cos(a) * size * 0.64, y + Math.sin(a) * size * 0.64, size * 0.7, size * 0.34, a, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#d9b667';
+    g.beginPath();
+    g.arc(x, y, size * 0.26, 0, Math.PI * 2);
+    g.fill();
   }
 
   // 다람쥐: 가끔 줄기를 타고 내려와 아래 가지 끝으로 달려가 솔방울을 오물오물 먹고 돌아간다
@@ -716,10 +792,10 @@
       g.scale(dpr, dpr);
 
       const air = g.createLinearGradient(0, 0, 0, h);
-      air.addColorStop(0, '#f2f0d8');
-      air.addColorStop(0.35, '#d5dfc2');
-      air.addColorStop(0.7, '#a9bb9b');
-      air.addColorStop(1, '#6c8066');
+      air.addColorStop(0, '#f6efcd');
+      air.addColorStop(0.3, '#dce5bd');
+      air.addColorStop(0.65, '#9dbba0');
+      air.addColorStop(1, '#466b52');
       g.fillStyle = air;
       g.fillRect(0, 0, w, h);
       g.globalCompositeOperation = 'lighter';
@@ -728,12 +804,23 @@
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
 
+      const sprays = [makeSpray(110 * s, 187, dpr, false), makeSpray(145 * s, 291, dpr, true), makeSpray(84 * s, 514, dpr, false)];
+      const spray = (x, y, a, scale, seed, alpha = 1) => {
+        const sp = sprays[seed % sprays.length];
+        g.save();
+        g.globalAlpha = alpha;
+        g.translate(x, y);
+        g.rotate(a);
+        g.scale(scale, scale);
+        g.drawImage(sp.c, -sp.ax, -sp.ay, sp.W, sp.H);
+        g.restore();
+      };
       const layers = [
-        { fog: 0.86, width: 5, gap: 38, base: 0.7 },
-        { fog: 0.72, width: 9, gap: 58, base: 0.73 },
-        { fog: 0.52, width: 16, gap: 92, base: 0.77 },
-        { fog: 0.3, width: 30, gap: 160, base: 0.85 },
-        { fog: 0.06, width: 64, gap: 340, base: 1.05 },
+        { fog: 0.89, width: 4, gap: 32, base: 0.64 },
+        { fog: 0.76, width: 8, gap: 56, base: 0.68 },
+        { fog: 0.58, width: 15, gap: 100, base: 0.73 },
+        { fog: 0.32, width: 28, gap: 210, base: 0.79 },
+        { fog: 0.13, width: 72, gap: 1800, base: 1.03 },
       ];
       layers.forEach((L, li) => {
         const col = MC.mix(TRUNK, FOG, L.fog);
@@ -742,7 +829,7 @@
         const baseY = h * L.base;
         const count = Math.max(2, Math.round(w / (L.gap * s)));
         for (let i = 0; i < count; i++) {
-          const x = ((i + rnd() * 0.9) / count) * w;
+          const x = li === 4 ? (i === 0 ? -0.012 : 1.025) * w : ((i + rnd() * 0.9) / count) * w;
           const tw = L.width * s * (0.6 + rnd() * 0.9);
           const by = baseY + rnd() * 8 * s;
           const grd = g.createLinearGradient(x - tw / 2, 0, x + tw / 2, 0);
@@ -753,8 +840,10 @@
           g.beginPath();
           g.moveTo(x - tw * 0.38, -10);
           g.lineTo(x + tw * 0.38, -10);
-          g.lineTo(x + tw * 0.5, by);
-          g.lineTo(x - tw * 0.5, by);
+          g.lineTo(x + tw * 0.5, by - tw * 1.4);
+          g.quadraticCurveTo(x + tw * 0.55, by - tw * 0.35, x + tw * 1.1, by);
+          g.quadraticCurveTo(x, by - tw * 0.12, x - tw * 1.1, by);
+          g.quadraticCurveTo(x - tw * 0.55, by - tw * 0.35, x - tw * 0.5, by - tw * 1.4);
           g.closePath();
           g.fill();
           if (li >= 2) {
@@ -767,6 +856,19 @@
               g.moveTo(fx, rnd() * by * 0.3);
               g.lineTo(fx + (rnd() - 0.5) * 3, by - rnd() * by * 0.2);
               g.stroke();
+            }
+            // 높은 곳의 잔가지와 그늘에 겹치는 부채꼴 잎.
+            for (let j = 0; j < 3; j++) {
+              const yy = h * (0.1 + j * 0.12) + rnd() * h * 0.07;
+              const side = j % 2 ? -1 : 1;
+              const reach = (28 + rnd() * 55) * s * (li * 0.4);
+              g.strokeStyle = MC.rgba(col, 0.8);
+              g.lineWidth = Math.max(0.8, tw * 0.12);
+              g.beginPath();
+              g.moveTo(x, yy);
+              g.quadraticCurveTo(x + side * reach * 0.5, yy + 8 * s, x + side * reach, yy - 12 * s);
+              g.stroke();
+              spray(x + side * reach, yy - 12 * s, side > 0 ? 0.15 : Math.PI - 0.15, 0.45 + li * 0.1, i + j, 0.28 + li * 0.1);
             }
           }
         }
@@ -786,35 +888,134 @@
           g.fill();
         }
         if (li === 3) {
-          // 숲 바닥
-          const floor = g.createLinearGradient(0, baseY, 0, h);
-          floor.addColorStop(0, '#5d7146');
-          floor.addColorStop(1, '#2d3a24');
-          g.fillStyle = floor;
-          g.fillRect(0, baseY, w, h - baseY);
+          this.paintForestFloor(g);
         }
       });
 
-      // 우듬지: 위쪽을 덮는 짙은 잎. 아래 가장자리는 잔잎 덩어리로 들쭉날쭉하다
+      // 둥근 덩어리 대신 편백의 납작한 잎이 겹치는 우듬지. 중앙에는 햇살 틈을 둔다.
       const crown = g.createLinearGradient(0, 0, 0, h * 0.22);
-      crown.addColorStop(0, 'rgba(22,42,26,0.9)');
-      crown.addColorStop(0.55, 'rgba(30,54,34,0.45)');
+      crown.addColorStop(0, 'rgba(21,51,37,0.82)');
+      crown.addColorStop(0.55, 'rgba(38,75,44,0.24)');
       crown.addColorStop(1, 'rgba(30,54,34,0)');
       g.fillStyle = crown;
       g.fillRect(0, 0, w, h * 0.22);
       for (let d = 0; d < 3; d++) {
-        const col = MC.mix([24, 48, 28], FOG, 0.5 - d * 0.22);
-        for (let i = 0; i < w / (6 * s); i++) {
-          const x = rnd() * w;
-          const edge = h * (0.04 + 0.045 * d) + (0.5 + 0.5 * MC.fbm(x * 0.006 + d * 4)) * h * 0.05;
-          const y = Math.pow(rnd(), 0.7) * edge;
-          const r = (4 + rnd() * 11) * s;
-          g.fillStyle = MC.rgba(col, 0.5 + rnd() * 0.4);
-          g.beginPath();
-          g.ellipse(x, y, r * 1.7, r, rnd() * 0.8 - 0.4, 0, Math.PI * 2);
-          g.fill();
+        const n = Math.ceil(w / (60 * s));
+        for (let i = -1; i <= n; i++) {
+          const x = i / n * w + rnd() * 36 * s;
+          const opening = Math.exp(-Math.pow((x / w - 0.32) / 0.17, 2));
+          const y = (10 + d * 14 - opening * 22 + rnd() * 16) * s;
+          spray(x, y, (i % 2 ? 0.35 : Math.PI - 0.38) + rnd() * 0.35, 0.95 + d * 0.25, i + n + d, 0.6 + d * 0.16);
         }
       }
+    }
+
+    paintForestFloor(g) {
+      const { w, h, s } = this;
+      const rnd = MC.rng(6301);
+      const horizon = h * 0.755;
+      const floor = g.createLinearGradient(0, horizon, 0, h);
+      floor.addColorStop(0, '#8fa77b');
+      floor.addColorStop(0.3, '#678855');
+      floor.addColorStop(1, '#304d37');
+      g.fillStyle = floor;
+      g.beginPath();
+      g.moveTo(0, horizon + 8 * s);
+      g.bezierCurveTo(w * 0.18, horizon - 15 * s, w * 0.3, horizon + 14 * s, w * 0.5, horizon);
+      g.bezierCurveTo(w * 0.72, horizon - 8 * s, w * 0.86, horizon + 7 * s, w, horizon - 5 * s);
+      g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fill();
+      g.save();
+      g.clip();
+
+      // 멀리 비치는 빛으로 이어지는 흙길. 가장자리는 이끼에 스며든다.
+      const startY = horizon + 5 * s;
+      const trailDepth = h - startY + 12 * s;
+      const trail = (z) => ({ x: w * (0.43 + Math.sin(z * 5.2 - 0.8) * 0.09), y: startY + z * trailDepth, r: w * (0.003 + z * z * 0.115) });
+      const path = (pad) => {
+        g.beginPath();
+        for (let i = 0; i <= 40; i++) {
+          const p = trail(i / 40);
+          const x = p.x - p.r * pad;
+          if (i) g.lineTo(x, p.y); else g.moveTo(x, p.y);
+        }
+        for (let i = 40; i >= 0; i--) { const p = trail(i / 40); g.lineTo(p.x + p.r * pad, p.y); }
+        g.closePath();
+      };
+      path(1.22); g.fillStyle = 'rgba(177,178,113,0.23)'; g.fill();
+      path(1);
+      const earth = g.createLinearGradient(0, horizon, 0, h);
+      earth.addColorStop(0, '#afb58d'); earth.addColorStop(0.4, '#aba17a'); earth.addColorStop(1, '#7a7550');
+      g.fillStyle = earth; g.fill();
+      g.save(); g.clip();
+      for (let i = 0; i < 180; i++) {
+        const z = rnd(); const p = trail(z);
+        const x = p.x + (rnd() - 0.5) * p.r * 2;
+        g.strokeStyle = rnd() < 0.5 ? 'rgba(230,216,167,0.23)' : 'rgba(81,77,47,0.2)';
+        g.lineWidth = (0.4 + z) * s;
+        g.beginPath(); g.moveTo(x, p.y); g.lineTo(x + (2 + rnd() * 7) * z * s, p.y - z * s); g.stroke();
+      }
+      g.restore();
+
+      // 지면의 굴곡과 떨어진 비늘잎, 작은 돌, 폭신한 이끼.
+      const count = Math.ceil(w / s * 1.1);
+      for (let i = 0; i < count; i++) {
+        const z = Math.pow(rnd(), 0.65);
+        const x = rnd() * w, y = horizon + z * (h - horizon);
+        const p = trail(MC.clamp((y - startY) / trailDepth, 0, 1));
+        if (Math.abs(x - p.x) < p.r * (0.9 + rnd() * 0.35)) continue;
+        const k = (0.25 + z * 0.9) * s;
+        g.fillStyle = ['#8fa266', '#6e925b', '#527b4d', '#31563a', '#acb77c'][i % 5];
+        g.beginPath(); g.ellipse(x, y, (2 + rnd() * 8) * k, (0.6 + rnd() * 2.3) * k, rnd() * 0.2, 0, Math.PI * 2); g.fill();
+        if (i % 4 === 0) {
+          g.strokeStyle = i % 8 ? '#86975a' : '#b2ba7b'; g.lineWidth = 0.65 * k;
+          g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2 * k, y - 4 * k); g.moveTo(x, y); g.lineTo(x - 2 * k, y - 3 * k); g.stroke();
+        }
+      }
+      // 이끼 낀 돌의 작은 밝은 점과 발치의 들꽃, 작은 버섯.
+      for (let i = 0; i < 16; i++) {
+        const z = 0.15 + rnd() * 0.85;
+        const p = trail(z);
+        const side = i % 2 ? -1 : 1;
+        const k = (0.35 + z * 0.8) * s;
+        const x = p.x + side * (p.r * 1.3 + (12 + rnd() * 30) * k), y = p.y;
+        if (i % 3 === 0) {
+          g.fillStyle = '#486047'; g.beginPath(); g.ellipse(x, y + 2 * k, 14 * k, 4 * k, 0, 0, Math.PI * 2); g.fill();
+          const rock = g.createLinearGradient(0, y - 9 * k, 0, y + 3 * k);
+          rock.addColorStop(0, '#a5ad87'); rock.addColorStop(1, '#5a6c57');
+          g.fillStyle = rock; g.beginPath(); g.moveTo(x - 12 * k, y); g.quadraticCurveTo(x - 11 * k, y - 11 * k, x - 2 * k, y - 10 * k); g.quadraticCurveTo(x + 10 * k, y - 13 * k, x + 13 * k, y); g.closePath(); g.fill();
+          for (let m = 0; m < 22; m++) {
+            g.fillStyle = m % 2 ? '#819d59' : '#b3bd77';
+            g.fillRect(x + (rnd() - 0.5) * 20 * k, y - rnd() * 6 * k, (1 + rnd() * 2) * k, k);
+          }
+        } else {
+          for (let j = 0; j < 4; j++) woodlandFlower(g, x + (rnd() - 0.5) * 24 * k, y - (5 + rnd() * 9) * k, (1.5 + rnd()) * k, i % 4 ? '#f1edcf' : '#cbcbe1');
+        }
+        if (i % 2 === 0) fernFrond(g, x + side * 15 * k, y + 4 * k, (20 + rnd() * 26) * k, -Math.PI / 2 + side * 0.5, side * 0.8, true);
+      }
+      for (let i = 0; i < 32; i++) {
+        const x = rnd() * w, y = horizon + (0.2 + rnd() * 0.8) * (h - horizon), k = s * (0.4 + (y - horizon) / (h - horizon));
+        if (i % 3 === 0) {
+          g.strokeStyle = '#b5a07b'; g.lineWidth = 1.3 * k;
+          g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2 * k, y - 7 * k); g.stroke();
+          g.fillStyle = i % 2 ? '#ba8050' : '#c6a678';
+          g.beginPath(); g.ellipse(x + 2 * k, y - 7 * k, 4.5 * k, 2.2 * k, -0.2, Math.PI, Math.PI * 2); g.fill();
+        } else fernFrond(g, x, y, (18 + rnd() * 35) * k, -Math.PI / 2 + (rnd() - 0.5) * 1.3, (rnd() - 0.5) * 1.4, i % 2 === 0);
+      }
+      // 긴 그림자를 얇게 겹쳐 길과 이끼가 같은 땅 위에 놓이게 한다.
+      for (let i = 0; i < 6; i++) {
+        const width = (16 + rnd() * 24) * s;
+        g.save();
+        g.translate((i + rnd() * 0.8) / 6 * w, horizon);
+        g.rotate(-0.65);
+        const shade = g.createLinearGradient(-width, 0, width, 0);
+        shade.addColorStop(0, 'rgba(27,51,37,0)');
+        shade.addColorStop(0.5, 'rgba(27,51,37,0.15)');
+        shade.addColorStop(1, 'rgba(27,51,37,0)');
+        g.fillStyle = shade;
+        g.fillRect(-width, 0, width * 2, h * 0.6);
+        g.restore();
+      }
+      g.restore();
     }
 
     buildBeams() {
@@ -831,6 +1032,20 @@
         const len = h * 1.25;
         this.beams.push({ x0, bx0: x0, y0: -20, dx, dy, w0, w1: w0 * 2.6, len, base: 0.12 + rnd() * 0.14, seed: rnd() * 40 });
       }
+      // 가장자리가 사라지는 빛. 선명한 삼각형 띠가 숲을 가르지 않도록 한다.
+      const c = (this.beamImg = MC.canvas(128, 256));
+      const g = c.getContext('2d');
+      const pixels = g.createImageData(128, 256);
+      for (let y = 0; y < 256; y++) {
+        const z = y / 255;
+        for (let x = 0; x < 128; x++) {
+          const i = (y * 128 + x) * 4;
+          const across = (x - 63.5) / (12 + z * 30);
+          pixels.data[i] = 255; pixels.data[i + 1] = 242; pixels.data[i + 2] = 201;
+          pixels.data[i + 3] = Math.round(255 * Math.exp(-across * across * 2.4) * Math.pow(1 - z, 1.2));
+        }
+      }
+      g.putImageData(pixels, 0, 0);
     }
 
     buildFerns() {
@@ -840,14 +1055,24 @@
       const n = Math.max(5, Math.round(w / (150 * s)));
       for (let i = 0; i < n; i++) {
         const left = i % 2 === 0;
-        this.ferns.push({
+        const edge = Math.abs((i + 0.5) / n - 0.5) > 0.33;
+        const f = {
           x: ((i + 0.5) / n) * w + (rnd() - 0.5) * 60 * s,
-          len: (130 + rnd() * 110) * s,
+          // 큰 고사리는 가장자리에서 화면을 감싸고, 멍이 앞쪽 잎은 낮게.
+          len: (110 + rnd() * 100) * s * (edge ? 1 : 0.43),
           a0: -Math.PI / 2 + (left ? -1 : 1) * (0.35 + rnd() * 0.45),
           bend: (left ? -1 : 1) * (0.5 + rnd() * 0.5),
           seed: rnd() * 30,
           tone: 0.85 + rnd() * 0.15,
-        });
+        };
+        const W = Math.ceil(f.len * 2.2), H = Math.ceil(f.len * 1.2);
+        const c = MC.canvas(W * this.dpr, H * this.dpr);
+        const g = c.getContext('2d');
+        g.scale(this.dpr, this.dpr);
+        fernFrond(g, W / 2, H - 4 * s, f.len, f.a0, f.bend, i % 3 === 0);
+        fernFrond(g, W / 2, H - 4 * s, f.len * 0.68, f.a0 + (left ? 0.6 : -0.6), -f.bend * 0.6, false);
+        f.sprite = { c, W, H, ax: W / 2, ay: H - 4 * s };
+        this.ferns.push(f);
       }
     }
 
@@ -929,6 +1154,15 @@
         g.ellipse(0.5 * s, 0, (hw * k) / 5, (ry * k) / 5, 0, 0, Math.PI * 2);
         g.stroke();
       }
+      g.strokeStyle = 'rgba(114,76,41,0.55)';
+      g.lineWidth = 0.65 * s;
+      for (const a of [0.3, 2.4, 4.7]) {
+        g.beginPath();
+        g.moveTo(Math.cos(a) * hw, Math.sin(a) * ry);
+        g.lineTo(Math.cos(a + 0.12) * hw * 0.68, Math.sin(a + 0.12) * ry * 0.68);
+        g.lineTo(Math.cos(a) * hw * 0.55, Math.sin(a) * ry * 0.55);
+        g.stroke();
+      }
       // 이끼
       for (let i = 0; i < 16; i++) {
         const a = rnd() * Math.PI;
@@ -938,6 +1172,11 @@
         g.beginPath();
         g.ellipse(x, y, (4 + rnd() * 6) * s, (2.4 + rnd() * 3) * s, 0, 0, Math.PI * 2);
         g.fill();
+        for (let j = 0; j < 4; j++) {
+          const mx = x + (rnd() - 0.5) * 9 * s, my = y + (rnd() - 0.5) * 3 * s;
+          g.strokeStyle = j % 2 ? '#bdd287' : '#9abe68'; g.lineWidth = 0.7 * s;
+          g.beginPath(); g.moveTo(mx, my); g.lineTo(mx + s, my - 2.5 * s); g.stroke();
+        }
       }
       // 빨간 버섯 둘
       for (const [mx, sc] of [[hw * 1.18, 1], [hw * 1.55, 0.7]]) {
@@ -992,7 +1231,7 @@
       this.stumpBox = { W, H, ox: W / 2, oy: st.h * 0.55 };
     }
 
-    // ── 큰 편백과 낮은 가지 둘 ───────────────────────────────────
+    // ── 큰 편백과 쉬어 갈 수 있는 여섯 가지 ──────────────────────
     buildTree() {
       const { w, h, dpr, s } = this;
       const P = w < h * 0.9;
@@ -1009,7 +1248,7 @@
       const topY = Math.max(h * 0.1, 92 * s);
       const step = (lowY - topY) / (NB - 1);
       const ends = P ? [0.36, 0.44, 0.38, 0.46, 0.42, 0.52] : [0.49, 0.58, 0.51, 0.6, 0.55, 0.66];
-      const rises = [22, 12, 26, 15, 24, 18];
+      const rises = [31, 18, 34, 22, 29, 20];
       const jit = [0, 0.16, -0.1, 0.14, -0.08, 0];
       const branches = [];
       for (let i = 0; i < NB; i++) {
@@ -1018,10 +1257,10 @@
         const th1 = Math.max(9, 17 - i * 1.3) * s;
         branches.push({ x0: tx - half(y0) * 0.8, y0, x1: w * ends[i], y1: y0 - rises[i] * s, th0, th1 });
       }
-      for (const br of branches) {
-        br.cx = (br.x0 + br.x1) / 2;
-        br.cy = Math.max(br.y0, br.y1) + 8 * s;
-      }
+      branches.forEach((br, i) => {
+        br.cx = MC.lerp(br.x0, br.x1, 0.43 + (i % 3) * 0.05);
+        br.cy = Math.max(br.y0, br.y1) + (i % 2 ? 13 : 5) * s;
+      });
       this.tree = { x: tx, w: tw, branches };
       // 자리: 1 그루터기, 2.. 아래 가지(줄기 쪽부터), 그다음 위 가지
       this.spots = [null, { kind: 'stump' }];
@@ -1046,7 +1285,7 @@
       g.scale(dpr, dpr);
       g.lineJoin = 'round';
       g.lineCap = 'round';
-      this.sprays = [makeSpray(80 * s, 11, dpr, true), makeSpray(66 * s, 23, dpr, false), makeSpray(56 * s, 37, dpr, true), makeSpray(72 * s, 51, dpr, false)];
+      this.sprays = [makeSpray(112 * s, 11, dpr, true), makeSpray(90 * s, 23, dpr, false), makeSpray(78 * s, 37, dpr, true), makeSpray(103 * s, 51, dpr, false)];
       const spray = (x, y, a, i, sc = 1) => {
         const sp = this.sprays[i % this.sprays.length];
         g.save();
@@ -1059,11 +1298,13 @@
 
       // 가지 뒤로 드리운 잎 (가지보다 먼저): 위로 비스듬히, 옆으로 납작하게 겹겹이
       branches.forEach((br, bi) => {
-        const n = bi ? 5 : 6;
+        const n = 8;
         for (let i = 0; i < n; i++) {
           const t = 0.1 + (i / (n - 1)) * 0.82 + (rnd() - 0.5) * 0.06;
           const p = this.branchPoint(br, t);
-          spray(p.x, p.y + 2 * s, Math.PI + (i % 2 ? -0.62 : -0.22) + (rnd() - 0.5) * 0.3, i + bi, (0.7 + rnd() * 0.35) * (bi > 1 ? 0.85 : 1));
+          // 잎은 옆과 아래로 퍼지고, 멍이가 누울 윗면은 비워 둔다.
+          spray(p.x, p.y + 5 * s, Math.PI - (i % 2 ? 0.95 : 0.3) + (rnd() - 0.5) * 0.22, i + bi, (0.7 + rnd() * 0.35) * (bi > 1 ? 0.85 : 1));
+          if (i < 3) spray(p.x, p.y + 6 * s, 0.7 + rnd() * 0.5, bi + i + 1, 0.8);
         }
       });
 
@@ -1195,14 +1436,33 @@
         g.beginPath();
         g.ellipse(kp.x, kp.y + br.th0 * 0.45, 3.5 * s, 2.4 * s, 0, 0, Math.PI * 2);
         g.fill();
+        // 작은 회청색 지의류와 이끼의 짧은 줄기.
+        for (let j = 0; j < 9; j++) {
+          const p = this.branchPoint(br, 0.08 + rnd() * 0.83);
+          g.strokeStyle = j % 3 ? '#b0c681' : '#b6c6aa';
+          g.lineWidth = 0.7 * s;
+          g.beginPath();
+          g.moveTo(p.x, p.y + 2 * s); g.lineTo(p.x + s, p.y - 2 * s);
+          g.moveTo(p.x, p.y); g.lineTo(p.x - 2 * s, p.y - s); g.stroke();
+        }
       });
 
       // 가지 아래로 늘어진 잎
       branches.forEach((br, bi) => {
-        for (let i = 0; i < 3; i++) {
-          const t = 0.18 + i * 0.32 + rnd() * 0.08;
+        for (let i = 0; i < 5; i++) {
+          const t = 0.08 + i * 0.19 + rnd() * 0.06;
           const p = this.branchPoint(br, t);
-          spray(p.x, p.y + MC.lerp(br.th0, br.th1, t) * 0.75, Math.PI - 1.05 + (rnd() - 0.5) * 0.35, i + bi + 1, 0.6 + rnd() * 0.25);
+          spray(p.x, p.y + MC.lerp(br.th0, br.th1, t) * 0.8, Math.PI - 1.05 + (rnd() - 0.5) * 0.35, i + bi + 1, 0.72 + rnd() * 0.2);
+          // 편백 열매: 작은 둥근 구과와 갈라진 비늘.
+          if ((i + bi) % 3 === 0) {
+            const cx = p.x - 13 * s, cy = p.y + 26 * s, r = 3.8 * s;
+            g.strokeStyle = '#66523a'; g.lineWidth = 0.7 * s;
+            g.beginPath(); g.moveTo(p.x, p.y + 8 * s); g.lineTo(cx, cy); g.stroke();
+            g.fillStyle = '#a49162'; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+            g.beginPath(); g.moveTo(cx - r * 0.8, cy); g.lineTo(cx + r * 0.8, cy);
+            g.moveTo(cx, cy - r * 0.85); g.lineTo(cx - r * 0.2, cy); g.lineTo(cx + r * 0.3, cy + r * 0.85); g.stroke();
+            g.fillStyle = '#dac994'; g.fillRect(cx - s, cy - 2 * s, s, s);
+          }
         }
       });
       // 밑동: 뿌리 사이에 낀 이끼 (밑으로 갈수록 짙게)
@@ -1483,6 +1743,10 @@
         // 숲 바닥을 톡: 걸어간다
         if (this.crowd.walkTo(x, y)) return true;
       }
+      return this.stirLeaves(x);
+    }
+
+    stirLeaves(x) {
       this.gust = Math.min(1.2, this.gust + 0.75);
       for (let i = 0; i < 5; i++) {
         const l = this.newLeaf(false);
@@ -1495,7 +1759,7 @@
     }
 
     breeze() {
-      return this.pointerDown(this.w * MC.rand(0.2, 0.8));
+      return this.stirLeaves(this.w * MC.rand(0.2, 0.8));
     }
 
     beamAlpha(b) {
@@ -1606,40 +1870,14 @@
     }
 
     drawFern(g, f) {
-      const s = this.s;
       const sway = MC.fbm(this.t * 0.7 + f.seed) * 0.06 + this.gust * 0.14 * Math.sin(this.t * 2.2 + f.seed);
-      const a0 = f.a0 + sway;
-      const bend = f.bend * (1 + this.gust * 0.3);
-      const base = { x: f.x, y: this.h + 8 * s };
-      const N = 16;
-      let x = base.x;
-      let y = base.y;
-      let a = a0;
-      const seg = f.len / N;
-      g.strokeStyle = `rgba(22,44,24,${f.tone})`;
-      g.fillStyle = `rgba(26,52,28,${f.tone})`;
-      g.lineWidth = 2 * s;
-      g.beginPath();
-      g.moveTo(x, y);
-      const pts = [];
-      for (let i = 0; i < N; i++) {
-        a += (bend / N) * 1.2;
-        x += Math.cos(a) * seg;
-        y += Math.sin(a) * seg;
-        g.lineTo(x, y);
-        pts.push([x, y, a, 1 - i / N]);
-      }
-      g.stroke();
-      for (let i = 1; i < pts.length; i++) {
-        const [px, py, pa, rest] = pts[i];
-        const ll = (6 + 22 * Math.sin(Math.PI * Math.min(1, (1 - rest) * 1.1 + 0.05))) * s * (0.4 + 0.6 * rest);
-        for (const side of [-1, 1]) {
-          const la = pa + side * 1.15;
-          g.beginPath();
-          g.ellipse(px + Math.cos(la) * ll * 0.5, py + Math.sin(la) * ll * 0.5, ll * 0.5, ll * 0.16, la, 0, Math.PI * 2);
-          g.fill();
-        }
-      }
+      const sp = f.sprite;
+      g.save();
+      g.translate(f.x, this.h + 8 * this.s);
+      g.rotate(sway);
+      g.globalAlpha = f.tone;
+      g.drawImage(sp.c, -sp.ax, -sp.ay, sp.W, sp.H);
+      g.restore();
     }
 
     draw(g) {
@@ -1650,23 +1888,12 @@
       // 빛내림
       g.globalCompositeOperation = 'lighter';
       for (const b of this.beams) {
-        const a = this.beamAlpha(b);
-        const ex = b.x0 + b.dx * b.len;
-        const ey = b.y0 + b.dy * b.len;
-        const nx = -b.dy;
-        const ny = b.dx;
-        const grd = g.createLinearGradient(b.x0, b.y0, ex, ey);
-        grd.addColorStop(0, `rgba(255,244,210,${a})`);
-        grd.addColorStop(0.6, `rgba(255,244,210,${a * 0.45})`);
-        grd.addColorStop(1, 'rgba(255,244,210,0)');
-        g.fillStyle = grd;
-        g.beginPath();
-        g.moveTo(b.x0 - (nx * b.w0) / 2, b.y0 - (ny * b.w0) / 2);
-        g.lineTo(b.x0 + (nx * b.w0) / 2, b.y0 + (ny * b.w0) / 2);
-        g.lineTo(ex + (nx * b.w1) / 2, ey + (ny * b.w1) / 2);
-        g.lineTo(ex - (nx * b.w1) / 2, ey - (ny * b.w1) / 2);
-        g.closePath();
-        g.fill();
+        g.save();
+        g.translate(b.x0, b.y0);
+        g.rotate(Math.atan2(b.dy, b.dx) - Math.PI / 2);
+        g.globalAlpha = this.beamAlpha(b) * 1.6;
+        g.drawImage(this.beamImg, -b.w1 / 2, 0, b.w1, b.len);
+        g.restore();
       }
 
       // 빛줄기 안에서만 반짝이는 먼지
@@ -1720,10 +1947,9 @@
         const zb = this.stumpBlock().z;
         this.crowd.draw(g, this.dpr, (Z, up) => !up && Z < zb, w);
         g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
-        this.crowd.draw(g, this.dpr, (Z, up, spot) => (up && spot <= 1) || (!up && Z >= zb), w);
+        this.crowd.draw(g, this.dpr, (Z, up) => !up && Z >= zb, w);
       } else {
         g.drawImage(this.stumpImg, this.stump.x - sb.ox, this.stump.top - sb.oy, sb.W, sb.H);
-        this.pup.draw(g, this.dpr);
       }
       // 큰 편백과 가지, 그 위에 엎드린 멍이들 (가지 너머로 늘어진 뒷다리와 꼬리를 먼저)
       if (this.crowd) {
@@ -1735,7 +1961,9 @@
       }
       g.drawImage(this.treeImg, 0, 0, w, h);
       this.drawTips(g);
-      if (this.crowd) this.crowd.draw(g, this.dpr, (Z, up, spot) => up && spot >= 2, w);
+      // 앞쪽 그루터기에서 쉬는 멍이의 얼굴은 낮게 늘어진 편백 잎에 가리지 않는다.
+      if (this.crowd) this.crowd.draw(g, this.dpr, (Z, up) => up, w);
+      else this.pup.draw(g, this.dpr);
       this.drawDapples(g, 'tree');
       this.squirrel.draw(g, this);
       for (const b of this.birds) b.draw(g, this);
