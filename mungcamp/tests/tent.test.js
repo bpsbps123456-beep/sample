@@ -3,18 +3,18 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person({ nick: '나른함' });
   cleanup(() => who.close());
   const A = who.page;
   // 모닥불 장면에는 텐트가 없다
-  await A.goto(site.url + '#fire');
+  await enter(A, site.url, 'fire');
   await until(A, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w));
   check(await A.evaluate(() => { const sc = MC.app.state.sceneObj; return !sc.tent && !sc.goTent && !sc.portalHint; }), '모닥불에는 텐트가 없다');
   // 마을의 글램핑장 앞에서 '들어가기'
-  await A.goto(site.url + '#');
+  await A.goto(site.url);
   await until(A, () => MC.app.state.view === 'home');
   await A.evaluate(() => MC.app.camp.placeAt('tent'));
   await sleep(500);
@@ -39,7 +39,7 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
 
   // 같은 브라우저의 다른 탭(B)도 같은 자리를 골라 눕는다 → 옆자리
   const B = await who.tab('B');
-  await B.goto(site.url + '#tent');
+  await enter(B, site.url, 'tent');
   await until(B, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w && MC.app.state.sceneObj.crowd.visitors.size === 1), null, 10000);
   await sleep(2000);
   const want = await A.evaluate(() => MC.app.state.sceneObj.bedSpot);

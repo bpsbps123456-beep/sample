@@ -14,7 +14,7 @@ main(async ({ check, staticServer, person, until, shot, sleep, cleanup }) => {
     check(await until(page, () => !!(window.MC && MC.app && MC.app.camp && MC.app.camp.ground)), `${tag}: 캠프 마을이 열린다`);
     await shot(page, `smoke-${phone ? 'p' : 'd'}-map`);
     for (const name of ['fire', 'water', 'forest', 'tent']) {
-      await page.evaluate((n) => { location.hash = n; }, name);
+      await page.evaluate((n) => { MC.app.camp.placeAt(n); MC.app.enterScene(n); }, name);
       const ok = await until(page, (n) => MC.app.state.scene === n && !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w), name);
       await sleep(1200);
       check(ok, `${tag}: ${name} 장면이 열린다`);

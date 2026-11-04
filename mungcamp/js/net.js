@@ -350,6 +350,13 @@
       return out;
     }
 
+    // 지금 멍캠프 어디에든 있는 사람 수 (나도 포함)
+    total() {
+      let n = 0;
+      for (const p of PLACES) n += this.count(p);
+      return n;
+    }
+
     // 이곳에 있는 사람 수 (나도 포함)
     count(place) {
       if (this.counts && this.kind === 'socket') return Math.max(this.counts[place] || 0, this.mine.p === place ? 1 : 0);

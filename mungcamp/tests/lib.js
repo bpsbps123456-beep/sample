@@ -184,6 +184,17 @@ async function tapVisitor(page) {
   return true;
 }
 
+// 장소에 들어가기: 장소에는 걸어서만 가므로, 마을을 열고 그 자리 앞에 서서 '들어가기'와 같은 길로 들어간다
+async function enter(page, base, name) {
+  await page.goto(base);
+  await until(page, () => !!(window.MC && MC.app && MC.app.state.view === 'home' && MC.app.camp.w > 1), null, 15000);
+  await page.evaluate((n) => {
+    MC.app.camp.placeAt(n);
+    MC.app.enterScene(n);
+  }, name);
+  return until(page, (n) => MC.app.state.scene === n && !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w), name, 15000);
+}
+
 async function shot(page, name) {
   fs.mkdirSync(SHOTS, { recursive: true });
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
@@ -192,7 +203,7 @@ async function shot(page, name) {
 // 시험 하나를 돌린다: 예외도 실패로 세고, 끝나면 열어 둔 것을 닫는다
 function main(fn) {
   const cleanup = [];
-  const ctx = { check, until, shot, sleep, staticServer, presenceServer, copySite, person, tapVisitor, ROOT, cleanup: (f) => cleanup.push(f) };
+  const ctx = { check, until, shot, sleep, enter, staticServer, presenceServer, copySite, person, tapVisitor, ROOT, cleanup: (f) => cleanup.push(f) };
   (async () => {
     try {
       await fn(ctx);
@@ -212,4 +223,4 @@ function main(fn) {
   })();
 }
 
-module.exports = { main, check, until, shot, sleep, staticServer, presenceServer, copySite, person, tapVisitor, ROOT };
+module.exports = { main, check, until, shot, sleep, enter, staticServer, presenceServer, copySite, person, tapVisitor, ROOT };

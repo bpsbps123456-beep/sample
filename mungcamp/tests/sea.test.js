@@ -3,13 +3,13 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, shot, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, shot, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person({ nick: '둥실', look: { c: 2, h: 5 } });
   cleanup(() => who.close());
   const A = who.page;
-  await A.goto(site.url + '#water');
+  await enter(A, site.url, 'water');
   await until(A, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w));
   await sleep(1500);
   check(await A.evaluate(() => !document.querySelector('#sceneActWrap').hidden && document.querySelector('#sceneAct').textContent === '튜브 타기'), "'튜브 타기' 단추");
@@ -27,7 +27,7 @@ main(async ({ check, staticServer, person, until, sleep, shot, cleanup }) => {
   check(await A.evaluate(() => !!MC.app.state.sceneObj.crowd.target), '바다를 톡 하면 그쪽으로 헤엄쳐 간다');
 
   const B = await who.tab('B');
-  await B.goto(site.url + '#water');
+  await enter(B, site.url, 'water');
   const seen = await until(B, () => { const sc = MC.app.state.sceneObj; if (!sc || !sc.crowd) return false; const v = [...sc.crowd.visitors.values()][0]; return !!v && v.pup.rest === 'tube' && v.pup.lie === 1; }, null, 12000);
   check(seen, '다른 사람 화면에서도 튜브 위에 떠 있다');
   await B.close();

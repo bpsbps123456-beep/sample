@@ -240,10 +240,7 @@
   const canSuggest = !!(presenceMeta && presenceMeta.content === 'auto' && window.fetch);
   const suggestOpen = () => !suggestCard.hidden;
   let suggestBack = null;
-  if (canSuggest) {
-    $('#suggestBtn').hidden = false;
-    $('#footSuggest').hidden = false;
-  }
+  if (canSuggest) $('#suggestBtn').hidden = false;
   function suggestNote(msg) {
     if (msg) {
       suggestFine.textContent = msg;
@@ -266,7 +263,6 @@
     try { if (suggestBack && suggestBack.focus) suggestBack.focus({ preventScroll: true }); } catch (e) { /* 무시 */ }
   }
   $('#suggestBtn').addEventListener('click', openSuggest);
-  $('#suggestLink').addEventListener('click', openSuggest);
   $('#suggestCancel').addEventListener('click', closeSuggest);
   suggestCard.addEventListener('click', (e) => { if (e.target === suggestCard) closeSuggest(); });
   suggestCard.addEventListener('keydown', (e) => {
@@ -397,7 +393,19 @@
       showTogether(together.session, net.count(state.scene));
       return;
     }
-    showTogether(together.camp, net.count('map'));
+    // 마을에 있는 사람과 멍캠프 어디에든 있는 사람 (둘 이상일 때만)
+    const here = net.count('map');
+    const all = net.total();
+    const el = together.camp;
+    const on = all >= 2;
+    if (el.hidden === on) el.hidden = !on;
+    if (on) {
+      const bh = el.querySelector('[data-n="here"]');
+      const ba = el.querySelector('[data-n="all"]');
+      if (bh.textContent !== String(here)) bh.textContent = String(here);
+      if (ba.textContent !== String(all)) ba.textContent = String(all);
+      el.setAttribute('aria-label', `마을에 ${here}명, 멍캠프에 모두 ${all}명`);
+    }
     for (const s of MC.CAMP_SPOTS) {
       const e = spotEls[s.id];
       if (!e || !e.count) continue;
@@ -538,8 +546,10 @@
     enterScene(s.id);
   }
 
+  // 장소에는 걸어서만 들어간다: 마을에서 '들어가기'를 누른 것만 연다
   function enterScene(id) {
     state.lastSpot = id;
+    state.allowEnter = id;
     location.hash = id;
   }
 
@@ -563,17 +573,7 @@
     }
     drag.x = e.clientX;
     drag.y = e.clientY;
-    let rest = dy;
-    // 손가락을 따라 바로 움직여야 하니 부드러운 스크롤(CSS)은 쓰지 않는다
-    const scroll = (by) => window.scrollBy({ top: by, behavior: 'instant' });
-    // 페이지가 내려가 있으면 먼저 페이지를 올린다
-    if (dy > 0 && window.scrollY > 0) {
-      const up = Math.min(dy, window.scrollY);
-      scroll(-up);
-      rest -= up;
-    }
-    const left = camp.pan(dx, rest);
-    if (left < 0) scroll(-left);
+    camp.pan(dx, dy);
     e.preventDefault();
   });
   const endDrag = (e) => {
@@ -608,26 +608,6 @@
       const sc = state.sceneObj;
       if (sc && sc.crowd) sc.crowd.setKeys(x, y);
     } else camp.setKeys(x, y);
-  }
-
-  function renderThumbs() {
-    for (const c of $$('.seat-thumb')) {
-      const r = c.getBoundingClientRect();
-      if (!r.width) continue;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      c.width = Math.round(r.width * dpr);
-      c.height = Math.round(r.height * dpr);
-      const name = c.dataset.scene;
-      const make = { fire: MC.FireScene, water: MC.WaterScene, forest: MC.ForestScene, tent: MC.TentScene }[name];
-      if (!make) continue;
-      const sc = new make({ preview: true });
-      sc.quality = 0.8;
-      sc.resize(r.width, r.height, dpr);
-      for (let i = 0; i < 120; i++) sc.update(1 / 60);
-      const g = c.getContext('2d');
-      g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      sc.draw(g);
-    }
   }
 
   // ── 세션 열고 닫기 ─────────────────────────────────────
@@ -760,7 +740,6 @@
     home.hidden = false;
     document.body.classList.remove('in-session');
     camp.placeAt(state.lastSpot || from);
-    renderThumbs();
     startCamp();
   }
 
@@ -784,8 +763,20 @@
 
   function route() {
     const name = location.hash.slice(1);
-    if (SCENES[name]) openSession(name);
-    else if (state.view === 'session') closeSession();
+    if (SCENES[name]) {
+      if (state.allowEnter === name) {
+        state.allowEnter = null;
+        openSession(name);
+        return;
+      }
+      // 주소로 바로 오거나 앞으로 가기를 눌러도 장소로 건너뛰지 않는다: 마을의 그 자리 앞에 선다
+      const cur = state.view === 'session' ? state.scene : '';
+      try { history.replaceState(null, '', location.pathname + location.search + (cur ? '#' + cur : '')); } catch (e) { /* 막혀 있으면 그대로 */ }
+      if (state.view === 'home') {
+        state.lastSpot = name;
+        camp.placeAt(name);
+      }
+    } else if (state.view === 'session') closeSession();
   }
 
   // ── 진행 중 ───────────────────────────────────────────
@@ -1286,20 +1277,11 @@
   });
   window.addEventListener('hashchange', route);
 
-  let resizeTimer = 0;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { if (state.view === 'home') renderThumbs(); }, 300);
-  });
-
   // 시작
   route();
   backToSpot();
   if (state.view === 'home') startCamp();
   if (!net.name) askNick();
-  const afterFonts = () => renderThumbs();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(afterFonts, afterFonts);
-  else setTimeout(afterFonts, 100);
 
   // 오프라인에서도 열리도록 (지원하는 곳에서만)
   try {

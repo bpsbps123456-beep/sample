@@ -55,38 +55,13 @@
       <canvas class="camp-canvas" id="campCanvas" tabindex="0" aria-label="캠프 마을. 방향키나 클릭으로 멍이를 걷게 해요"></canvas>
       <div class="camp-layer" id="campLayer" aria-hidden="false"><p class="name-tag" id="campName" aria-live="polite"></p></div>
       <h1 class="camp-title">멍 때리고 가요.</h1>
-      <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>함께 <b></b></span></p>
+      <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>마을 <b data-n="here"></b></span><span class="together-sep" aria-hidden="true"></span><span>모두 <b data-n="all"></b></span></p>
       <p class="camp-hint" id="campHint"></p>
       <button class="chip camp-tool camp-suggest" id="suggestBtn" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg><span>건의하기</span></button>
       <button class="chip camp-tool camp-chair" id="chairBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-chair"/></svg><span>의자</span></button>
       <p class="toast toast-camp" id="campToast" role="status" aria-live="polite"></p>
     </header>
 
-    <main>
-      <section class="band seats" id="seats" aria-label="장소">
-        <div class="wrap">
-          <div class="seat-grid">
-            <a class="seat seat-fire" href="#fire">
-              <canvas class="seat-thumb" data-scene="fire" aria-hidden="true"></canvas>
-              <div class="seat-body"><h3>모닥불</h3></div>
-            </a>
-            <a class="seat seat-water" href="#water">
-              <canvas class="seat-thumb" data-scene="water" aria-hidden="true"></canvas>
-              <div class="seat-body"><h3>달빛 바다</h3></div>
-            </a>
-            <a class="seat seat-forest" href="#forest">
-              <canvas class="seat-thumb" data-scene="forest" aria-hidden="true"></canvas>
-              <div class="seat-body"><h3>편백 숲</h3></div>
-            </a>
-            <a class="seat seat-tent" href="#tent">
-              <canvas class="seat-thumb" data-scene="tent" aria-hidden="true"></canvas>
-              <div class="seat-body"><h3>글램핑</h3></div>
-            </a>
-          </div>
-          <p class="foot-suggest" id="footSuggest" hidden>멍캠프에 바라는 점이 있나요? <button class="link-btn" id="suggestLink" type="button">건의하기</button></p>
-        </div>
-      </section>
-    </main>
   </div>
 
   <div class="session" id="session" hidden>

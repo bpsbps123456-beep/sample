@@ -2,7 +2,7 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, presenceServer, person, until, sleep, cleanup }) => {
+main(async ({ check, presenceServer, person, until, sleep, cleanup, enter }) => {
   const srv = await presenceServer({ ROOM_CAP: '2' });
   cleanup(() => srv.close());
   const html = await (await fetch(srv.url)).text();
@@ -16,7 +16,7 @@ main(async ({ check, presenceServer, person, until, sleep, cleanup }) => {
     const p = await person({ nick: n, name: n });
     cleanup(() => p.close());
     people.push(p);
-    await p.page.goto(srv.url + '#fire');
+    await enter(p.page, srv.url, 'fire');
     await until(p.page, () => MC.app && MC.app.net && MC.app.net.online, null, 8000);
     await sleep(500);
   }

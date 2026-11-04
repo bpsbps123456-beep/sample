@@ -52,6 +52,6 @@ main(async ({ check, staticServer, presenceServer, person, until, sleep, cleanup
   const B = await who.tab('static');
   await B.goto(site.url);
   await until(B, () => MC.app.state.view === 'home');
-  check(!(await B.isVisible('#suggestBtn')) && !(await B.isVisible('#footSuggest')), '서버가 없는 곳에서는 건의하기가 숨는다');
+  check(!(await B.isVisible('#suggestBtn')), '서버가 없는 곳에서는 건의하기가 숨는다');
   check(who.errors.length === 0, '오류 없음', who.errors.slice(0, 3));
 });

@@ -4,7 +4,7 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person();
@@ -49,7 +49,8 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
     return Math.round(10 * Math.log10(sum / n + 1e-12));
   });
   const open = async (page, name) => {
-    await page.goto(site.url + (name === 'home' ? '' : '#' + name));
+    if (name === 'home') await page.goto(site.url);
+    else await enter(page, site.url, name);
     await until(page, () => !!(MC.app.state.view === 'home' || (MC.app.state.sceneObj && MC.app.state.sceneObj.w)));
     await sleep(400);
     // 소리는 누른 뒤에야 켜진다

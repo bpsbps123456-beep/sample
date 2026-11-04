@@ -233,6 +233,7 @@ a { color: inherit; }
 }
 .together[hidden] { display: none; }
 .together b { font-weight: 700; color: #ffd9a8; }
+.together-sep { width: 1px; height: 16px; margin: 0 2px; background: var(--glass-line); }
 .ico-pup { width: 30px; height: 26px; flex: none; margin-top: -3px; }
 .together-camp {
   position: absolute;
@@ -250,43 +251,6 @@ a { color: inherit; }
 }
 .spot-count[hidden] { display: none; }
 .spot-count .ico-pup { width: 22px; height: 19px; margin-top: -4px; }
-
-/* ── 공통 섹션 ───────────────────────── */
-.band { padding-block: clamp(56px, 8vw, 96px) clamp(72px, 10vw, 128px); }
-.band h2 {
-  font-family: var(--font-display);
-  font-size: var(--step-3);
-  font-weight: 700;
-  line-height: 1.05;
-  margin: 0 0 1.2em;
-  text-wrap: balance;
-}
-
-/* ── 자리 고르기 ─────────────────────── */
-.seat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-.seat {
-  display: flex;
-  flex-direction: column;
-  padding: 10px;
-  background: var(--night-2);
-  border: 1px solid transparent;
-  border-radius: var(--r-card);
-  overflow: hidden;
-  text-decoration: none;
-  transition: transform 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;
-  min-width: 0;
-}
-.seat-fire { --accent: var(--ember); }
-.seat-water { --accent: var(--sea); }
-.seat-forest { --accent: var(--moss); }
-.seat-tent { --accent: #ffd590; }
-.seat:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35); }
-.seat-thumb { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; background: var(--night-3); border-radius: calc(var(--r-card) - 8px); }
-.seat-body { padding: 12px 12px 8px; }
-.seat h3 { margin: 0; font-family: var(--font-display); font-size: var(--step-2); font-weight: 700; line-height: 1.1; color: var(--accent); }
-.foot-suggest { margin: 40px 0 0; text-align: center; font-size: var(--step-0); color: var(--ink-dim); }
-.foot-suggest[hidden] { display: none; }
-.foot-suggest .link-btn { font-size: inherit; color: var(--ember-hi); text-decoration: underline; text-underline-offset: 4px; }
 
 /* ── 세션 ───────────────────────────── */
 .session {
@@ -680,6 +644,6 @@ a { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .seat, .ui, .toast, .guidance { transition: none; }
+  .ui, .toast, .guidance { transition: none; }
   .modal, .pup-face, .spot-act, .together, .scene-act { animation: none; }
 }

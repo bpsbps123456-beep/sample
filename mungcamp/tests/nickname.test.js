@@ -39,8 +39,8 @@ main(async ({ check, presenceServer, person, until, sleep, tapVisitor, cleanup }
   check((await B.page.evaluate(() => MC.app.net.name)) === ph, '비워 두면 예시 단어', ph);
 
   // 모닥불에서 A 가 B 를 톡: 머리 위에 B 의 단어가 잠깐
-  await A.page.evaluate(() => { location.hash = 'fire'; });
-  await B.page.evaluate(() => { location.hash = 'fire'; });
+  await A.page.evaluate(() => { MC.app.camp.placeAt('fire'); MC.app.enterScene('fire'); });
+  await B.page.evaluate(() => { MC.app.camp.placeAt('fire'); MC.app.enterScene('fire'); });
   await until(A.page, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.crowd && MC.app.state.sceneObj.crowd.visitors.size === 1), null, 12000);
   await sleep(6000);
   check(!(await A.page.evaluate(() => document.querySelector('#sceneName').classList.contains('is-on'))), '누르기 전에는 단어가 보이지 않는다');

@@ -1,17 +1,17 @@
 // 같은 브라우저의 두 탭 (서버 없이 BroadcastChannel): 서로의 멍이가 보이고,
-// 하트를 보내면 받은 쪽 멍이에게서도 하트가 오르고 응원 알림이 뜬다
+// 하트를 보내면 받은 쪽 멍이에게서도 하트가 오르고 응원 알림이 뜬다. 첫 화면에는 마을 인원과 모두의 인원
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, tapVisitor, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, tapVisitor, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person({ nick: '포근함' });
   cleanup(() => who.close());
   const A = who.page;
   const B = await who.tab('B');
-  await A.goto(site.url + '#fire');
-  await B.goto(site.url + '#fire');
+  await enter(A, site.url, 'fire');
+  await enter(B, site.url, 'fire');
   const seen = await until(A, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.crowd && MC.app.state.sceneObj.crowd.visitors.size === 1), null, 12000);
   check(seen, '모닥불: A 화면에 B 멍이가 보인다');
   check((await A.evaluate(() => MC.app.net.kind)) === 'channel', '연결: 같은 브라우저 탭끼리', await A.evaluate(() => MC.app.net.kind));
@@ -22,5 +22,9 @@ main(async ({ check, staticServer, person, until, sleep, tapVisitor, cleanup }) 
   check(await until(B, (h) => (MC.app.state.sceneObj.pup.heartBursts || 0) > h, hb0, 6000), 'B 멍이에게서도 하트가 오른다');
   const toast = await B.evaluate(() => document.querySelector('#toast').textContent);
   check(/포근함님이 나를 응원해주고 있어요/.test(toast), 'B 에게 응원 알림 (보낸 사람의 마음 단어)', toast);
+  // 마을에 온 세 번째 탭: 오른쪽 위에 '마을 1 · 모두 3'
+  const C = await who.tab('C');
+  await C.goto(site.url);
+  check(await until(C, () => { const el = document.querySelector('#campTogether'); return !el.hidden && el.querySelector('[data-n="here"]').textContent === '1' && el.querySelector('[data-n="all"]').textContent === '3'; }, null, 10000), "첫 화면 오른쪽 위: '마을 1 · 모두 3'", await C.evaluate(() => document.querySelector('#campTogether').textContent));
   check(who.errors.length === 0, '오류 없음', who.errors.slice(0, 3));
 });

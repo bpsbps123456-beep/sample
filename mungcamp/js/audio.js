@@ -1232,7 +1232,7 @@
       st.connect(this.layers.stream);
       const sl = snd.filter('lowpass', 1500, 0.2);
       sl.connect(st);
-      this.streamBed = this.rec('stream', sl, { level: ForestScape.STREAM, len: [8, 13], xf: 3, rate: [0.76, 0.82] });
+      this.streamBed = this.rec('stream', sl, { level: ForestScape.STREAM, len: [9, 14], xf: 3.2, rate: [0.68, 0.73] });
       this.streamBed.onReady = () => {
         this.realStream = true;
         for (const L of [this.streamBody, this.streamLo, this.streamHi]) glide(L.pre.gain, 0, 1.2, snd.ctx);
@@ -1246,8 +1246,11 @@
       bb.ratio.value = 4;
       bb.attack.value = 0.004;
       bb.release.value = 0.25;
-      bb.connect(this.layers.birds);
-      bb.connect(bs);
+      // 크기는 누른 뒤에 정한다 (누르기 전에 줄이면 압축기가 도로 키워 버린다)
+      const bv = snd.gain(ForestScape.BIRDS_OUT);
+      bb.connect(bv);
+      bv.connect(this.layers.birds);
+      bv.connect(bs);
       this.birdBed = this.rec('birds', bb, { level: ForestScape.BIRDS, len: [9, 16], xf: 3, rate: [0.98, 1.02] });
       this.birdBed.onReady = () => { this.realBirds = true; };
     }
@@ -1378,8 +1381,9 @@
       if (Math.random() < 0.6 && !this.realBirds) this.bird(ct + MC.rand(0.6, 1.5));
     }
   }
-  ForestScape.STREAM = 0.34;
+  ForestScape.STREAM = 0.36;
   ForestScape.BIRDS = 0.42;
+  ForestScape.BIRDS_OUT = 0.55;
   ForestScape.layers = [
     { key: 'stream', label: '계곡물', value: 0.8 },
     { key: 'birds', label: '새소리', value: 0.6 },

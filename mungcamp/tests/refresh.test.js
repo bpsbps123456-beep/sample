@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { main } = require('./lib');
 
-main(async ({ check, presenceServer, copySite, person, until, sleep, cleanup }) => {
+main(async ({ check, presenceServer, copySite, person, until, sleep, cleanup, enter }) => {
   const site = copySite();
   cleanup(() => fs.rmSync(path.dirname(site), { recursive: true, force: true }));
   let srv = await presenceServer({}, site);
@@ -16,7 +16,7 @@ main(async ({ check, presenceServer, copySite, person, until, sleep, cleanup }) 
   const B = await person({ name: 'B' });
   cleanup(() => B.close());
   await A.page.goto(srv.url);
-  await B.page.goto(srv.url + '#fire');
+  await enter(B.page, srv.url, 'fire');
   await sleep(2500);
   await A.page.evaluate(() => { window.__old = 1; });
   await B.page.evaluate(() => { window.__old = 1; });

@@ -2,13 +2,13 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person({ phone: true });
   cleanup(() => who.close());
   const P = who.page;
-  await P.goto(site.url + '#fire');
+  await enter(P, site.url, 'fire');
   await until(P, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w));
   await sleep(1500);
   await P.evaluate(() => MC.app.doAction('worry'));

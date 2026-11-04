@@ -3,7 +3,7 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, presenceServer, person, until, sleep, shot, cleanup }) => {
+main(async ({ check, staticServer, presenceServer, person, until, sleep, shot, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const sizes = [['컴퓨터', { width: 1000, height: 700 }, false], ['휴대폰', { width: 390, height: 844 }, true], ['넓고 낮은 창', { width: 1440, height: 640 }, false]];
@@ -11,7 +11,7 @@ main(async ({ check, staticServer, presenceServer, person, until, sleep, shot, c
     const who = await person({ viewport, phone });
     cleanup(() => who.close());
     const P = who.page;
-    await P.goto(site.url + '#forest');
+    await enter(P, site.url, 'forest');
     await until(P, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.tree));
     const info = await P.evaluate(() => { const sc = MC.app.state.sceneObj; return { branches: sc.tree.branches.length, spots: sc.spots.length - 1 }; });
     check(info.branches === 6 && info.spots === 11, `${tag}: 가지 여섯, 자리 열하나`, info);
@@ -30,7 +30,7 @@ main(async ({ check, staticServer, presenceServer, person, until, sleep, shot, c
     const p = await person({ nick: n, name: n });
     cleanup(() => p.close());
     ps.push(p);
-    await p.page.goto(srv.url + '#forest');
+    await enter(p.page, srv.url, 'forest');
   }
   await sleep(6000);
   await Promise.all(ps.map(({ page }) => page.evaluate(() => MC.app.state.sceneObj.tapSpot(2))));

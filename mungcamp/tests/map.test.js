@@ -1,5 +1,5 @@
 // 마을 지도: 끌면 둘러보고(걷지 않음), 톡 하면 걷고 카메라가 다시 따라가고,
-// 지도 끝에서 더 끌면 페이지가 스크롤된다. 휴대폰은 지도를 당겨 보여 주어 위아래로도 둘러본다.
+// 장소 카드 없이 지도만, 주소로 바로 와도 걸어서만 들어간다. 휴대폰은 지도를 당겨 보여 주어 위아래로도 둘러본다.
 // 넓어진 마을: 네 곳의 '들어가기', 오른쪽 끝 바다, 남쪽 글램핑장, 한 바퀴 도는 둘레길
 'use strict';
 const { main } = require('./lib');
@@ -38,7 +38,15 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
     await sleep(200);
   }
   const d = await st();
-  check(d.scrollY > 50, '지도 끝에서 더 끌면 페이지가 스크롤된다', Math.round(d.scrollY));
+  check(d.scrollY === 0, '지도 끝에서 더 끌어도 페이지는 그대로 (아래에 장소 카드가 없다)', Math.round(d.scrollY));
+  check(await P.evaluate(() => !document.querySelector('.seat-grid, .seats, #footSuggest')), '장소 카드와 아래 문장은 없다');
+
+  // 걸어서만: 주소로 장소를 바로 열어도 장소로 건너뛰지 않고 마을의 그 자리 앞에 선다
+  await P.goto(site.url + '#forest');
+  await until(P, () => !!(MC.app && MC.app.camp && MC.app.camp.w > 1));
+  await sleep(400);
+  const direct = await P.evaluate(() => { const c = MC.app.camp; const s = MC.CAMP_SPOTS.find((q) => q.id === 'forest'); return { view: MC.app.state.view, hash: location.hash, near: Math.round(Math.hypot(c.pup.x - s.x, c.pup.y - s.y)) }; });
+  check(direct.view === 'home' && direct.hash === '' && direct.near < 60, '주소로 바로 와도 장소엔 걸어서만 (그 앞에 선다)', direct);
 
   // 넓어진 마을: 네 곳에 '들어가기', 정자는 '똑'. 바다는 늘 가장 오른쪽
   const spots = await P.evaluate(() => MC.CAMP_SPOTS.map((s) => [s.id, s.label, s.act]));

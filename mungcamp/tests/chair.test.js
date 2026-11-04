@@ -3,7 +3,7 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person({ nick: '느긋함' });
@@ -48,7 +48,7 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
   check(await until(A, () => !MC.app.camp.pup.chairOn, null, 2000), '다시 C 키로 접는다');
 
   // 모닥불: 아래 단추 줄의 '의자'
-  await A.goto(site.url + '#fire');
+  await enter(A, site.url, 'fire');
   await until(A, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.crowd && MC.app.state.started));
   await sleep(1500);
   await A.click('#dockScene [data-act="chair"]');
@@ -61,7 +61,7 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
   check(await until(A, () => MC.app.state.sceneObj.pup.chair === 0, null, 2000), '장면에서도 걸으면 접는다');
 
   // 바다: 튜브에 떠 있을 때는 펼 수 없다
-  await A.goto(site.url + '#water');
+  await enter(A, site.url, 'water');
   await until(A, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.crowd && MC.app.state.started));
   await sleep(1500);
   await A.click('#sceneAct');

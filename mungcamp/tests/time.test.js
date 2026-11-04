@@ -3,7 +3,7 @@
 'use strict';
 const { main } = require('./lib');
 
-main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
+main(async ({ check, staticServer, person, until, sleep, cleanup, enter }) => {
   const site = await staticServer();
   cleanup(() => site.close());
   const who = await person();
@@ -16,7 +16,7 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
   const P = who.page;
   // 0분, 20분, 45분 뒤의 값 가운데 가장 크게 달라진 정도
   const probe = async (name, fn) => {
-    await P.goto(site.url + '#' + name);
+    await enter(P, site.url, name);
     await until(P, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w));
     await sleep(800);
     const out = [];
@@ -36,7 +36,7 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
   const forest = await probe('forest', () => { const b = MC.app.state.sceneObj.beams[0]; return [Math.atan2(b.dy, b.dx), b.x0 / 100]; });
   check(forest.most > 0.01, '숲: 빛줄기의 기울기와 자리가 바뀐다', forest.out.map((a) => +((a[0] * 180) / Math.PI).toFixed(1)));
 
-  await P.goto(site.url + '#fire');
+  await enter(P, site.url, 'fire');
   await until(P, () => !!(MC.app.state.sceneObj && MC.app.state.sceneObj.w));
   check((await P.evaluate(() => MC.app.state.sceneObj.bugs.length)) === 0, '막 왔을 때는 반딧불이가 없다');
   await P.evaluate(() => { MC.app.state.sceneObj.age = () => 900; });
