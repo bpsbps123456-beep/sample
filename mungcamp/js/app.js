@@ -178,6 +178,7 @@
   const campRunner = new MC.Runner(campCanvas, camp, { quality: 1, maxPixels: 2.4e6, onFrame: onCampFrame });
   camp.onCute = (kind) => sound.cute(kind);
   camp.onMoktak = () => sound.moktak();
+  camp.sea.onCast = () => sound.fishingCast();
 
   // ── 함께 ─────────────────────────────────────────────
   // 같은 곳의 멍이와 마음 단어, 마을의 네 글자 상태 팻말이 보인다

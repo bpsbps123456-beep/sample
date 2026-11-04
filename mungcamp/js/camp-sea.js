@@ -30,6 +30,7 @@
       this.fishing = null;
       this.catch = null;
       this.onToast = null;
+      this.onCast = null;
       this.time = 0;
       this.rowers = new WeakMap();
       this.touches = [];
@@ -114,6 +115,7 @@
       p.setChair(false); p.wake(); p.view = p.restView = 'front'; p.baseTurn = 0.85;
       this.catch = null;
       this.fishing = { stage: 1, remaining: 4 + Math.random() * 4, x: p.x, y: p.y };
+      if (this.onCast) this.onCast();
       return true;
     }
 
@@ -239,21 +241,42 @@
       const w = DECK.x1 - x0 + 30, h = BRANCH.y1 - y0 + 50;
       const canvas = MC.canvas(w * scale, h * scale), g = canvas.getContext('2d');
       g.scale(scale, scale); g.translate(-x0, -y0);
-      for (const r of [PIER, BRANCH, DECK]) {
-        g.fillStyle = 'rgba(10,31,53,.28)'; g.fillRect(r.x0 + 9, r.y0 + 14, r.x1 - r.x0, r.y1 - r.y0);
-        const wood = g.createLinearGradient(0, r.y0, 0, r.y1);
-        wood.addColorStop(0, '#c5a17a'); wood.addColorStop(1, '#ac8159');
-        g.fillStyle = wood; g.fillRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
-        g.strokeStyle = '#705437'; g.lineWidth = 3; g.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
-        for (let x = r.x0 + 16; x < r.x1 - 2; x += 17) {
+      const decks = [PIER, BRANCH, DECK];
+      const outline = () => {
+        g.beginPath();
+        for (const r of decks) g.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      };
+      // 그림자와 목재를 하나의 바닥으로 칠한다. 갈림길에는 턱이나 가로막는 테두리가 없다.
+      g.save(); g.translate(9, 14); outline();
+      g.fillStyle = 'rgba(10,31,53,.28)'; g.fill(); g.restore();
+      g.save(); outline(); g.clip();
+      const wood = g.createLinearGradient(0, DECK.y0, 0, BRANCH.y1);
+      wood.addColorStop(0, '#c5a17a'); wood.addColorStop(1, '#ac8159');
+      g.fillStyle = wood; g.fillRect(PIER.x0, DECK.y0, DECK.x1 - PIER.x0, BRANCH.y1 - DECK.y0);
+      for (let x = PIER.x0 + 16; x < DECK.x1; x += 17) {
           g.strokeStyle = 'rgba(88,60,38,.43)'; g.lineWidth = 1;
-          g.beginPath(); g.moveTo(x, r.y0 + 2); g.lineTo(x, r.y1 - 2); g.stroke();
+          g.beginPath(); g.moveTo(x, DECK.y0); g.lineTo(x, BRANCH.y1); g.stroke();
           g.strokeStyle = 'rgba(248,219,170,.25)';
-          g.beginPath(); g.moveTo(x + 5, r.y0 + 10); g.lineTo(x + 6, r.y1 - 12); g.stroke();
-          g.fillStyle = '#806243';
-          for (const y of [r.y0 + 7, r.y1 - 7]) g.fillRect(x - 6, y, 2, 2);
+          g.beginPath(); g.moveTo(x + 5, DECK.y0); g.lineTo(x + 5, BRANCH.y1); g.stroke();
+      }
+      g.restore();
+      // 세 직사각형의 바깥 둘레만 남기고 연결부의 선은 지운다. 육지 쪽 입구도 열어 둔다.
+      const xs = [...new Set(decks.flatMap(r => [r.x0, r.x1]))].sort((a, b) => a - b);
+      const ys = [...new Set(decks.flatMap(r => [r.y0, r.y1]))].sort((a, b) => a - b);
+      g.strokeStyle = '#705437'; g.lineWidth = 3; g.beginPath();
+      for (const r of decks) {
+        for (const y of [r.y0, r.y1]) for (let i = 1; i < xs.length; i++) {
+          const a = xs[i - 1], b = xs[i], mid = (a + b) / 2;
+          if (mid < r.x0 || mid > r.x1 || this.onDeck(mid, y + (y === r.y0 ? -1 : 1))) continue;
+          g.moveTo(a, y); g.lineTo(b, y);
+        }
+        for (const x of [r.x0, r.x1]) for (let i = 1; i < ys.length; i++) {
+          const a = ys[i - 1], b = ys[i], mid = (a + b) / 2;
+          if (mid < r.y0 || mid > r.y1 || x === PIER.x0 || this.onDeck(x + (x === r.x0 ? -1 : 1), mid)) continue;
+          g.moveTo(x, a); g.lineTo(x, b);
         }
       }
+      g.stroke();
       // 데크의 작은 통과 구명환. 과한 시설 없이 낡은 바닷가 나무의 느낌.
       g.fillStyle = '#9c7750'; g.strokeStyle = '#62492f'; g.lineWidth = 2;
       MC.roundRect(g, DECK.x0 + 14, DECK.y0 + 17, 33, 23, 5); g.fill(); g.stroke();

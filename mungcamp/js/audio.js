@@ -262,6 +262,36 @@
       }
     }
 
+    // 짧은 캐스팅 바람 뒤에 찌가 물에 닿는 낮은 퐁당 소리. 전체 음량·음소거를 따른다.
+    fishingCast() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, at = ctx.currentTime + 0.01;
+      const burst = (delay, duration, from, to, amp, type) => {
+        const start = at + delay, src = ctx.createBufferSource();
+        src.buffer = this.noise.pink;
+        const filter = this.filter(type, from, 0.65), gain = ctx.createGain();
+        filter.frequency.setValueAtTime(from, start);
+        filter.frequency.exponentialRampToValueAtTime(to, start + duration);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(amp, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        src.connect(filter); filter.connect(gain); gain.connect(this.master);
+        src.onended = () => { src.disconnect(); filter.disconnect(); gain.disconnect(); };
+        src.start(start, Math.random(), duration + 0.02);
+      };
+      burst(0, 0.22, 900, 2400, 0.2, 'bandpass');
+      burst(0.25, 0.32, 1500, 350, 0.3, 'lowpass');
+      const bubble = ctx.createOscillator(), gain = ctx.createGain(), hit = at + 0.25;
+      bubble.frequency.setValueAtTime(430, hit);
+      bubble.frequency.exponentialRampToValueAtTime(130, hit + 0.15);
+      gain.gain.setValueAtTime(0.0001, hit);
+      gain.gain.exponentialRampToValueAtTime(0.1, hit + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, hit + 0.18);
+      bubble.connect(gain); gain.connect(this.master);
+      bubble.onended = () => { bubble.disconnect(); gain.disconnect(); };
+      bubble.start(hit); bubble.stop(hit + 0.2);
+    }
+
     moktak() {
       if (!this.ctx) return;
       const ctx = this.ctx;

@@ -128,7 +128,7 @@
       left.push([x - dy / len * r, y + dx / len * r]);
       right.push([x + dy / len * r, y - dx / len * r]);
     }
-    g.beginPath(); g.moveTo(...left[0]);
+    g.moveTo(...left[0]);
     for (let i = 1; i < left.length; i++) g.lineTo(...left[i]);
     if (!loop) {
       const end = path.at(-1), before = path.at(-2), dx = end[0] - before[0], dy = end[1] - before[1], len = Math.hypot(dx, dy) || 1;
@@ -141,7 +141,7 @@
       const r = pathRadius(...start, pi) + spread;
       g.quadraticCurveTo(start[0] + dx / len * r * 1.5, start[1] + dy / len * r * 1.5, ...left[0]);
     }
-    g.closePath(); g.fill();
+    g.closePath();
   }
 
   function clearing(g, q) {
@@ -599,7 +599,10 @@
       // 흙길과 시설 앞마당을 같은 겹으로 칠해 이음새와 둥근 막다른 끝을 없앤다.
       for (const [spread, col] of [[12, 'rgba(157,143,95,.035)'], [7, 'rgba(166,146,98,.07)'], [3, 'rgba(126,110,77,.13)'], [0, '#bea37b'], [-3, '#cbb18a'], [-8, 'rgba(218,193,151,.48)']]) {
         g.fillStyle = col;
+        // 한 겹의 경로를 합쳐 채워 갈림길 안쪽에 테두리나 진한 겹침이 남지 않는다.
+        g.beginPath();
         PATHS.forEach((path, pi) => pathRibbon(g, path, pi, spread));
+        g.fill();
       }
       for (const q of CLEARINGS) clearing(g, q);
       // 마당 한가운데는 모서리 없이 다져진 흙과 잔자갈.
