@@ -58,7 +58,7 @@
   <div id="home">
     <header class="camp" id="camp">
       <canvas class="camp-canvas" id="campCanvas" tabindex="0" aria-label="캠프 마을. 방향키나 클릭으로 멍이를 걷게 해요"></canvas>
-      <div class="camp-layer" id="campLayer" aria-hidden="false"><p class="name-tag" id="campName" aria-live="polite"></p></div>
+      <div class="camp-layer" id="campLayer" aria-hidden="false"><p class="name-tag" id="campName" aria-live="polite"></p><button class="name-tag self-name is-me" id="campSelfName" type="button" title="누르면 내 닉네임을 숨겨요" hidden></button></div>
       <h1 class="camp-title">멍 때리고 가요.</h1>
       <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>마을 <b data-n="here"></b></span><span class="together-sep" aria-hidden="true"></span><span>모두 <b data-n="all"></b></span></p>
       <p class="camp-hint" id="campHint"></p>
@@ -87,6 +87,7 @@
     <canvas class="stage" id="stage" aria-label="장면"></canvas>
     <div class="scene-act-wrap" id="sceneActWrap" hidden><button class="scene-act" id="sceneAct" type="button"></button></div>
     <p class="name-tag" id="sceneName" aria-live="polite"></p>
+    <button class="name-tag self-name is-me" id="sceneSelfName" type="button" title="누르면 내 닉네임을 숨겨요" hidden></button>
     <div class="curtain" id="curtain" aria-hidden="true"></div>
     <div class="ui" id="ui">
       <div class="topbar">
@@ -193,12 +194,22 @@
     <form class="modal-card dress-card" id="dressForm" role="dialog" aria-modal="true" aria-labelledby="dress-title" novalidate>
       <h2 id="dress-title">내 멍이</h2>
       <canvas class="dress-preview" id="dressPreview" aria-hidden="true"></canvas>
+      <div class="dress-fields">
       <label class="dress-label" for="dressName">마음 단어</label>
       <input class="text-input nick-input dress-name" id="dressName" type="text" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-describedby="dressFine">
-      <p class="nick-fine" id="dressFine">누가 내 멍이를 누르면 보여요</p>
+      <p class="nick-fine" id="dressFine">다른 사람에게는 내 멍이를 누를 때 보여요</p>
+      <label class="dress-name-option"><input id="dressShowName" type="checkbox" checked> 내 닉네임 표시 <span>닉네임을 누르면 숨겨요</span></label>
       <div class="swatches"><p class="dress-label" id="swBodyLabel">몸</p><div class="swatch-row" id="swBody" role="radiogroup" aria-labelledby="swBodyLabel"></div></div>
       <div class="swatches"><p class="dress-label" id="swEarLabel">귀</p><div class="swatch-row" id="swEar" role="radiogroup" aria-labelledby="swEarLabel"></div></div>
-      <div class="swatches"><p class="dress-label" id="swHatLabel">모자</p><div class="swatch-row" id="swHat" role="radiogroup" aria-labelledby="swHatLabel"></div></div>
+      <div class="swatches"><p class="dress-label" id="swHatLabel">기본 비니 색</p><div class="swatch-row" id="swHat" role="radiogroup" aria-labelledby="swHatLabel"></div></div>
+      <section class="fishing-closet" aria-labelledby="closet-title">
+        <h3 id="closet-title">바다가 선물한 옷장 <span id="closetCount">0 / 10</span></h3>
+        <p class="closet-hint">낚시에 성공할 때마다 새 선물 하나! 모은 선물을 눌러 입혀요.</p>
+        <p class="dress-label" id="swStyleLabel">모자 모양</p><div class="closet-row" id="swStyle" role="radiogroup" aria-labelledby="swStyleLabel"></div>
+        <p class="dress-label" id="swAccessoryLabel">액세서리</p><div class="closet-row" id="swAccessory" role="radiogroup" aria-labelledby="swAccessoryLabel"></div>
+        <p class="dress-label" id="swGlovesLabel">장갑</p><div class="closet-row" id="swGloves" role="radiogroup" aria-labelledby="swGlovesLabel"></div>
+      </section>
+      </div>
       <div class="modal-buttons">
         <button class="btn btn-ghost" type="button" id="dressCancel">닫기</button>
         <button class="btn btn-ember" type="submit">다 됐어요</button>
@@ -245,7 +256,7 @@
   <div class="modal modal-fixed" id="suggestCard" hidden>
     <form class="modal-card suggest-card" id="suggestForm" role="dialog" aria-modal="true" aria-labelledby="suggest-title" novalidate>
       <h2 id="suggest-title">건의</h2>
-      <p class="suggest-lead"><span class="suggest-phrase">멍캠프에 바라는 점,</span> <span class="suggest-phrase">불편했던 점을</span> <span class="suggest-phrase">자유롭게 적어 주세요.</span> <span class="suggest-phrase"><button class="owner-link" id="ownerBtn" type="button" aria-haspopup="dialog">운영자</button>만 봐요.</span></p>
+      <p class="suggest-lead"><span class="suggest-phrase">멍캠프에 바라는 점,</span> <span class="suggest-phrase">불편했던 점을</span> <span class="suggest-phrase">자유롭게 적어 주세요.</span> <span class="suggest-phrase">보낸 내용은 운영자만 봐요.</span></p>
       <textarea class="text-input suggest-input" id="suggestInput" maxlength="1000" rows="5" placeholder="이런 곳이 있으면 좋겠어요" aria-labelledby="suggest-title" aria-describedby="suggestFine"></textarea>
       <p class="suggest-fine" id="suggestFine"><span id="suggestCount">0</span> / 1000</p>
       <div class="modal-buttons">
@@ -286,12 +297,14 @@
   <script src="js/util.js" defer></script>
   <script src="js/audio.js" defer></script>
   <script src="js/fire-gl.js" defer></script>
+  <script src="js/wardrobe.js" defer></script>
   <script src="js/pup.js" defer></script>
   <script src="js/net.js" defer></script>
   <script src="js/crowd.js" defer></script>
   <script src="js/scene-fire.js" defer></script>
   <script src="js/sea-life.js" defer></script>
   <script src="js/scene-water.js" defer></script>
+  <script src="js/forest-tree.js" defer></script>
   <script src="js/scene-forest.js" defer></script>
   <script src="js/scene-tent.js" defer></script>
   <script src="js/scene-lodge.js" defer></script>

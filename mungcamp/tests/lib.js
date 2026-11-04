@@ -26,8 +26,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
-    s.once('error', reject);
-    s.listen(0, '127.0.0.1', () => {
+    s.once('error', error => error.code === 'EADDRINUSE' ? freePort().then(resolve, reject) : reject(error));
+    // Windows의 낮은 임시 포트 중에는 브라우저가 차단하는 번호가 있다.
+    s.listen(49152 + Math.floor(Math.random() * 16384), '127.0.0.1', () => {
       const { port } = s.address();
       s.close(() => resolve(port));
     });
@@ -45,7 +46,8 @@ const TYPES = {
 };
 
 // 정적 사이트: 함께 모이기 서버가 없으니 같은 브라우저의 탭끼리만 함께 (BroadcastChannel)
-function staticServer(root = ROOT) {
+async function staticServer(root = ROOT) {
+  const port = await freePort();
   const srv = http.createServer((req, res) => {
     let rel = decodeURIComponent((req.url || '/').split('?')[0]).replace(/^\/+/, '');
     if (!rel || rel.endsWith('/')) rel += 'index.html';
@@ -59,7 +61,7 @@ function staticServer(root = ROOT) {
     fs.createReadStream(abs).pipe(res);
   });
   return new Promise((resolve) => {
-    srv.listen(0, '127.0.0.1', () => resolve({ url: `http://127.0.0.1:${srv.address().port}/`, close: () => srv.close() }));
+    srv.listen(port, '127.0.0.1', () => resolve({ url: `http://127.0.0.1:${srv.address().port}/`, close: () => srv.close() }));
   });
 }
 
@@ -159,15 +161,19 @@ async function until(page, fn, arg, timeout = 10000, every = 150) {
 async function tapVisitor(page) {
   const pt = await page.evaluate(() => {
     const pick = (v, mine, toScreen) => {
-      let best = null;
+      const canvas = document.querySelector(MC.app.state.view === 'session' ? '#stage' : '#campCanvas');
       for (let dy = -100; dy <= 0; dy += 8) {
         for (let dx = -40; dx <= 40; dx += 8) {
           const x = v.pup.x + dx * v.pup.k;
           const y = v.pup.y + dy * v.pup.k;
-          if (v.pup.hit(x, y) && !mine.hit(x, y)) best = toScreen(x, y);
+          if (v.pup.hit(x, y) && !mine.hit(x, y)) {
+            const point = toScreen(x, y);
+            // 닉네임이나 하단 조작부가 가린 곳 대신 실제로 멍이를 누를 수 있는 점.
+            if (document.elementFromPoint(...point) === canvas) return point;
+          }
         }
       }
-      return best;
+      return null;
     };
     const st = MC.app.state;
     if (st.view === 'session') {

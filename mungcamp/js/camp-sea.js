@@ -121,10 +121,11 @@
       if (!this.fishing || !this.canFish()) return false;
       if (this.fishing.stage !== 2) { this.stopFishing(); return false; }
       const fish = FISH[Math.floor(Math.random() * FISH.length)];
-      this.catch = { name: fish.name, cm: Math.round(MC.rand(fish.min, fish.max)), until: this.time + 5 };
+      const reward = MC.Wardrobe.award();
+      this.catch = { name: fish.name, cm: Math.round(MC.rand(fish.min, fish.max)), reward, until: this.time + 8 };
       this.fishing = null;
       this.camp.pup.addHearts(2);
-      this.note(`${this.catch.name} ${this.catch.cm}cm! 잠깐 보고 바다로 돌려보냈어요.`);
+      this.note(reward ? `${reward.icon} ${reward.name} 획득! '꾸미기'에서 입혀 보세요.` : `${this.catch.name} ${this.catch.cm}cm! 바다로 돌려보냈어요. 옷장 선물을 모두 모았네요!`);
       return true;
     }
 
@@ -182,7 +183,7 @@
       if (this.boating && this.camp.moving) return { label: '멈추면 낚시 가능', detail: '바다를 톡 하거나 방향키로 노를 저어요', stop: false, waiting: true, travel };
       if (this.canFish()) {
         const stage = this.fishing?.stage || 0;
-        return { label: stage === 2 ? '지금 낚아채기!' : stage === 1 ? '찌를 바라보는 중' : '낚싯대 던지기', detail: stage === 2 ? '찌가 움직여요!' : stage === 1 ? '찰랑이는 물결을 보며 잠깐 기다려요' : this.catch && this.catch.until > this.time ? `${this.catch.name} ${this.catch.cm}cm · 바다로 돌려보냈어요` : this.boating ? '보트 낚시 · 움직이면 낚싯대를 거두고 노를 저어요' : '낚시 데크 · 이곳에서 낚싯대를 드리워요', stop: !!stage, bite: stage === 2, waiting: stage === 1, travel };
+        return { label: stage === 2 ? '지금 낚아채기!' : stage === 1 ? '찌를 바라보는 중' : '낚싯대 던지기', detail: stage === 2 ? '찌가 움직여요!' : stage === 1 ? '찰랑이는 물결을 보며 잠깐 기다려요' : this.catch && this.catch.until > this.time ? `${this.catch.name} ${this.catch.cm}cm · 바다로 돌려보냈어요${this.catch.reward ? ` · ${this.catch.reward.name} 획득!` : ''}` : this.boating ? '보트 낚시 · 성공하면 꾸미기 선물을 얻어요' : '낚시 데크 · 성공하면 꾸미기 선물을 얻어요', stop: !!stage, bite: stage === 2, waiting: stage === 1, travel };
       }
       if (this.nearBerth()) return { label: '보트 타기', detail: '작은 선착장 · 나무 보트를 타고 바다 한 바퀴', stop: false };
       return null;
@@ -421,7 +422,7 @@
       return {effort: row.effort, stroke, hands};
     }
 
-    drawOarGrips(g, rig, paws) {
+    drawOarGrips(g, rig, paws, pup) {
       for (const {lock, grip} of rig.hands) {
         g.strokeStyle = '#6b4a30'; g.lineWidth = 4.8; g.lineCap = 'round';
         g.beginPath(); g.moveTo(lock.x, lock.y); g.lineTo(grip.x, grip.y); g.stroke();
@@ -435,6 +436,7 @@
           g.beginPath(); g.ellipse(-1.2, 0, 4.6, 3.8, .25, 0, Math.PI * 2); g.fill(); g.stroke();
           g.strokeStyle = 'rgba(91,61,44,.48)'; g.lineWidth = .7;
           g.beginPath(); g.moveTo(.6, -1.3); g.lineTo(2.2, -1.1); g.moveTo(.5, 1); g.lineTo(2.1, 1.4); g.stroke();
+          if (pup?.gloves) { g.scale(.55, .55); pup.paintGlove(g, -2, 0); }
           g.restore();
         }
       }
@@ -468,12 +470,12 @@
       if (pup) {
         // 앞발은 몸 가까이서 노 손잡이를 잡는다. 몸과 노는 같은 박자에 앞뒤로 움직인다.
         const back = pup.view === 'back';
-        if (back && !fishing) this.drawOarGrips(g, rig, rowing);
+        if (back && !fishing) this.drawOarGrips(g, rig, rowing, pup);
         const rock = fishing ? 0 : Math.sin(this.time * 3.4) * rig.effort;
         g.save(); g.translate(Math.cos(angle) * rock, -12 + Math.sin(angle) * rock * .7);
         g.rotate(Math.cos(angle) * rock * .035); g.translate(-x, -y);
         pup.draw(g, this.camp.z * (this.camp.dpr || 1), false, rowing); g.restore();
-        if (!back && !fishing) this.drawOarGrips(g, rig, rowing);
+        if (!back && !fishing) this.drawOarGrips(g, rig, rowing, pup);
         // 배가 돌아도 화면 앞쪽 뱃전만 강아지 발 앞에 겹친다.
         g.save(); g.beginPath(); g.rect(-115, 0, 230, 110); g.clip();
         g.scale(1, .65); g.rotate(angle);

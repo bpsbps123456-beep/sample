@@ -259,7 +259,7 @@
   const dressName = $('#dressName');
   const dressFine = $('#dressFine');
   const dressCanvas = $('#dressPreview');
-  const dress = { body: 0, ear: 0, hat: 0, raf: 0, pup: null, back: null };
+  const dress = { body: 0, ear: 0, hat: 0, ht: 0, ac: 0, gl: 0, raf: 0, pup: null, back: null };
   const dressOpen = () => !dressCard.hidden;
   function swatch(row, value, color, name, onPick, cls) {
     const b = document.createElement('button');
@@ -277,14 +277,23 @@
     return b;
   }
   function markSwatches() {
-    for (const [id, v] of [['#swBody', dress.body], ['#swEar', dress.ear], ['#swHat', dress.hat]]) {
+    for (const [id, v] of [['#swBody', dress.body], ['#swEar', dress.ear], ['#swHat', dress.hat], ['#swStyle', dress.ht], ['#swAccessory', dress.ac], ['#swGloves', dress.gl]]) {
       for (const b of $(id).children) b.setAttribute('aria-checked', String(b.dataset.v === String(v)));
     }
     // '기본' 귀는 고른 몸에 어울리는 빛깔로
     const de = MC.Pup.defaultEar(dress.body);
     const first = $('#swEar').firstChild;
     if (first) first.firstChild.style.setProperty('--sw', `radial-gradient(circle at 35% 30%, ${de.hi}, ${de.lo})`);
-    if (dress.pup) dress.pup.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat);
+    if (dress.pup) dress.pup.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat, dress.ht, dress.ac, dress.gl);
+  }
+  function refreshCloset() {
+    const owned = MC.Wardrobe.owned();
+    $('#closetCount').textContent = `${owned.length} / ${MC.Wardrobe.items.length}`;
+    for (const b of dressCard.querySelectorAll('[data-item]')) {
+      const unlocked = owned.includes(b.dataset.item);
+      b.disabled = !unlocked;
+      b.querySelector('.closet-state').textContent = unlocked ? '보유' : '낚시로 얻어요';
+    }
   }
   function buildSwatches() {
     if ($('#swBody').children.length) return;
@@ -293,10 +302,26 @@
     for (const e of MC.Pup.EARS) swatch($('#swEar'), e.i, `radial-gradient(circle at 35% 30%, ${e.hi}, ${e.lo})`, e.name, (v) => { dress.ear = v; markSwatches(); });
     const HAT_NAMES = ['빨강', '파랑', '초록', '노랑', '보라', '분홍'];
     for (const h of MC.Pup.HATS_LIST) swatch($('#swHat'), h.i, `linear-gradient(${h.top}, ${h.bot})`, HAT_NAMES[h.i] || '모자', (v) => { dress.hat = v; markSwatches(); });
+    for (const [id, slot, defaultName] of [['#swStyle', 'ht', '기본 비니'], ['#swAccessory', 'ac', '벗기'], ['#swGloves', 'gl', '벗기']]) {
+      const choices = [{ value: 0, name: defaultName, icon: slot === 'ht' ? '🧢' : '—' }, ...MC.Wardrobe.items.filter(item => item.slot === slot)];
+      for (const item of choices) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'closet-item';
+        b.setAttribute('role', 'radio'); b.setAttribute('aria-label', item.name);
+        b.dataset.v = String(item.value);
+        if (item.id) b.dataset.item = item.id;
+        const icon = document.createElement('span'); icon.className = 'closet-icon'; icon.textContent = item.icon; icon.setAttribute('aria-hidden', 'true');
+        const name = document.createElement('span'); name.textContent = item.name;
+        const status = document.createElement('small'); status.className = 'closet-state'; status.textContent = item.id ? '낚시로 얻어요' : '기본';
+        b.append(icon, name, status);
+        b.addEventListener('click', () => { dress[slot] = item.value; markSwatches(); });
+        $(id).appendChild(b);
+      }
+    }
     // 방향키로 고르기 (radiogroup)
-    for (const row of [$('#swBody'), $('#swEar'), $('#swHat')]) {
+    for (const row of [$('#swBody'), $('#swEar'), $('#swHat'), $('#swStyle'), $('#swAccessory'), $('#swGloves')]) {
       row.addEventListener('keydown', (e) => {
-        const items = [...row.children];
+        const items = [...row.children].filter(item => !item.disabled);
         const i = items.indexOf(document.activeElement);
         if (i < 0) return;
         const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
@@ -333,7 +358,7 @@
     dress.last = now;
     p.update(dt, { E: 0.8, noSleep: true });
     // 모자 꼭대기까지 캔버스 안에 들도록
-    p.k = Math.min(0.92, (H - 16) / 156);
+    p.k = Math.min(0.92, (H - 16) / 160);
     p.x = W / 2;
     p.y = H - 10;
     p.draw(g, dpr);
@@ -342,12 +367,14 @@
   function openDress() {
     buildSwatches();
     const sp = MC.Pup.splitCoat(net.look.c);
-    Object.assign(dress, { body: sp.body, ear: sp.ear, hat: net.look.h, back: document.activeElement, last: 0 });
+    Object.assign(dress, { body: sp.body, ear: sp.ear, hat: net.look.h, ht: net.look.ht, ac: net.look.ac, gl: net.look.gl, back: document.activeElement, last: 0 });
     if (!dress.pup) dress.pup = new MC.Pup({ outfit: 'beanie' });
     dressName.value = net.name || '';
     dressName.placeholder = pick(MOODS);
-    dressFine.textContent = '누가 내 멍이를 누르면 보여요';
+    dressFine.textContent = '다른 사람에게는 내 멍이를 누를 때 보여요';
+    $('#dressShowName').checked = myNameVisible;
     dressFine.classList.remove('is-warn');
+    refreshCloset();
     markSwatches();
     dressCard.hidden = false;
     cancelAnimationFrame(dress.raf);
@@ -381,9 +408,10 @@
       const name = MC.cleanName(raw) || net.name || MC.cleanName(dressName.placeholder) || '멍이';
       MC.store.set('nick', name);
       net.setName(name);
-      const look = net.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat);
-      camp.pup.setLook(look.c, look.h);
-      if (state.sceneObj && state.sceneObj.pup) state.sceneObj.pup.setLook(look.c, look.h);
+      const look = net.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat, dress.ht, dress.ac, dress.gl);
+      camp.pup.setLook(look.c, look.h, look.ht, look.ac, look.gl);
+      if (state.sceneObj && state.sceneObj.pup) state.sceneObj.pup.setLook(look.c, look.h, look.ht, look.ac, look.gl);
+      setMyNameVisible($('#dressShowName').checked);
       closeDress();
       camp.pup.poke();
       toast(`'${name}' 멍이, 새 모습이에요`);
@@ -459,6 +487,7 @@
   const canSuggest = !!(presenceMeta && presenceMeta.content === 'auto' && window.fetch);
   const suggestOpen = () => !suggestCard.hidden;
   let suggestBack = null;
+  let ownerTaps = 0, ownerTapStart = 0;
   if (canSuggest) $('#suggestBtn').hidden = false;
   function suggestNote(msg) {
     if (msg) {
@@ -471,13 +500,15 @@
   }
   function openSuggest() {
     suggestBack = document.activeElement;
+    ownerTaps = 0;
     suggestCard.hidden = false;
     suggestNote('');
     if (window.matchMedia && matchMedia('(pointer: fine)').matches) {
-      setTimeout(() => { try { suggestInput.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }, 80);
+      setTimeout(() => { try { if (suggestOpen()) suggestInput.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }, 80);
     }
   }
   function closeSuggest() {
+    ownerTaps = 0;
     suggestCard.hidden = true;
     try { if (suggestBack && suggestBack.focus) suggestBack.focus({ preventScroll: true }); } catch (e) { /* 무시 */ }
   }
@@ -549,9 +580,11 @@
     ownerFine.textContent = '';
     ownerLogout = fetch('api/suggestions/logout', { method: 'POST', cache: 'no-store' }).catch(() => {});
     suggestCard.hidden = false;
-    $('#ownerBtn').focus({ preventScroll: true });
+    $('#suggestCancel').focus({ preventScroll: true });
   }
-  $('#ownerBtn').addEventListener('click', () => {
+  function openOwner() {
+    if (!canSuggest || !suggestOpen() || ownerOpen()) return;
+    ownerTaps = 0;
     held.clear(); camp.setKeys(0, 0); camp.target = null;
     suggestCard.hidden = true;
     lockOwner();
@@ -560,6 +593,15 @@
     ownerAbort = new AbortController();
     ownerCard.hidden = false;
     ownerPassword.focus({ preventScroll: true });
+  }
+  // 제목을 빠르게 다섯 번 누르면 연다. 비밀번호 인증은 계속 서버에서 확인한다.
+  $('#suggest-title').addEventListener('click', () => {
+    const now = performance.now();
+    if (!ownerTaps || now - ownerTapStart > 3000) {
+      ownerTaps = 0;
+      ownerTapStart = now;
+    }
+    if (++ownerTaps === 5) openOwner();
   });
   $('#ownerCancel').addEventListener('click', closeOwner);
   $('#ownerLock').addEventListener('click', closeOwner);
@@ -670,9 +712,36 @@
     finally { $('#ownerRefresh').disabled = false; }
   });
 
-  // 머리 위 닉네임: 한 번에 하나, 3초쯤 떠 있다가 사라진다
+  // 내 닉네임은 표시 선택을 기억하고, 다른 멍이의 닉네임은 눌렀을 때 잠깐 띄운다.
   const campName = $('#campName');
   const sceneName = $('#sceneName');
+  let myNameVisible = MC.store.get('showMyName', true) !== false;
+  const selfNames = [$('#campSelfName'), $('#sceneSelfName')];
+  function setMyNameVisible(visible) {
+    myNameVisible = visible;
+    MC.store.set('showMyName', visible);
+    if (!visible) for (const el of selfNames) el.hidden = true;
+  }
+  for (const el of selfNames) el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setMyNameVisible(false);
+    toast('닉네임을 숨겼어요. 내 멍이를 누르면 다시 보여요.');
+  });
+  for (const el of selfNames) el.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter' || e.code === 'Space') e.stopPropagation();
+  });
+  function placeMyName(el, pup, toScreen) {
+    el.hidden = !myNameVisible || !net.name || !pup;
+    if (el.hidden) return;
+    if (el.textContent !== net.name) {
+      el.textContent = net.name;
+      el.setAttribute('aria-label', `${net.name}, 누르면 내 닉네임 숨기기`);
+    }
+    const up = (pup.lie >= 0.5 ? 104 : 160) - (pup.hop || 0) + (pup.seatLift || 0);
+    const byPavilion = pup === camp.pup && (camp.near?.id === 'moktak' || camp.pavilionSeat || camp.pavilionMove);
+    const q = toScreen(pup.x, byPavilion ? pup.y + 16 : pup.y - up * pup.k);
+    el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) translate(-50%, ${byPavilion ? '0' : '-100%'})`;
+  }
   const tag = { el: null, pup: null, until: 0, alive: null };
   function showName(el, pup, name, me, alive) {
     if (!name) return;
@@ -746,7 +815,7 @@
   }
 
   // 내 멍이도 내 털빛과 모자를 입는다
-  camp.pup.setLook(net.look.c, net.look.h);
+  camp.pup.setLook(net.look.c, net.look.h, net.look.ht, net.look.ac, net.look.gl);
   const together = { camp: $('#campTogether'), session: $('#sessionTogether'), at: 0 };
   function showTogether(el, n) {
     const on = n >= 2;
@@ -899,6 +968,7 @@
       hint.classList.add('is-off');
     }
     if (tag.el === campName) placeName((x, y) => camp.toScreen(x, y));
+    placeMyName(selfNames[0], camp.pup, (x, y) => camp.toScreen(x, y));
     // 함께 있는 사람들에게 내 자리를 알리고, 그들의 멍이를 데려온다
     net.set(camp.netState());
     camp.syncVisitors(residents.merge('map', net.list('map'), camp));
@@ -1016,7 +1086,7 @@
       return;
     }
     const r = campCanvas.getBoundingClientRect();
-    if (camp.tap(e.clientX - r.left, e.clientY - r.top) === 'pup') showName(campName, camp.pup, net.name, true);
+    if (camp.tap(e.clientX - r.left, e.clientY - r.top) === 'pup') setMyNameVisible(true);
   });
 
   // 방향키·WASD로 걷기
@@ -1096,7 +1166,7 @@
         if (v) showName(sceneName, v.pup, v.st.n, false, () => crowd.visitors.get(id) === v && !v.leaving);
       };
     }
-    if (scene.pup) scene.pup.setLook(net.look.c, net.look.h);
+    if (scene.pup) scene.pup.setLook(net.look.c, net.look.h, net.look.ht, net.look.ac, net.look.gl);
     state.started = true;
     state.startAt = Date.now();
     state.timerDone = false;
@@ -1237,6 +1307,7 @@
       }
     }
     if (tag.el === sceneName) placeName((x, y) => ({ x, y }));
+    placeMyName(selfNames[1], sc.pup, (x, y) => ({ x, y }));
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
       const st = sc.status();
@@ -1574,7 +1645,7 @@
         if (sc.onCute) sc.onCute('boop');
         return;
       }
-      showName(sceneName, sc.pup, net.name, true);
+      setMyNameVisible(true);
     }
     if (sc.pointerDown(x, y)) {
       try { stage.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
@@ -1608,6 +1679,11 @@
 
   document.addEventListener('keydown', (e) => {
     if (reading.isOpen) return;
+    if (suggestOpen() && e.ctrlKey && e.altKey && e.code === 'KeyO' && !e.repeat) {
+      e.preventDefault();
+      openOwner();
+      return;
+    }
     if (nickOpen() || suggestOpen() || ownerOpen() || dressOpen() || signOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');

@@ -55,8 +55,17 @@ main(async ({ check, staticServer, presenceServer, person, until, sleep, cleanup
   await until(A, () => !!navigator.serviceWorker.controller);
   await A.click('#suggestBtn');
   await A.fill('#suggestInput', '아직 보내지 않은 초안');
-  await A.click('#ownerBtn');
-  check(await A.isVisible('#ownerPassword') && await A.getAttribute('#ownerPassword', 'type') === 'password', '운영자 글자를 누르면 비밀번호창');
+  check(await A.locator('#ownerBtn, .suggest-lead button, .suggest-lead a').count() === 0, '건의 본문에 운영자 버튼이나 링크를 표시하지 않는다');
+  await A.click('#suggest-title', { clickCount: 4, delay: 80 });
+  check(!await A.isVisible('#ownerCard'), '제목을 네 번 눌러도 운영자창이 열리지 않는다');
+  await A.click('#suggestCancel'); await A.click('#suggestBtn');
+  await A.click('#suggest-title');
+  check(!await A.isVisible('#ownerCard'), '건의창을 닫으면 비밀 진입 탭 횟수가 초기화된다');
+  await sleep(3100);
+  await A.click('#suggest-title', { clickCount: 4, delay: 80 });
+  check(!await A.isVisible('#ownerCard'), '오래전에 누른 제목은 빠른 다섯 번에 누적하지 않는다');
+  await A.click('#suggest-title');
+  check(await A.isVisible('#ownerPassword') && await A.getAttribute('#ownerPassword', 'type') === 'password', '제목을 빠르게 다섯 번 누르면 비밀번호창');
   await A.fill('#ownerPassword', 'wrong'); await A.click('#ownerSubmit');
   check(await until(A, () => document.querySelector('#ownerFine').textContent.includes('맞지')), '틀린 비밀번호는 안내하고 건의를 보여주지 않는다');
   check(!(await A.isVisible('#ownerInbox')) && await A.inputValue('#ownerPassword') === '', '인증 전에는 목록이 없고 입력한 비밀번호도 비운다');
@@ -95,8 +104,13 @@ main(async ({ check, staticServer, presenceServer, person, until, sleep, cleanup
   await A.click('#ownerLock');
   check((await A.inputValue('#suggestInput')) === '아직 보내지 않은 초안', '운영자창을 닫아도 건의 초안은 유지한다');
   check(await until(A, async () => (await fetch('api/suggestions')).status === 401), '닫으면 운영자 인증도 해제한다');
-  await A.click('#ownerBtn');
+  check(await A.evaluate(() => document.activeElement.id === 'suggestCancel'), '운영자창을 닫으면 건의창의 닫기 버튼으로 초점이 돌아온다');
+  await A.keyboard.press('Control+Alt+KeyO');
   check(await A.isVisible('#ownerLogin') && await A.locator('.owner-item').count() === 0, '다시 열면 비밀번호를 묻고 이전 목록은 비운다');
+  await A.keyboard.press('Escape'); await A.click('#suggestCancel');
+  await A.click('#suggestBtn'); await A.keyboard.press('Control+Alt+KeyO');
+  await sleep(120);
+  check(await A.evaluate(() => document.activeElement.id === 'ownerPassword'), '건의창을 열자마자 단축키를 눌러도 비밀번호 입력 초점이 유지된다');
   await A.keyboard.press('Escape'); await A.click('#suggestCancel');
 
   const stopped = new Promise(resolve => srv.proc.once('exit', resolve)); srv.close(); await stopped;

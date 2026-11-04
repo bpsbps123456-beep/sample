@@ -23,6 +23,10 @@
       look = { c: bodies[(Math.random() * bodies.length) | 0].i, h: (Math.random() * MC.Pup.HATS) | 0 };
       MC.store.set('look', look);
     }
+    for (const slot of ['ht', 'ac', 'gl']) {
+      look[slot] = MC.Wardrobe.clean(slot, look[slot]);
+      if (!MC.Wardrobe.has(slot, look[slot])) look[slot] = 0;
+    }
     return look;
   }
 
@@ -75,6 +79,9 @@
       z: raw.z ? 1 : 0, // 꾸벅꾸벅
       c: num(raw.c, 0, 99) | 0,
       h: num(raw.h, 0, 99) | 0,
+      ht: MC.Wardrobe.clean('ht', raw.ht),
+      ac: MC.Wardrobe.clean('ac', raw.ac),
+      gl: MC.Wardrobe.clean('gl', raw.gl),
       hp: num(raw.hp, 0, 1e9) | 0, // 하트가 몇 번 났는지
       bp, // 누구에게 하트를 보냈는지 [그 사람, 몇 번째]
       g, // 걸어가는 중이면 가려는 자리
@@ -279,6 +286,9 @@
       for (const k of Object.keys(KEYS)) next[k] = st[k] != null ? st[k] : KEYS[k];
       next.c = this.look.c;
       next.h = this.look.h;
+      next.ht = this.look.ht;
+      next.ac = this.look.ac;
+      next.gl = this.look.gl;
       next.n = this.name || '';
       next.bp = this.bp || null;
       let changed = false;
@@ -342,8 +352,12 @@
 
     // 닉네임을 정한다 (처음 들어올 때). 다듬은 이름을 돌려준다
     // 꾸미기에서 고른 털빛과 모자. 저장하고, 다음 알림부터 함께 있는 사람들에게도 보인다
-    setLook(c, h) {
+    setLook(c, h, ht = 0, ac = 0, gl = 0) {
       this.look = { c: Math.max(0, Math.min(99, c | 0)), h: Math.max(0, Math.min(MC.Pup.HATS - 1, h | 0)) };
+      for (const [slot, value] of Object.entries({ ht, ac, gl })) {
+        const clean = MC.Wardrobe.clean(slot, value);
+        this.look[slot] = MC.Wardrobe.has(slot, clean) ? clean : 0;
+      }
       MC.store.set('look', this.look);
       return this.look;
     }

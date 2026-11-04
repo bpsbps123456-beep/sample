@@ -163,11 +163,14 @@
       if (this.onEvent) this.onEvent(kind);
     }
 
-    setLook(coat, hat) {
+    setLook(coat, hat, hatStyle = 0, accessory = 0, gloves = 0) {
       this.coatId = coat >= 0 && coat < 100 ? coat | 0 : 0;
       this.hatId = HATS[hat] ? hat | 0 : 0;
       this.coat = coatOf(this.coatId);
       this.hat = HATS[this.hatId];
+      this.hatStyle = MC.Wardrobe.clean('ht', hatStyle);
+      this.accessory = MC.Wardrobe.clean('ac', accessory);
+      this.gloves = MC.Wardrobe.clean('gl', gloves);
       this.paintedAt = -9;
     }
 
@@ -607,7 +610,7 @@
     // ── 그리기 ───────────────────────────────────────────
     bounds() {
       const rolling = !!this.rollPose;
-      return { x0: rolling ? -88 : -78, y0: this.chair > 0 ? -170 : -140, x1: this.stick ? 240 : rolling ? 88 : 78, y1: this.rest === 'branch' ? 42 : 14 };
+      return { x0: rolling ? -88 : -78, y0: (this.hatStyle ? -160 : -140) - (this.chair > 0 ? 30 : 0), x1: this.stick ? 240 : rolling ? 88 : 78, y1: this.rest === 'branch' ? 42 : 14 };
     }
 
     draw(g, dpr, bodyOnly, rowing = false) {
@@ -929,6 +932,7 @@
       o.fill();
       o.lineWidth = 2;
       o.stroke();
+      if (!fill) this.paintGlove(o, bend, len + 1);
       o.restore();
     }
 
@@ -976,7 +980,7 @@
       const by = -ry;
       const hx = -9 * lie + 3 * tuck;
       const sx = MC.lerp(1, 0.88, lie), sy = MC.lerp(1, 0.8, lie);
-      const headTop = this.outfit === 'beanie' ? 64 : this.outfit === 'nightcap' ? 58 : this.outfit === 'sprout' ? 50 : 37;
+      const headTop = this.hatStyle === 1 ? 80 : this.hatStyle ? 68 : this.outfit === 'beanie' ? 64 : this.outfit === 'nightcap' ? 58 : this.outfit === 'sprout' ? 50 : 37;
       const hy = MC.lerp(-71, -28.2, lie) + tuck;
       const headRadius = Math.hypot(42 * sx * sn, (cs < 0 ? headTop : 29) * sy * cs);
       const hindfeet = [-1, 1].map(s => {
@@ -1020,6 +1024,7 @@
           for (const dx of [-3, 3]) { o.moveTo(dx, 1.5); o.lineTo(dx, 4); }
           o.stroke();
         }
+        if (!rear) this.paintGlove(o, 0, 0);
         o.restore();
       };
       // 꼬리는 허리 옆에 내려놓고, 몸이 뒤집힐 때만 함께 말려 올라간다.
@@ -1144,6 +1149,7 @@
         o.moveTo(x + 3, row);
         o.lineTo(x + 3, 2.6 + row);
         o.stroke();
+        this.paintGlove(o, x, -2.5 + row);
       }
     }
 
@@ -1249,6 +1255,7 @@
         ellipse(o, x, y, 8, 5.8, -side * 0.35);
         o.fillStyle = '#fffaf1'; o.fill();
         o.lineWidth = 2.2; o.strokeStyle = INK; o.stroke();
+        this.paintGlove(o, x, y, -side * .35);
       }
     }
 
@@ -1317,6 +1324,7 @@
         o.moveTo(2.6, 1.6);
         o.lineTo(2.6, 4.2);
         o.stroke();
+        this.paintGlove(o, 0, 0);
         o.restore();
       }
     }
@@ -1386,10 +1394,109 @@
       this.paintEar(o, -1, tx);
       this.paintEar(o, 1, tx);
       if (!back) this.paintFace(o, tx);
-      if (this.outfit === 'beanie') this.paintBeanie(o, tx);
+      this.paintAccessory(o, back);
+      if (this.hatStyle) this.paintGiftHat(o, tx, back);
+      else if (this.outfit === 'beanie') this.paintBeanie(o, tx);
       else if (this.outfit === 'sprout') this.paintSprout(o, tx);
       else if (this.outfit === 'nightcap') this.paintNightcap(o, tx, back);
       else if (!back) this.paintTuft(o, tx);
+    }
+
+    paintGiftHat(o, tx, back) {
+      o.save(); o.translate(tx * 5, 0);
+      o.lineWidth = 2.2; o.strokeStyle = INK;
+      const oval = (x, y, rx, ry, color, rot = 0) => {
+        ellipse(o, x, y, rx, ry, rot); o.fillStyle = color; o.fill(); o.stroke();
+      };
+      if (this.hatStyle === 1) {
+        oval(-18, -125, 9, 23, '#fff5ef', -.22);
+        oval(18, -125, 9, 23, '#fff5ef', .22);
+        ellipse(o, -18, -125, 4, 15, -.22); o.fillStyle = '#f5b6c7'; o.fill();
+        ellipse(o, 18, -125, 4, 15, .22); o.fill();
+        oval(0, -100, 37, 17, '#fff5ef');
+        oval(0, -90, 37, 5, '#f7c7d2');
+        if (!back) {
+          o.strokeStyle = '#d38c9f'; o.lineWidth = 2;
+          o.beginPath(); o.moveTo(-33, -87); o.quadraticCurveTo(-26, -67, -19, -54); o.moveTo(33, -87); o.quadraticCurveTo(27, -66, 19, -54); o.stroke();
+        }
+      } else if (this.hatStyle === 2) {
+        oval(0, -103, 34, 23, '#a5dba2');
+        oval(-18, -123, 10, 10, '#b8e5a9'); oval(18, -123, 10, 10, '#b8e5a9');
+        if (!back) {
+          ellipse(o, -18, -124, 2.8, 4); o.fillStyle = EYE; o.fill();
+          ellipse(o, 18, -124, 2.8, 4); o.fill();
+          o.beginPath(); o.arc(0, -110, 7, .15, Math.PI - .15); o.stroke();
+        }
+        oval(0, -89, 41, 5, '#80bc8c');
+      } else if (this.hatStyle === 3) {
+        oval(1, -108, 37, 20, '#f69aaa', -.1);
+        oval(0, -90, 32, 5, '#dc748c');
+        o.fillStyle = '#fff2c2';
+        for (const [x, y] of [[-22, -109], [-9, -116], [5, -105], [20, -115], [27, -104], [-9, -101]]) { ellipse(o, x, y, 1.5, 2.5, -.2); o.fill(); }
+        o.strokeStyle = '#638960'; o.lineWidth = 3;
+        o.beginPath(); o.moveTo(3, -125); o.quadraticCurveTo(1, -137, 10, -138); o.stroke();
+        oval(-5, -126, 9, 3.5, '#88b77e', .4); oval(10, -127, 9, 3.5, '#88b77e', -.3);
+      } else {
+        o.beginPath(); o.moveTo(-34, -90);
+        o.bezierCurveTo(-46, -98, -33, -119, -21, -113);
+        o.bezierCurveTo(-22, -134, 8, -135, 13, -118);
+        o.bezierCurveTo(33, -129, 45, -106, 34, -92); o.closePath();
+        o.fillStyle = '#f0f8ff'; o.fill(); o.stroke();
+        oval(0, -90, 36, 5, '#b5d8ee');
+        if (!back) { o.fillStyle = '#f4d276'; this.paintStar(o, 20, -109, 6); }
+      }
+      o.restore();
+    }
+
+    paintStar(o, x, y, r) {
+      o.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const angle = -Math.PI / 2 + i * Math.PI / 5, radius = i % 2 ? r * .48 : r;
+        const px = x + Math.cos(angle) * radius, py = y + Math.sin(angle) * radius;
+        if (!i) o.moveTo(px, py); else o.lineTo(px, py);
+      }
+      o.closePath(); o.fill();
+    }
+
+    paintAccessory(o, back) {
+      if (!this.accessory) return;
+      o.save(); o.strokeStyle = '#bc8197'; o.lineWidth = 2.6;
+      o.beginPath(); o.moveTo(-22, -48); o.quadraticCurveTo(0, -35, 22, -48); o.stroke();
+      if (!back) {
+        if (this.accessory === 1) {
+          o.fillStyle = '#f5a9ba'; o.strokeStyle = '#b9768b'; o.lineWidth = 1.4;
+          for (const side of [-1, 1]) {
+            o.beginPath(); o.moveTo(0, -41); o.bezierCurveTo(side * 21, -57, side * 23, -26, 0, -38); o.closePath(); o.fill(); o.stroke();
+          }
+          ellipse(o, 0, -40, 4, 4.5); o.fillStyle = '#ffe0e8'; o.fill(); o.stroke();
+        } else if (this.accessory === 2) {
+          o.fillStyle = '#ffe298'; this.paintStar(o, 0, -35, 10);
+          o.strokeStyle = '#bd9655'; o.lineWidth = 1.2; o.stroke();
+        } else {
+          o.fillStyle = '#fffbef';
+          for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ellipse(o, Math.cos(a) * 7, -37 + Math.sin(a) * 7, 4.5, 4.5); o.fill(); }
+          ellipse(o, 0, -37, 4.5, 4.5); o.fillStyle = '#f4cf70'; o.fill();
+        }
+      }
+      o.restore();
+    }
+
+    // 앞발을 그리는 모든 자세에서 같은 장갑을 쓴다.
+    paintGlove(o, x, y, rot = 0) {
+      if (!this.gloves) return;
+      o.save(); o.translate(x, y); o.rotate(rot);
+      const colors = [null, ['#f6b4c9', '#c27895'], ['#a9dccc', '#609f8a'], ['#ccb9ef', '#977bc0']][this.gloves];
+      ellipse(o, 0, 0, 8.6, 6.6); o.fillStyle = colors[0]; o.fill();
+      o.strokeStyle = colors[1]; o.lineWidth = 1.6; o.stroke();
+      o.fillStyle = '#fff9ee'; o.fillRect(-6.2, 3.1, 12.4, 2.8);
+      o.fillStyle = colors[1];
+      if (this.gloves === 1) {
+        o.save(); o.translate(0, -.7); o.scale(.62, .62); heartPath(o); o.fill(); o.restore();
+      } else if (this.gloves === 2) {
+        ellipse(o, 0, .3, 2.7, 1.8); o.fill();
+        for (const dx of [-3, 0, 3]) { ellipse(o, dx, -2.6, 1.1, 1.2); o.fill(); }
+      } else this.paintStar(o, 0, -.8, 4);
+      o.restore();
     }
 
     paintEar(o, side, tx) {

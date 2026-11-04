@@ -4,6 +4,8 @@
 (function (MC) {
   'use strict';
 
+  const { makeSpray } = MC.ForestTree;
+
   let SPR = null;
   function sprites() {
     if (SPR) return SPR;
@@ -124,54 +126,6 @@
   }
 
   const INK = '#5b3d2c';
-
-  // 편백 잎: 납작한 부채꼴로 갈래갈래 갈라지는 비늘잎. 줄기마다 작은 비늘잎이 엇갈려 붙고,
-  // 끝으로 갈수록 가늘고 밝다. 오른쪽을 향해 그려 두고 돌려서 쓴다
-  function makeSpray(size, seed, dpr, sunny) {
-    const rnd = MC.rng(seed);
-    const W = size * 1.3;
-    const H = size * 1.1;
-    const c = MC.canvas(Math.ceil(W * dpr), Math.ceil(H * dpr));
-    const g = c.getContext('2d');
-    g.scale(dpr, dpr);
-    g.translate(3, H * 0.45);
-    const cols = sunny ? ['#244a2b', '#356638', '#4f8443', '#86b45a', '#b4d57e'] : ['#203f27', '#2f5a33', '#43733d', '#6d9c4e', '#94bd68'];
-    const frond = (x, y, a, len, wd, depth, light) => {
-      const n = Math.max(4, Math.round(len / (wd * 0.85)));
-      let px = x;
-      let py = y;
-      for (let i = 0; i < n; i++) {
-        const f = i / Math.max(1, n - 1);
-        a += 0.016 * (1 + depth * 0.5) + (rnd() - 0.5) * 0.06; // 끝으로 갈수록 살짝 처진다
-        px += (Math.cos(a) * len) / n;
-        py += (Math.sin(a) * len) / n;
-        const ww = wd * (1 - 0.62 * f);
-        for (const side of [-1, 1]) {
-          const ox = Math.cos(a + side * 1.25) * ww * 0.32;
-          const oy = Math.sin(a + side * 1.25) * ww * 0.32;
-          const tone = MC.clamp(light + (side < 0 ? 1 : 0) + (f > 0.7 ? 2 : f > 0.4 ? 1 : 0) - (rnd() < 0.25 ? 1 : 0), 0, 4);
-          g.fillStyle = cols[tone];
-          g.beginPath();
-          g.ellipse(px + ox, py + oy, ww * 0.6, ww * 0.3, a + side * 0.55, 0, Math.PI * 2);
-          g.fill();
-        }
-        if (depth > 0 && i > 0 && i < n - 1 && i % 2 === 0) {
-          const side = (i / 2) % 2 ? 1 : -1;
-          frond(px, py, a + side * (0.5 + rnd() * 0.3), len * (0.6 - f * 0.4), ww * 0.9, depth - 1, Math.min(2, light + (side < 0 ? 1 : 0)));
-        }
-      }
-      g.fillStyle = cols[4];
-      g.beginPath();
-      g.ellipse(px + Math.cos(a) * wd * 0.2, py + Math.sin(a) * wd * 0.2, wd * 0.3, wd * 0.17, a, 0, Math.PI * 2);
-      g.fill();
-    };
-    // 그늘진 아래 겹 한 번, 그 위에 밝은 겹
-    g.globalAlpha = 0.55;
-    frond(0, size * 0.04, 0.08, size * 0.9, size * 0.07, 2, 0);
-    g.globalAlpha = 1;
-    frond(0, 0, -0.06, size, size * 0.075, 2, 1);
-    return { c, W, H, ax: 3, ay: H * 0.45 };
-  }
 
   // 한 장씩 갈라지는 고사리 잎. 숲 바닥과 앞쪽 잎 모두 같은 형태를 쓰되,
   // 복잡한 잎맥과 작은 갈래는 크기가 바뀔 때만 그려 둔다.
@@ -1239,7 +1193,7 @@
       const tx = w * (P ? 0.93 : 0.87);
       const tw = (P ? 62 : 86) * s;
       // 줄기는 위로 갈수록 가늘어진다
-      const half = (y) => (tw / 2) * (0.7 + 0.3 * MC.clamp(y / h, 0, 1));
+      const half = (y) => MC.ForestTree.halfWidth(tw, h, y);
       this.trunkHalf = half;
       // 가지 여섯: 바닥 가까이에서 꼭대기 가까이까지. 화면 크기가 달라도 가지 수와 자리 수는 같다
       // (함께 있는 사람들과 자리 번호가 같은 가지를 가리키도록). 가장 높은 가지도 엎드린 멍이 머리가 화면 안에 든다
@@ -1259,7 +1213,8 @@
       }
       branches.forEach((br, i) => {
         br.cx = MC.lerp(br.x0, br.x1, 0.43 + (i % 3) * 0.05);
-        br.cy = Math.max(br.y0, br.y1) + (i % 2 ? 13 : 5) * s;
+        // 굵은 줄기에서 비스듬히 솟아 나온 뒤, 끝으로 갈수록 완만해지는 가지.
+        br.cy = Math.min(br.y0, br.y1) - (i % 2 ? 5 : 10) * s;
       });
       this.tree = { x: tx, w: tw, branches };
       // 자리: 1 그루터기, 2.. 아래 가지(줄기 쪽부터), 그다음 위 가지
@@ -1279,261 +1234,17 @@
         }
       });
 
-      const rnd = MC.rng(2468);
-      const c = (this.treeImg = MC.canvas(w * dpr, h * dpr));
-      const g = c.getContext('2d');
-      g.scale(dpr, dpr);
-      g.lineJoin = 'round';
-      g.lineCap = 'round';
-      this.sprays = [makeSpray(112 * s, 11, dpr, true), makeSpray(90 * s, 23, dpr, false), makeSpray(78 * s, 37, dpr, true), makeSpray(103 * s, 51, dpr, false)];
-      const spray = (x, y, a, i, sc = 1) => {
-        const sp = this.sprays[i % this.sprays.length];
-        g.save();
-        g.translate(x, y);
-        g.rotate(a);
-        g.scale(sc, sc);
-        g.drawImage(sp.c, -sp.ax, -sp.ay, sp.W, sp.H);
-        g.restore();
-      };
-
-      // 가지 뒤로 드리운 잎 (가지보다 먼저): 위로 비스듬히, 옆으로 납작하게 겹겹이
-      branches.forEach((br, bi) => {
-        const n = 8;
-        for (let i = 0; i < n; i++) {
-          const t = 0.1 + (i / (n - 1)) * 0.82 + (rnd() - 0.5) * 0.06;
-          const p = this.branchPoint(br, t);
-          // 잎은 옆과 아래로 퍼지고, 멍이가 누울 윗면은 비워 둔다.
-          spray(p.x, p.y + 5 * s, Math.PI - (i % 2 ? 0.95 : 0.3) + (rnd() - 0.5) * 0.22, i + bi, (0.7 + rnd() * 0.35) * (bi > 1 ? 0.85 : 1));
-          if (i < 3) spray(p.x, p.y + 6 * s, 0.7 + rnd() * 0.5, bi + i + 1, 0.8);
-        }
-      });
-
-      // 줄기: 아래로 갈수록 넓어지며 뿌리가 땅을 움켜쥔다
-      const left = tx - tw / 2;
-      const right = tx + tw / 2;
-      const yb = b.top - 34 * s;
-      g.beginPath();
-      g.moveTo(tx - half(-10), -10);
-      g.lineTo(tx - half(yb), yb);
-      g.quadraticCurveTo(tx - half(yb) - 4 * s, b.top + 14 * s, left - tw * 0.34, h + 10);
-      g.lineTo(right + tw * 0.34, h + 10);
-      g.quadraticCurveTo(tx + half(yb) + 4 * s, b.top + 14 * s, tx + half(yb), yb);
-      g.lineTo(tx + half(-10), -10);
-      g.closePath();
-      const bark = g.createLinearGradient(left, 0, right, 0);
-      bark.addColorStop(0, '#c58e60');
-      bark.addColorStop(0.3, '#9d6644');
-      bark.addColorStop(0.75, '#6c442c');
-      bark.addColorStop(1, '#4e3020');
-      g.fillStyle = bark;
-      g.fill();
-      g.strokeStyle = 'rgba(58,38,26,0.85)';
-      g.lineWidth = 2 * s;
-      g.stroke();
-      g.save();
-      g.clip();
-      // 세로로 길게 갈라지는 섬유질 껍질
-      for (let i = 0; i < 34; i++) {
-        const fx = left - tw * 0.2 + rnd() * tw * 1.4;
-        const lightLine = rnd() < 0.38;
-        g.strokeStyle = lightLine ? 'rgba(240,196,156,0.3)' : 'rgba(52,30,18,0.4)';
-        g.lineWidth = (0.8 + rnd() * 1.8) * s;
-        g.beginPath();
-        let y = -10;
-        let x = fx;
-        g.moveTo(x, y);
-        while (y < h + 10) {
-          y += 26 * s;
-          x += (rnd() - 0.5) * 3.2 * s;
-          g.lineTo(x, y);
-        }
-        g.stroke();
-      }
-      // 길게 벗겨진 껍질 몇 가닥
-      for (let i = 0; i < 5; i++) {
-        const fx = left + tw * (0.15 + rnd() * 0.7);
-        const y0 = rnd() * b.top * 0.8;
-        const len = (60 + rnd() * 90) * s;
-        g.strokeStyle = 'rgba(214,150,108,0.65)';
-        g.lineWidth = (2 + rnd() * 2) * s;
-        g.beginPath();
-        g.moveTo(fx, y0);
-        g.quadraticCurveTo(fx + 4 * s, y0 + len * 0.5, fx + (rnd() < 0.5 ? -7 : 7) * s, y0 + len);
-        g.stroke();
-      }
-      // 오른쪽은 그늘, 왼쪽 가장자리에는 아침 햇빛
-      const shade = g.createLinearGradient(left, 0, right, 0);
-      shade.addColorStop(0, 'rgba(255,236,190,0.32)');
-      shade.addColorStop(0.12, 'rgba(255,236,190,0)');
-      shade.addColorStop(0.7, 'rgba(20,12,6,0)');
-      shade.addColorStop(1, 'rgba(20,12,6,0.32)');
-      g.fillStyle = shade;
-      g.fillRect(left - tw, 0, tw * 3, h);
-      g.restore();
-
-      // 가지
-      branches.forEach((br, bi) => {
-        const N = 30;
-        const top = [];
-        const bot = [];
-        for (let i = 0; i <= N; i++) {
-          const t = i / N;
-          const u = 1 - t;
-          const x = u * u * br.x0 + 2 * u * t * br.cx + t * t * br.x1;
-          const y = u * u * br.y0 + 2 * u * t * br.cy + t * t * br.y1;
-          const th = MC.lerp(br.th0, br.th1, t) * (1 + 0.05 * Math.sin(t * 13 + bi));
-          const flare = t < 0.1 ? (1 - t / 0.1) * br.th0 * 0.45 : 0;
-          top.push([x, y - th / 2 - flare]);
-          bot.push([x, y + th / 2 + flare * 0.7]);
-        }
-        g.beginPath();
-        g.moveTo(top[0][0] + tw * 0.2, top[0][1] - 6 * s);
-        for (const [x, y] of top) g.lineTo(x, y);
-        const tip = top[N];
-        const tipB = bot[N];
-        g.quadraticCurveTo(tip[0] - br.th1 * 0.7, (tip[1] + tipB[1]) / 2, tipB[0], tipB[1]);
-        for (let i = N; i >= 0; i--) g.lineTo(bot[i][0], bot[i][1]);
-        g.lineTo(bot[0][0] + tw * 0.2, bot[0][1] + 6 * s);
-        g.closePath();
-        const bg = g.createLinearGradient(0, br.y0 - br.th0 * 0.8, 0, br.y0 + br.th0 * 0.8);
-        bg.addColorStop(0, '#cf9a6b');
-        bg.addColorStop(0.45, '#93603f');
-        bg.addColorStop(1, '#53351f');
-        g.fillStyle = bg;
-        g.fill();
-        g.strokeStyle = 'rgba(58,38,26,0.85)';
-        g.lineWidth = 1.8 * s;
-        g.stroke();
-        // 가지를 따라 난 결
-        g.save();
-        g.clip();
-        for (let j = 0; j < 4; j++) {
-          const off = -0.3 + j * 0.2;
-          g.strokeStyle = j % 2 ? 'rgba(52,30,18,0.35)' : 'rgba(240,196,156,0.22)';
-          g.lineWidth = 1.1 * s;
-          g.beginPath();
-          for (let i = 0; i <= N; i++) {
-            const x = top[i][0];
-            const y = MC.lerp(top[i][1], bot[i][1], 0.5 + off) + Math.sin(i * 1.7 + j) * 0.8 * s;
-            if (i === 0) g.moveTo(x, y);
-            else g.lineTo(x, y);
-          }
-          g.stroke();
-        }
-        g.restore();
-        // 윗면의 폭신한 이끼
-        for (let i = 0; i < 26; i++) {
-          const t = 0.04 + rnd() * 0.9;
-          const p = this.branchPoint(br, t);
-          g.fillStyle = rnd() < 0.5 ? '#86b45c' : '#6a9a48';
-          g.beginPath();
-          g.ellipse(p.x + (rnd() - 0.5) * 8 * s, p.y + (1 + rnd() * 2) * s, (3 + rnd() * 6) * s, (1.6 + rnd() * 2) * s, 0, 0, Math.PI * 2);
-          g.fill();
-        }
-        // 옹이
-        const kp = this.branchPoint(br, 0.18 + rnd() * 0.1);
-        g.fillStyle = 'rgba(60,36,22,0.55)';
-        g.beginPath();
-        g.ellipse(kp.x, kp.y + br.th0 * 0.45, 3.5 * s, 2.4 * s, 0, 0, Math.PI * 2);
-        g.fill();
-        // 작은 회청색 지의류와 이끼의 짧은 줄기.
-        for (let j = 0; j < 9; j++) {
-          const p = this.branchPoint(br, 0.08 + rnd() * 0.83);
-          g.strokeStyle = j % 3 ? '#b0c681' : '#b6c6aa';
-          g.lineWidth = 0.7 * s;
-          g.beginPath();
-          g.moveTo(p.x, p.y + 2 * s); g.lineTo(p.x + s, p.y - 2 * s);
-          g.moveTo(p.x, p.y); g.lineTo(p.x - 2 * s, p.y - s); g.stroke();
-        }
-      });
-
-      // 가지 아래로 늘어진 잎
-      branches.forEach((br, bi) => {
-        for (let i = 0; i < 5; i++) {
-          const t = 0.08 + i * 0.19 + rnd() * 0.06;
-          const p = this.branchPoint(br, t);
-          spray(p.x, p.y + MC.lerp(br.th0, br.th1, t) * 0.8, Math.PI - 1.05 + (rnd() - 0.5) * 0.35, i + bi + 1, 0.72 + rnd() * 0.2);
-          // 편백 열매: 작은 둥근 구과와 갈라진 비늘.
-          if ((i + bi) % 3 === 0) {
-            const cx = p.x - 13 * s, cy = p.y + 26 * s, r = 3.8 * s;
-            g.strokeStyle = '#66523a'; g.lineWidth = 0.7 * s;
-            g.beginPath(); g.moveTo(p.x, p.y + 8 * s); g.lineTo(cx, cy); g.stroke();
-            g.fillStyle = '#a49162'; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-            g.beginPath(); g.moveTo(cx - r * 0.8, cy); g.lineTo(cx + r * 0.8, cy);
-            g.moveTo(cx, cy - r * 0.85); g.lineTo(cx - r * 0.2, cy); g.lineTo(cx + r * 0.3, cy + r * 0.85); g.stroke();
-            g.fillStyle = '#dac994'; g.fillRect(cx - s, cy - 2 * s, s, s);
-          }
-        }
-      });
-      // 밑동: 뿌리 사이에 낀 이끼 (밑으로 갈수록 짙게)
-      for (let i = 0; i < 26; i++) {
-        const u = rnd();
-        const y = b.top + 6 * s + Math.pow(rnd(), 0.6) * (h - b.top);
-        const spread = tw * (0.5 + 0.35 * (y - b.top) / (h - b.top + 1));
-        const x = tx + (u - 0.5) * spread * 2;
-        g.fillStyle = rnd() < 0.5 ? 'rgba(111,157,76,0.85)' : 'rgba(85,127,58,0.85)';
-        g.beginPath();
-        g.ellipse(x, y, (5 + rnd() * 7) * s, (1.8 + rnd() * 2) * s, 0, Math.PI, 0);
-        g.fill();
-      }
-
-      // 꼭대기 가지, 줄기 가까이에 작은 새 둥지
-      {
-        const tb = branches[branches.length - 1];
-        const np = this.branchPoint(tb, 0.1);
-        this.nest = { x: np.x, y: np.y };
-        g.save();
-        g.translate(np.x, np.y + 2 * s);
-        g.fillStyle = '#7a5434';
-        g.beginPath();
-        g.ellipse(0, -3 * s, 15 * s, 7 * s, 0, 0, Math.PI);
-        g.fill();
-        g.strokeStyle = 'rgba(200,160,110,0.8)';
-        g.lineWidth = 1.2 * s;
-        for (let i = 0; i < 9; i++) {
-          const a = -0.2 + (i / 8) * (Math.PI + 0.4);
-          g.beginPath();
-          g.moveTo(Math.cos(a) * 14 * s, -3 * s + Math.sin(a) * 6 * s);
-          g.quadraticCurveTo(Math.cos(a + 0.6) * 8 * s, -6 * s, Math.cos(a + 1.1) * 13 * s, -3 * s + Math.sin(a + 1.1) * 5 * s);
-          g.stroke();
-        }
-        g.fillStyle = '#4a311f';
-        g.beginPath();
-        g.ellipse(0, -4.5 * s, 11 * s, 3 * s, 0, 0, Math.PI * 2);
-        g.fill();
-        g.fillStyle = '#cfe3f0';
-        for (const ex of [-3.5, 3]) {
-          g.beginPath();
-          g.ellipse(ex * s, -5.5 * s, 2.8 * s, 2.2 * s, 0, 0, Math.PI * 2);
-          g.fill();
-        }
-        g.restore();
-      }
-
-      // 가지 끝에서 살랑이는 잎은 따로 그린다
-      this.tips = [];
-      branches.forEach((br, bi) => {
-        const p = this.branchPoint(br, 1);
-        const n = this.sprays.length;
-        this.tips.push({ x: p.x + 3 * s, y: p.y + br.th1 * 0.5, a: Math.PI + 0.25, spr: this.sprays[bi % n], ph: rnd() * 6 });
-        this.tips.push({ x: p.x + 8 * s, y: p.y + br.th1 * 0.8, a: Math.PI - 0.55, spr: this.sprays[(bi + 1) % n], ph: rnd() * 6 });
-      });
+      Object.assign(this, MC.ForestTree.render({ w, h, dpr, s, tree: this.tree, groundY: b.top }));
     }
 
     // 가지 윗면의 한 점 (t: 0 줄기 … 1 끝)
     branchPoint(br, t) {
-      const u = 1 - t;
-      const x = u * u * br.x0 + 2 * u * t * br.cx + t * t * br.x1;
-      const y = u * u * br.y0 + 2 * u * t * br.cy + t * t * br.y1;
-      const th = MC.lerp(br.th0, br.th1, t);
-      return { x, y: y - th / 2, th };
+      return MC.ForestTree.branchPoint(br, t);
     }
 
     // 가지가 기운 정도 (왼쪽→오른쪽 방향의 각도). 엎드린 멍이도 그만큼 기운다
     branchSlope(br, t) {
-      const dx = 2 * (1 - t) * (br.cx - br.x0) + 2 * t * (br.x1 - br.cx);
-      const dy = 2 * (1 - t) * (br.cy - br.y0) + 2 * t * (br.y1 - br.cy);
-      return Math.atan2(-dy, -dx);
+      return MC.ForestTree.branchSlope(br, t);
     }
 
     // 높은 가지로 갈 때는 사이의 가지를 계단처럼 차례로 딛는다 (줄기 가까운 쪽)

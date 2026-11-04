@@ -12,10 +12,12 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
   check(await A.evaluate(() => { const s = MC.app.state.sceneObj; return s.rippleAt() && !s.rippleAt(); }), '물수제비는 한 번씩 던진다');
   check(await until(A, () => { const s = MC.app.state.sceneObj; return !s.stone && s.ripples.length >= 3; }), '돌이 세 번 이상 튀고 물결을 남긴다');
   const origin = await A.evaluate(() => { const c = MC.app.state.sceneObj.crowd; return [c.me.X, c.me.Z]; });
+  await A.keyboard.press('Shift'); // 기다리는 동안 자동으로 숨은 조작부를 깨운다.
   await A.click('[data-act=dive]');
   check(await until(A, () => { const s = MC.app.state.sceneObj; return s.underwater && s.pup.rest === 'dive' && s.pup.lie === 0 && s.crowd.state().dv === 1; }), '잠수 버튼으로 유리 헬멧과 공기통을 착용한다');
   check(await A.evaluate(() => document.querySelector('[data-act=dive]').textContent.includes('물 위로') && document.querySelector('[data-act=bottle]').hidden && document.querySelector('[data-act=chair]').hidden), '물속에서는 물 위로·공기 방울 버튼을 보여 준다');
   check(await until(B, () => { const c = MC.app.state.sceneObj.crowd; return [...c.visitors.values()].some(v => v.st.dv && !c.sees(v)); }), '물 위에서는 잠수한 친구가 따로 표시되지 않는다');
+  await B.keyboard.press('Shift');
   await B.click('[data-act=dive]');
   check(await until(B, () => { const c = MC.app.state.sceneObj.crowd; return [...c.visitors.values()].some(v => v.st.dv && c.sees(v) && v.pup.rest === 'dive'); }), '서버를 통해 다른 잠수 친구의 장비와 상태를 공유한다');
   const before = await A.evaluate(() => MC.app.state.sceneObj.crowd.me.X);

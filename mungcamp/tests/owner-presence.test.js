@@ -11,7 +11,7 @@ main(async ({check, presenceServer, person, enter, until, shot, cleanup}) => {
   await enter(B, srv.url, 'fire');
   await until(A, () => MC.app.net.total() === 2);
   check((await fetch(srv.url + 'api/suggestions/presence')).status === 401, '실제 접속 통계는 비밀번호 인증 전에는 읽을 수 없다');
-  await A.click('#suggestBtn'); await A.click('#ownerBtn');
+  await A.click('#suggestBtn'); await A.click('#suggest-title', { clickCount: 5, delay: 80 });
   check(!await A.isVisible('.owner-presence'), '비밀번호를 입력하기 전에는 실제 인원 패널을 숨긴다');
   await A.fill('#ownerPassword', key); await A.click('#ownerSubmit');
   check(await until(A, () => document.querySelector('#ownerOnline').textContent === '2'), '비밀번호로 열면 더미를 뺀 실제 접속 두 명이 보인다');
@@ -30,7 +30,10 @@ main(async ({check, presenceServer, person, enter, until, shot, cleanup}) => {
   await B.close();
   check(await until(A, () => document.querySelector('#ownerOnline').textContent === '2' && document.querySelector('#ownerPlaces').textContent.includes('모닥불 0'), null, 8000), '이용자가 나가면 실제 전체·장소 인원도 줄어든다');
   const P = phone.page;
-  await P.click('#suggestBtn'); await P.click('#ownerBtn'); await P.fill('#ownerPassword', key); await P.click('#ownerSubmit');
+  await P.tap('#suggestBtn');
+  for (let i = 0; i < 5; i++) await P.tap('#suggest-title');
+  check(await P.isVisible('#ownerPassword'), '휴대폰에서도 제목을 다섯 번 터치하면 비밀번호창을 연다');
+  await P.fill('#ownerPassword', key); await P.click('#ownerSubmit');
   await until(P, () => document.querySelector('#ownerOnline').textContent === '2');
   const layout = await P.evaluate(() => {
     const r = document.querySelector('.owner-presence').getBoundingClientRect();

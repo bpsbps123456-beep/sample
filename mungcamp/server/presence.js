@@ -84,6 +84,10 @@ function clean(raw) {
     z: raw.z ? 1 : 0,
     c: num(raw.c, 0, 99) | 0,
     h: num(raw.h, 0, 99) | 0,
+    // 낚시 옷장: 모자 4종, 액세서리·장갑 각 3종. 모르는 번호는 기본 모습으로.
+    ht: Number.isInteger(raw.ht) && raw.ht >= 0 && raw.ht <= 4 ? raw.ht : 0,
+    ac: Number.isInteger(raw.ac) && raw.ac >= 0 && raw.ac <= 3 ? raw.ac : 0,
+    gl: Number.isInteger(raw.gl) && raw.gl >= 0 && raw.gl <= 3 ? raw.gl : 0,
     hp: num(raw.hp, 0, 1e9) | 0,
     bp,
     g: gx != null && gy != null ? [Math.round(gx), Math.round(gy)] : null,
