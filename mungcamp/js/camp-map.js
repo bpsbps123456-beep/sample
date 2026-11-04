@@ -28,9 +28,9 @@
   const BRAZIER = { x: 1290, y: 1838 };
   const POSTS = [[900, 1700], [970, 1905], [1610, 1910], [1690, 1712]];
   // 숙소: 마을 남서쪽(7시 방향) 구석에 쏙 들어앉은 작은 나무집. 창에 불이 켜져 있고 굴뚝에서 연기가 오른다.
-  // 이 둘레만 조금 더 춥다: 눈이 소복이 쌓이고 하늘하늘 내리며, 입김이 하얗게 난다. 곁에는 감만 남은 감나무
+  // 이 둘레만 조금 더 춥다: 눈이 소복이 쌓이고 하늘하늘 내리며, 입김이 하얗게 난다. 곁에는 눈 얹힌 작은 전나무
   const LODGE = { x: 350, y: 1890 };
-  const PERSIMMON = { x: 190, y: 1880 };
+  const LODGE_FIR = { x: 190, y: 1880 };
   const LODGE_GARDEN = {
     bench: { x: LODGE.x - 108, y: LODGE.y + 104 },
     wood: { x: LODGE.x - 143, y: LODGE.y - 5 },
@@ -218,10 +218,10 @@
       // 글램핑장 마당과 텐트
       if (((x - 1290) / 470) ** 2 + ((y - 1790) / 220) ** 2 < 1) return false;
       if (LODGE_BORDER.some(([bx, by]) => Math.hypot(x - bx, y - by) < 42)) return false;
-      // 숙소와 감나무 둘레, 숙소 앞마당 (앞에 선 나무가 집을 가리지 않게)
+      // 숙소와 전나무 둘레, 숙소 앞마당 (앞에 선 나무가 집을 가리지 않게)
       if (((x - LODGE.x) / 200) ** 2 + ((y - (LODGE.y - 6)) / 125) ** 2 < 1) return false;
       if (Math.abs(x - LODGE.x) < 190 && y > LODGE.y - 20 && y < LODGE.y + 230) return false;
-      if (Math.hypot(x - PERSIMMON.x, y - PERSIMMON.y) < 80) return false;
+      if (Math.hypot(x - LODGE_FIR.x, y - LODGE_FIR.y) < 80) return false;
       return true;
     }
 
@@ -313,7 +313,7 @@
         { x: STUMP.x, y: STUMP.y - 6, r: 30, sy: 1.6 },
         { x: BRAZIER.x, y: BRAZIER.y - 4, r: 26, sy: 1.6 },
         { x: LODGE.x, y: LODGE.y - 34, r: 122, sy: 3 },
-        { x: PERSIMMON.x, y: PERSIMMON.y - 2, r: 14, sy: 1.8 },
+        { x: LODGE_FIR.x, y: LODGE_FIR.y - 2, r: 14, sy: 1.8 },
       ];
       for (const [x, y] of LODGE_BORDER) this.blockers.push({ x, y, r: 13, sy: 1 });
       this.blockers.push({ ...LODGE_GARDEN.bench, r: 48, sy: 3 });
@@ -1310,49 +1310,69 @@
         g.strokeStyle = '#ebeade'; g.lineWidth = 3;
         g.beginPath(); g.moveTo(-9, -37); g.lineTo(9, -37); g.stroke();
       });
-      // 감나무: 잎은 거의 지고 주황 감만 남은 가지
-      sp.persimmon = sprite(170, 190, 85, 176, ss, (g) => {
-        g.fillStyle = 'rgba(0,0,0,0.22)';
-        ellipse(g, 0, 0, 40, 8);
+      // 작은 전나무: 비대칭으로 처진 초록 가지와 층층이 포근하게 얹힌 눈.
+      // 집보다 낮고 폭도 좁게 두어 창과 처마의 따뜻한 불빛이 먼저 보인다.
+      sp.lodgeFir = sprite(164, 184, 82, 170, ss, (g) => {
+        g.fillStyle = 'rgba(37,57,51,0.2)';
+        ellipse(g, 2, 1, 48, 9);
         g.fill();
-        const fruit = [];
-        const branch = (x0, y0, len, ang, wd, depth) => {
-          const x1 = x0 + Math.cos(ang) * len;
-          const y1 = y0 + Math.sin(ang) * len;
-          g.strokeStyle = '#4e3a2c';
-          g.lineWidth = wd;
+        g.fillStyle = '#dce5df';
+        ellipse(g, -1, -1, 25, 6);
+        g.fill();
+        g.fillStyle = '#80664c';
+        g.strokeStyle = '#4e4c3b';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(-6, 0); g.lineTo(-5, -55); g.lineTo(3, -66);
+        g.lineTo(6, 0); g.closePath(); g.fill(); g.stroke();
+        g.strokeStyle = '#b79971'; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(-2, -4); g.lineTo(-1, -34); g.stroke();
+
+        const boughs = [
+          { x: 1, y: -102, w: 58, h: 78, color: '#3c6052' },
+          { x: -2, y: -127, w: 47, h: 69, color: '#466a59' },
+          { x: 2, y: -148, w: 33, h: 61, color: '#4d715e' },
+          { x: -1, y: -162, w: 19, h: 47, color: '#587b65' },
+        ];
+        g.lineJoin = 'round';
+        g.lineCap = 'round';
+        for (const { x, y, w, h, color } of boughs) {
+          g.fillStyle = color;
+          g.strokeStyle = '#2e493d'; g.lineWidth = 2;
           g.beginPath();
-          g.moveTo(x0, y0);
-          const mx = (x0 + x1) / 2 + (rnd() - 0.5) * 8;
-          g.quadraticCurveTo(mx, (y0 + y1) / 2, x1, y1);
-          g.stroke();
-          // 가지 위에 얹힌 눈
-          if (wd > 2 && Math.abs(x1 - x0) > Math.abs(y1 - y0) * 0.35) {
-            g.strokeStyle = '#f2f5fb';
-            g.lineWidth = Math.max(1.6, wd * 0.5);
-            g.beginPath();
-            g.moveTo(x0, y0 - wd * 0.45);
-            g.quadraticCurveTo(mx, (y0 + y1) / 2 - wd * 0.45, x1, y1 - wd * 0.45);
-            g.stroke();
+          g.moveTo(x, y);
+          g.quadraticCurveTo(x + 6, y + h * 0.28, x + w * 0.48, y + h * 0.54);
+          g.quadraticCurveTo(x + w * 0.68, y + h * 0.74, x + w, y + h * 0.78);
+          g.quadraticCurveTo(x + w * 0.8, y + h * 0.88, x + w * 0.46, y + h * 0.84);
+          g.quadraticCurveTo(x + w * 0.5, y + h * 0.96, x + w * 0.62, y + h);
+          g.quadraticCurveTo(x + 8, y + h * 0.93, x - 4, y + h * 0.99);
+          g.quadraticCurveTo(x - w * 0.35, y + h * 1.04, x - w * 0.54, y + h * 0.97);
+          g.lineTo(x - w * 0.44, y + h * 0.85);
+          g.quadraticCurveTo(x - w * 0.85, y + h * 0.94, x - w, y + h * 0.83);
+          g.quadraticCurveTo(x - w * 0.55, y + h * 0.52, x - w * 0.35, y + h * 0.4);
+          g.quadraticCurveTo(x - 4, y + h * 0.15, x, y);
+          g.closePath(); g.fill(); g.stroke();
+
+          // 녹색 끝가지를 남겨 눈이 나무 전체를 하얗게 덮지 않게 한다.
+          g.strokeStyle = 'rgba(136,165,131,0.5)'; g.lineWidth = 1.4;
+          for (const side of [-1, 1]) {
+            for (let i = 0; i < 3; i++) {
+              const bx = x + side * w * (0.16 + i * 0.16), by = y + h * (0.72 + i * 0.035);
+              g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + side * 6, by + 5); g.stroke();
+            }
           }
-          if (depth <= 0) {
-            if (rnd() < 0.7) fruit.push([x1, y1 + 3]);
-            return;
-          }
-          const n = 2 + (rnd() < 0.35 ? 1 : 0);
-          for (let i = 0; i < n; i++) branch(x1, y1, len * (0.66 + rnd() * 0.14), ang + (i - (n - 1) / 2) * 0.62 + (rnd() - 0.5) * 0.3, wd * 0.64, depth - 1);
-        };
-        branch(0, 0, 58, -Math.PI / 2, 9, 4);
-        for (const [x, y] of fruit) {
-          ellipse(g, x, y, 5.6, 5);
-          g.fillStyle = '#f08a2c';
-          g.fill();
-          g.strokeStyle = 'rgba(110,50,16,0.8)';
-          g.lineWidth = 1.2;
-          g.stroke();
-          g.fillStyle = '#4f6b34';
-          ellipse(g, x, y - 4.6, 2.4, 1.2);
-          g.fill();
+          const snow = g.createLinearGradient(0, y, 0, y + h * 0.7);
+          snow.addColorStop(0, '#f0f1e9'); snow.addColorStop(1, '#cbdcd7');
+          g.fillStyle = snow; g.strokeStyle = '#b7cbc7'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(x, y + 3);
+          g.quadraticCurveTo(x + 5, y + h * 0.22, x + w * 0.43, y + h * 0.46);
+          g.quadraticCurveTo(x + w * 0.58, y + h * 0.56, x + w * 0.73, y + h * 0.61);
+          g.quadraticCurveTo(x + w * 0.45, y + h * 0.72, x + w * 0.17, y + h * 0.59);
+          g.quadraticCurveTo(x + w * 0.03, y + h * 0.68, x - w * 0.05, y + h * 0.58);
+          g.quadraticCurveTo(x - w * 0.38, y + h * 0.69, x - w * 0.67, y + h * 0.62);
+          g.quadraticCurveTo(x - w * 0.49, y + h * 0.46, x - w * 0.3, y + h * 0.32);
+          g.quadraticCurveTo(x - 3, y + h * 0.1, x, y + 3);
+          g.closePath(); g.fill(); g.stroke();
         }
       });
       // 숙소 둘레의 나무에 얹힌 눈 (나무 그림과 같은 크기·기준점으로 위에 겹친다)
@@ -1915,7 +1935,7 @@
       put(sp.pavilion, PAVILION.x, PAVILION.y);
       put(sp.stump, STUMP.x, STUMP.y);
       put(sp.lodge, LODGE.x, LODGE.y);
-      put(sp.persimmon, PERSIMMON.x, PERSIMMON.y);
+      put(sp.lodgeFir, LODGE_FIR.x, LODGE_FIR.y);
       put(sp.lodgeWood, LODGE_GARDEN.wood.x, LODGE_GARDEN.wood.y);
       put(sp.lodgeBench, LODGE_GARDEN.bench.x, LODGE_GARDEN.bench.y);
       for (const p of LODGE_GARDEN.shrubs) put(sp.lodgeShrub, p.x, p.y);
@@ -2205,6 +2225,7 @@
         if (tn.y > p.y && hx > tn.x - 60 * tn.s && hx < tn.x + 60 * tn.s && hy > tn.y - 118 * tn.s && hy < tn.y - 8) return true;
       }
       if (PAVILION.y > p.y && covers(this.sp.pavilion, PAVILION.x, PAVILION.y, 26)) return true;
+      if (LODGE_FIR.y > p.y && covers(this.sp.lodgeFir, LODGE_FIR.x, LODGE_FIR.y, 22)) return true;
       if (LODGE.y > p.y && covers(this.sp.lodge, LODGE.x, LODGE.y, 30)) return true;
       return false;
     }
