@@ -6,7 +6,7 @@ const { main } = require('./lib');
 main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
   const site = await staticServer();
   cleanup(() => site.close());
-  const who = await person({ nick: '나른함', look: { c: 0, h: 0 } });
+  const who = await person({ nick: '나른함', look: { c: 0, h: 0 }, viewport: { width: 1000, height: 900 }, dpr: 2 });
   cleanup(() => who.close());
   const A = who.page;
   await A.goto(site.url);
@@ -18,6 +18,15 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
 
   await A.click('#dressBtn');
   check(await A.isVisible('#dressCard'), '꾸미기 창이 열린다');
+  await until(A, () => {
+    const c = document.querySelector('#dressPreview');
+    return c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v);
+  });
+  const preview = await A.evaluate(() => {
+    const c = document.querySelector('#dressPreview'), dpr = Math.min(devicePixelRatio, 2);
+    return { width: c.width, height: c.height, expectedWidth: Math.round(c.clientWidth * dpr), expectedHeight: Math.round(c.clientHeight * dpr) };
+  });
+  check(preview.width === preview.expectedWidth && preview.height === preview.expectedHeight, '고해상도 화면에서 처음 열어도 얼굴이 잘리지 않도록 미리보기 전체 높이를 그린다', preview);
   const rows = await A.evaluate(() => ['#swBody', '#swEar', '#swHat'].map((id) => document.querySelector(id).children.length));
   check(rows[0] >= 8 && rows[1] >= 9 && rows[2] >= 6, '몸·귀·모자 빛깔을 고를 수 있다', rows);
   check((await A.inputValue('#dressName')) === '나른함', '지금 마음 단어가 들어 있다');

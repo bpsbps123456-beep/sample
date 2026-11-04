@@ -339,7 +339,8 @@
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const W = c.clientWidth || 168;
     const H = c.clientHeight || 150;
-    if (c.width !== Math.round(W * dpr)) {
+    // 기본 캔버스 폭(300)이 이미 맞아도 높이(150)는 다를 수 있다.
+    if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) {
       c.width = Math.round(W * dpr);
       c.height = Math.round(H * dpr);
     }
