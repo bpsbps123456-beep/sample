@@ -89,6 +89,8 @@ function clean(raw) {
     ac: Number.isInteger(raw.ac) && raw.ac >= 0 && raw.ac <= 3 ? raw.ac : 0,
     gl: Number.isInteger(raw.gl) && raw.gl >= 0 && raw.gl <= 3 ? raw.gl : 0,
     hp: num(raw.hp, 0, 1e9) | 0,
+    ep: num(raw.ep, 0, 1e9) | 0,
+    ek: Number.isInteger(raw.ek) && raw.ek >= 1 && raw.ek <= 6 ? raw.ek : 0,
     bp,
     g: gx != null && gy != null ? [Math.round(gx), Math.round(gy)] : null,
     l: num(raw.l, 0, 9) | 0,

@@ -737,6 +737,12 @@
       el.textContent = net.name;
       el.setAttribute('aria-label', `${net.name}, 누르면 내 닉네임 숨기기`);
     }
+    if (emotePup === pup && !emotePicker.hidden) {
+      const r = emotePicker.getBoundingClientRect();
+      const y = r.top > 48 ? r.top - 5 : r.bottom + 36;
+      el.style.transform = `translate(${r.left + r.width / 2}px, ${y}px) translate(-50%, -100%)`;
+      return;
+    }
     const up = (pup.lie >= 0.5 ? 104 : 160) - (pup.hop || 0) + (pup.seatLift || 0);
     const byPavilion = pup === camp.pup && (camp.near?.id === 'moktak' || camp.pavilionSeat || camp.pavilionMove);
     const q = toScreen(pup.x, byPavilion ? pup.y + 16 : pup.y - up * pup.k);
@@ -770,6 +776,57 @@
     const q = toScreen(p.x, byPavilion ? p.y + 16 : p.y - up * p.k);
     tag.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) translate(-50%, ${byPavilion ? '0' : '-100%'})`;
   }
+
+  // 내 멍이의 감정 선택. 이름 숨김 설정과 다른 사람에게 보내는 응원은 따로 유지한다.
+  const emotePicker = $('#emotePicker');
+  let emotePup = null;
+  function closeEmotes() {
+    emotePicker.hidden = true;
+    emotePup = null;
+  }
+  function placeEmotes() {
+    if (emotePicker.hidden || !emotePup) return;
+    const home = state.view === 'home', pup = emotePup;
+    const canvas = home ? campCanvas : stage, r = canvas.getBoundingClientRect();
+    const scale = pup.k * (home ? camp.z : 1);
+    const at = pup.world(0, -55 + pup.lieDrop);
+    const q = home ? camp.toScreen(at.x, at.y) : at;
+    const radius = MC.clamp(82 * scale, 72, 112), half = radius + 25, size = half * 2;
+    emotePicker.style.width = emotePicker.style.height = `${size}px`;
+    emotePicker.style.left = `${MC.clamp(r.left + q.x - half, 10, Math.max(10, innerWidth - size - 10))}px`;
+    emotePicker.style.top = `${MC.clamp(r.top + q.y - half, 10, Math.max(10, innerHeight - size - 10))}px`;
+    for (const button of emotePicker.querySelectorAll('.emote-option')) {
+      const a = (Number(button.dataset.emote) - 1) * Math.PI / 3 - Math.PI / 2;
+      const x = Math.cos(a) * radius, y = Math.sin(a) * radius;
+      button.style.left = `${half + x}px`; button.style.top = `${half + y}px`;
+      button.style.setProperty('--emote-in-x', `${-x}px`);
+      button.style.setProperty('--emote-in-y', `${-y}px`);
+    }
+  }
+  function openEmotes(pup) {
+    setMyNameVisible(true);
+    emotePup = pup;
+    held.clear(); camp.setKeys(0, 0);
+    if (state.sceneObj?.crowd) state.sceneObj.crowd.setKeys(0, 0);
+    emotePicker.hidden = false;
+    placeEmotes();
+    emotePicker.querySelector('.emote-option').focus({ preventScroll: true });
+  }
+  for (const item of MC.Emotes.list) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'emote-option'; button.dataset.emote = item.id;
+    button.setAttribute('aria-label', item.label); button.title = item.label;
+    const glyph = document.createElement('span'); glyph.className = 'emote-glyph'; glyph.textContent = item.glyph; glyph.setAttribute('aria-hidden', 'true');
+    button.append(glyph);
+    button.addEventListener('click', () => {
+      if (emotePup) emotePup.express(item.id);
+      closeEmotes(); sound.cute('boop');
+    });
+    $('#emoteOptions').append(button);
+  }
+  document.addEventListener('pointerdown', e => {
+    if (!emotePicker.hidden && !emotePicker.contains(e.target)) closeEmotes();
+  }, true);
 
   // ── 새 버전 ───────────────────────────────────────────
   // 이 페이지를 건넨 서버(server/presence.js)가 다시 배포되어 내용이 바뀌면, 다시 이어질 때 알려 준다.
@@ -968,6 +1025,7 @@
       hint.classList.add('is-off');
     }
     if (tag.el === campName) placeName((x, y) => camp.toScreen(x, y));
+    placeEmotes();
     placeMyName(selfNames[0], camp.pup, (x, y) => camp.toScreen(x, y));
     // 함께 있는 사람들에게 내 자리를 알리고, 그들의 멍이를 데려온다
     net.set(camp.netState());
@@ -1043,6 +1101,7 @@
 
   // 장소에는 걸어서만 들어간다: 마을에서 '들어가기'를 누른 것만 연다
   function enterScene(id) {
+    closeEmotes();
     state.lastSpot = id;
     state.allowEnter = id;
     location.hash = id;
@@ -1086,7 +1145,7 @@
       return;
     }
     const r = campCanvas.getBoundingClientRect();
-    if (camp.tap(e.clientX - r.left, e.clientY - r.top) === 'pup') setMyNameVisible(true);
+    if (camp.tap(e.clientX - r.left, e.clientY - r.top) === 'pup') openEmotes(camp.pup);
   });
 
   // 방향키·WASD로 걷기
@@ -1257,6 +1316,7 @@
 
   // 나갈 때는 화면과 소리가 함께 천천히 잦아든다
   function leave() {
+    closeEmotes();
     if (state.leaving) return;
     state.leaving = true;
     reading.close();
@@ -1307,6 +1367,7 @@
       }
     }
     if (tag.el === sceneName) placeName((x, y) => ({ x, y }));
+    placeEmotes();
     placeMyName(selfNames[1], sc.pup, (x, y) => ({ x, y }));
     if (state.scape && sc.audioParams) state.scape.params(sc.audioParams());
     if (state.scene === 'fire' && state.started) {
@@ -1645,7 +1706,8 @@
         if (sc.onCute) sc.onCute('boop');
         return;
       }
-      setMyNameVisible(true);
+      openEmotes(sc.pup);
+      return;
     }
     if (sc.pointerDown(x, y)) {
       try { stage.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
@@ -1679,6 +1741,10 @@
 
   document.addEventListener('keydown', (e) => {
     if (reading.isOpen) return;
+    if (!emotePicker.hidden) {
+      if (e.key === 'Escape') { e.preventDefault(); closeEmotes(); }
+      return;
+    }
     if (suggestOpen() && e.ctrlKey && e.altKey && e.code === 'KeyO' && !e.repeat) {
       e.preventDefault();
       openOwner();

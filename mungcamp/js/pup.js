@@ -131,6 +131,9 @@
       this.pomX = 0;
       this.pomV = 0;
       this.hearts = [];
+      this.emotion = null;
+      this.emoteBursts = 0;
+      this.emoteKind = 0;
       this.zs = [];
       this.zTimer = 0.5;
       this.puffs = [];
@@ -324,6 +327,17 @@
       else if (this.view === 'front' && this.spinHold > 0) this.spinHold = Math.max(this.spinHold, hold);
     }
 
+    express(kind) {
+      kind = MC.Emotes.valid(kind);
+      if (!kind) return;
+      this.emoteKind = kind;
+      this.emoteBursts++;
+      this.emotion = { kind, t: 0 };
+      this.wake();
+      if (this.mood !== 'eating') this.setMood(MC.Emotes.list[kind - 1].mood, 2.4);
+      if (kind === 1) this.addHearts(3);
+    }
+
     addHearts(n) {
       this.heartBursts = (this.heartBursts || 0) + 1; // 함께 있는 사람들에게도 하트가 보이게
       for (let i = 0; i < n; i++) {
@@ -505,6 +519,10 @@
         }
       }
       this.hearts = this.hearts.filter((h) => h.t < h.max);
+      if (this.emotion) {
+        this.emotion.t += dt;
+        if (this.emotion.t >= 4) this.emotion = null;
+      }
       if (this.mood === 'asleep') {
         this.zTimer -= dt;
         if (this.zTimer <= 0) {
@@ -2036,6 +2054,7 @@
         g.fill();
         g.restore();
       }
+      MC.Emotes.draw(g, this);
       // zZ
       for (const z of this.zs) {
         const u = z.t / 3;

@@ -27,6 +27,7 @@
       this.y = st.y;
       this.b = -1;
       this.hp = st.hp;
+      this.ep = st.ep || 0;
       this.fade = 0;
       this.leaving = false;
       this.pup = new MC.Pup({
@@ -54,6 +55,8 @@
         p.hopV = -40;
       }
       this.hp = st.hp;
+      if ((st.ep || 0) > this.ep && MC.Emotes.valid(st.ek)) p.express(st.ek);
+      this.ep = st.ep || 0;
       if (st.b !== this.b) {
         this.b = st.b;
         p.view = p.restView = st.b ? 'back' : 'front';
@@ -91,7 +94,7 @@
       p.rest = this.jumpFrom ? null : env.restOf ? env.restOf(st) : null;
       if (this.jumpFrom) this.jumpT += dt;
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
-      const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.mood === 'eating' || p.mood === 'startled' || (p.lie > 0 && p.lie < 1);
+      const lively = st.w || d > (env.walkEps || 3) || p.spin || Math.abs(p.hopV) > 4 || p.hearts.length || p.emotion || p.mood === 'eating' || p.mood === 'startled' || (p.lie > 0 && p.lie < 1);
       p.paintEvery = paintGap(lively);
       if (st.z && !p.sleeping) p.setMood('sleepy', 2.5);
       else if (!st.z && p.sleeping) p.wake();
@@ -754,6 +757,8 @@
         q: this.perched ? 1 : 0,
         z: p.sleeping ? 1 : 0,
         hp: p.heartBursts || 0,
+        ep: p.emoteBursts || 0,
+        ek: p.emoteKind || 0,
         // 가려는 자리: 돌아가는 디딤돌이 아니라 마지막에 앉을 곳 (다른 사람이 그 자리를 피한다)
         g: this.target ? ((q) => [Math.round(q.X), Math.round(q.Z)])(this.path && this.path.length ? this.path[this.path.length - 1] : this.target) : null,
         l: ex.l || 0,

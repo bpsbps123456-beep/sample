@@ -1870,7 +1870,7 @@
         if (!v.leaving && v.fade > 0.3 && v.pup.hit(p.x, p.y) && (!hit || v.pup.y > hit.pup.y)) hit = v;
       }
       if (this.pup.hit(p.x, p.y) && (!hit || hit.pup.y <= this.pup.y)) {
-        this.pup.poke();
+        this.pup.wake();
         return 'pup';
       }
       if (hit) {
@@ -1964,6 +1964,8 @@
         f: 1,
         z: p.sleeping ? 1 : 0,
         hp: p.heartBursts || 0,
+        ep: p.emoteBursts || 0,
+        ek: p.emoteKind || 0,
         q: this.pavilionSeat ? 1 : 0,
         l: this.pavilionSeat,
         ch: p.chairOn ? 1 : 0,

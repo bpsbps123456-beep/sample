@@ -14,7 +14,7 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
     for (let t = 0; t < 86400; t += 11) counts.push(r.total(t));
     return { min: Math.min(...counts), max: Math.max(...counts), unique: new Set(r.specs.map(s => s.id)).size, names: new Set(names).size, places: new Set(r.active().map(s => s.place)).size, real: MC.app.net.total(), shown: +document.querySelector('[data-n="all"]').textContent, expected: r.total() + MC.app.net.total() };
   });
-  check(population.min === 25 && population.max === 35 && population.unique === 35 && population.names === 35 && population.places === 7, '25명 이상 상주하며 방문 인원이 25~35명 사이에서 변한다', population);
+  check(population.min === 50 && population.max === 50 && population.unique === 50 && population.names === 50 && population.places === 7, '언제나 고유한 이름의 더미 50마리가 일곱 장소에 머문다', population);
   check(population.real === 2 && population.shown === population.expected, '표시 인원에는 멍이를 합산하고 서버 접속은 실제 두 명만 유지', population);
   const shared = await Promise.all([A, B].map(p => p.evaluate(() => MC.app.residents.active(1793792400).map(s => [s.id, MC.app.residents.sample(s, 1793792400)]))));
   check(JSON.stringify(shared[0]) === JSON.stringify(shared[1]), '같은 시각의 인원·외모·행동은 브라우저 사이에 일치한다');
@@ -39,7 +39,20 @@ main(async ({ check, presenceServer, person, until, sleep, enter, shot, cleanup 
     return { bad: bad.slice(0, 6), boats, fishing, walkers: walking.size, resters: resting.size, footWhileBoating };
   });
   check(!terrain.bad.length && terrain.boats && terrain.fishing && terrain.footWhileBoating, '보트·낚시·도보는 각자의 지형을 벗어나지 않는다', terrain);
-  check(terrain.walkers === 4 && terrain.resters === 4, '산책 멍이는 서로 다른 주기로 걷다가 쉬고 돌아온다', terrain);
+  check(terrain.walkers === 5 && terrain.resters === 5, '산책 멍이는 서로 다른 주기로 걷다가 쉬고 돌아온다', terrain);
+  const variety = await A.evaluate(() => {
+    const r = MC.app.residents, chairs = new Set(), signs = new Set(), changes = new Set();
+    for (let t = 1700000000; t < 1700001200; t += 13) {
+      for (const spec of r.specs) {
+        const s = r.sample(spec, t);
+        if (s.ch) chairs.add(spec.id);
+        if (s.sg) signs.add(s.sg);
+        if (spec.role === 'rest' && s.ch) changes.add(spec.id);
+      }
+    }
+    return {chairs:chairs.size, signs:[...signs], changes:changes.size};
+  });
+  check(variety.chairs >= 15 && variety.signs.length >= 10 && variety.signs.every(s => [...s].length <= 4) && variety.changes >= 4, '더미가 의자를 펴거나 쉬는 행동을 바꾸고 다양한 네 글자 팻말을 쓴다', variety);
   const stays = await A.evaluate(() => {
     const r = MC.app.residents, c = MC.app.camp, time = 1700000100;
     const before = { x: c.pup.x, y: c.pup.y }, list = r.merge('map', [], c, time);

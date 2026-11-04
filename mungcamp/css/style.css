@@ -829,6 +829,14 @@ body.is-reading { overflow: hidden; }
 .suggest-fine { margin: 8px 2px 14px; font-size: var(--step--1); color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
 .suggest-fine.is-warn { color: var(--ember-hi); text-align: center; }
 .owner-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: none; cursor: text; }
+/* 장소 화면(50)과 책 단추(51) 위에서도 감정을 고를 수 있다. */
+.emote-picker { position: fixed; z-index: 52; pointer-events: none; }
+.emote-options { position: absolute; inset: 0; }
+.emote-option { position: absolute; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 1.5px solid #b28e64; border-radius: 50%; color: #513c2d; background: #fff5df; box-shadow: 0 3px 12px rgba(34,25,19,.22); transform: translate(-50%, -50%); cursor: pointer; pointer-events: auto; touch-action: manipulation; animation: emote-bloom .18s ease-out both; }
+.emote-option:hover, .emote-option:focus-visible { background: #ffe6b6; border-color: #8d6541; outline: 3px solid rgba(255,226,161,.8); outline-offset: 2px; }
+.emote-glyph { font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; font-size: 27px; line-height: 1.15; }
+@keyframes emote-bloom { from { opacity: 0; transform: translate(-50%, -50%) translate(var(--emote-in-x), var(--emote-in-y)) scale(.25); } to { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .emote-option { animation: none; } }
 .owner-card { width: min(620px, 100%); }
 .owner-card h2 { margin-bottom: 12px; }
 .owner-actions { margin-top: 16px; }

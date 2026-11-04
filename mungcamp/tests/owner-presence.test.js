@@ -17,8 +17,8 @@ main(async ({check, presenceServer, person, enter, until, shot, cleanup}) => {
   check(await until(A, () => document.querySelector('#ownerOnline').textContent === '2'), '비밀번호로 열면 더미를 뺀 실제 접속 두 명이 보인다');
   check(await A.evaluate(() => {
     const text = document.querySelector('#ownerPlaces').textContent;
-    return text.includes('마을 1') && text.includes('모닥불 1') && MC.app.residents.total() >= 25;
-  }), '장소별 실제 인원과 25명 이상인 더미 인원을 구분한다');
+    return text.includes('마을 1') && text.includes('모닥불 1') && MC.app.residents.total() === 50;
+  }), '장소별 실제 인원과 더미 50마리를 구분한다');
   const cookie = (await one.ctx.cookies(srv.url + 'api/suggestions')).find(c => c.name === 'mungcamp_owner');
   const response = await fetch(srv.url + 'api/suggestions/presence', {headers: {cookie: `${cookie.name}=${cookie.value}`}});
   const stats = await response.json();

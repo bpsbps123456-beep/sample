@@ -5,6 +5,15 @@
   const mod = (a, b) => ((a % b) + b) % b;
   const NAMES = ['퇴근하고싶다', '잠깐쉬는중', '커피한잔', '생각정리중', '오늘도수고했어', '멍때리는중', '내일의나에게', '집가고싶다', '느린하루', '공부하다옴', '마감전잠깐', '아무생각없음', '주말기다리는중', '숨고르기', '밤산책', '출근은내일', '오늘은여기까지', '비오는날좋아', '그냥쉬러옴', '딱5분만', '따뜻한이불', '월요일싫어', '노을보는사람', '잠이안와', '괜찮아질거야', '꾸벅꾸벅', '조용히있을게', '별보는중', '바다보고싶다', '쉬었다가자', '할일은많지만', '천천히가도돼', '비타민충전', '지금은충전중', '잘살고있겠지'];
 
+  NAMES.push('달빛한모금', '잠깐의여유', '산책나왔어', '책한장만', '하루마무리', '구름구경', '기분좋은밤', '의자펴는중', '따뜻한차', '여기좋다', '느긋한주말', '별을세는중', '마음충전', '이불밖한걸음', '잘쉬고가요');
+  const SIGNS = {
+    read: ['독서중', '책한장', '조용조용', '한쪽더'],
+    rest: ['잠깐쉼', '쉬어가', '멍때림', '좋은밤'],
+    nap: ['충전중', '꾸벅꾸벅', '꿈꾸는중'],
+    walk: ['산책중', '천천히', '바람좋다'],
+    fish: ['낚시중', '기다림', '대어꿈'],
+  };
+
   // 같은 길을 끝없이 돌지 않고, 양 끝에서 서로 다른 시간만큼 쉬었다가 돌아온다.
   function route(points) {
     const lengths = [0];
@@ -59,18 +68,23 @@
         ['forest', 300, 760, 'rest'], ['lodge', 160, 640, 'rest'],
         ['map', 1180, 1560, 'read'], ['tent', 545, 620, 'rest'],
         ['firetower', 250, -8, 'read'], ['map', 1880, 1000, 'rest'],
+        ['map', 850, 420, 'rest'], ['map', 1190, 630, 'read'],
+        ['map', 830, 1510, 'nap'], ['map', 1740, 1650, 'read'],
+        ['map', 600, 1300, 'rest'], ['map', 0, 0, 'walk', section(1350, 1940)],
+        ['fire', -200, -38, 'read'], ['fire', 200, -38, 'rest'],
+        ['firetower', -250, -8, 'fire'], ['firetower', 110, -66, 'rest'],
+        ['water', 500, 700, 'rest'], ['forest', 740, 760, 'rest'],
+        ['tent', 690, 820, 'read'], ['lodge', 430, 850, 'read'], ['lodge', 350, 660, 'rest'],
       ];
-      this.specs = entries.map(([place, x, y, role, path], i) => ({ id: `camp-friend-${String(i + 1).padStart(2, '0')}`, name: NAMES[i], place, x, y, role, path, visit: Math.max(0, i - 24), seed: i + 1, c: MC.Pup.BODIES[i % MC.Pup.BODIES.length].i + 10 * (i % 6), h: (i * 5 + 2) % MC.Pup.HATS }));
+      this.specs = entries.map(([place, x, y, role, path], i) => ({ id: `camp-friend-${String(i + 1).padStart(2, '0')}`, name: NAMES[i], place, x, y, role, path, seed: i + 1, c: MC.Pup.BODIES[i % MC.Pup.BODIES.length].i + 10 * (i % 6), h: (i * 5 + 2) % MC.Pup.HATS }));
       this.ids = new Set(this.specs.map(s => s.id));
     }
 
     is(id) { return this.ids.has(id); }
 
-    // 여러 브라우저에서 같은 인원. 몇 분에 걸쳐 한 명씩 드나들고 25명은 늘 남는다.
-    active(time = Date.now() / 1000) {
-      if (!this.enabled) return [];
-      const visitors = Math.round(5 + 3 * Math.sin(time / 480) + 2 * Math.sin(time / 137));
-      return this.specs.filter(s => s.visit <= visitors);
+    // 기본 더미는 언제나 50마리. 행동 시간만 달라지고 실제 접속 수에는 더하지 않는다.
+    active() {
+      return this.enabled ? this.specs : [];
     }
 
     count(place, time) { return this.active(time).filter(s => s.place === place).length; }
@@ -86,6 +100,7 @@
         else s.b = +(q.dy < 0);
       }
       if (spec.role === 'read') s.ch = 1;
+      if (spec.role === 'rest' && mod(t, 240) < 95 || spec.path && !s.w && mod(t, 180) < 75) s.ch = 1;
       if (spec.role === 'nap' || spec.role === 'inside') s.z = +(mod(t, 163) < 116);
       if (spec.role === 'nap') s.l = 1;
       if (spec.role === 'inside') s.k = 1;
@@ -97,6 +112,10 @@
         s.t = 0.8; s.f = Math.sin(a) > 0 ? -1 : 1;
       }
       if (spec.role === 'float') { s.x += 17 * Math.sin(t / 23); s.y += 12 * Math.cos(t / 29); s.z = +(mod(t, 139) < 77); }
+      if (s.p === 'map' && spec.seed % 4 < 2 && !s.bt) {
+        const signs = SIGNS[s.ch ? 'read' : spec.role] || SIGNS.rest;
+        s.sg = signs[mod(spec.seed + Math.floor(t / 210), signs.length)];
+      }
       return s;
     }
 
