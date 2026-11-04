@@ -516,6 +516,133 @@
     suggestSend.disabled = false;
   });
 
+  // 운영자: 비밀번호는 저장하지 않고 서버가 확인한 뒤에만 건의를 읽는다.
+  const ownerCard = $('#ownerCard');
+  const ownerLogin = $('#ownerLogin');
+  const ownerInbox = $('#ownerInbox');
+  const ownerPassword = $('#ownerPassword');
+  const ownerFine = $('#ownerFine');
+  const ownerList = $('#ownerList');
+  const ownerOpen = () => !ownerCard.hidden;
+  let ownerAbort = null;
+  let ownerLogout = Promise.resolve();
+
+  function lockOwner() {
+    ownerLogin.hidden = false;
+    ownerInbox.hidden = true;
+    ownerPassword.value = '';
+    ownerList.replaceChildren();
+    $('#ownerCount').textContent = '';
+  }
+  function closeOwner() {
+    if (ownerAbort) ownerAbort.abort();
+    ownerCard.hidden = true;
+    lockOwner();
+    ownerFine.textContent = '';
+    ownerLogout = fetch('api/suggestions/logout', { method: 'POST', cache: 'no-store' }).catch(() => {});
+    suggestCard.hidden = false;
+    $('#ownerBtn').focus({ preventScroll: true });
+  }
+  $('#ownerBtn').addEventListener('click', () => {
+    held.clear(); camp.setKeys(0, 0); camp.target = null;
+    suggestCard.hidden = true;
+    lockOwner();
+    ownerFine.textContent = '';
+    $('#ownerSubmit').disabled = false;
+    ownerAbort = new AbortController();
+    ownerCard.hidden = false;
+    ownerPassword.focus({ preventScroll: true });
+  });
+  $('#ownerCancel').addEventListener('click', closeOwner);
+  $('#ownerLock').addEventListener('click', closeOwner);
+  ownerCard.addEventListener('click', e => { if (e.target === ownerCard) closeOwner(); });
+  ownerCard.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeOwner(); }
+    if (e.key === 'Tab') {
+      const fields = Array.from(ownerCard.querySelectorAll('input, button')).filter(n => !n.disabled && n.getClientRects().length);
+      const first = fields[0], last = fields[fields.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  async function ownerRequest(path, method = 'GET', data) {
+    const controller = ownerAbort;
+    const response = await fetch('api/suggestions' + path, {
+      method, cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
+      ...(data ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) } : {}),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (controller !== ownerAbort || controller.signal.aborted) throw new DOMException('Closed', 'AbortError');
+    if (!response.ok) {
+      if (response.status === 401) lockOwner();
+      const messages = { password: '비밀번호가 맞지 않아요.', auth: '비밀번호를 다시 입력해 주세요.', busy: '잠시 뒤에 다시 시도해 주세요.', unconfigured: '운영자 비밀번호가 아직 설정되지 않았어요.', storage: '저장하지 못했어요. 잠시 뒤에 다시 시도해 주세요.' };
+      throw new Error(messages[result.error] || '불러오지 못했어요. 잠시 뒤에 다시 시도해 주세요.');
+    }
+    return result;
+  }
+  function ownerError(error) {
+    if (error.name !== 'AbortError' && ownerOpen()) ownerFine.textContent = error.name === 'TypeError' ? '인터넷 연결을 확인해 주세요.' : error.message;
+  }
+  function ownerButton(label, action) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'btn btn-ghost'; button.textContent = label;
+    button.addEventListener('click', action);
+    return button;
+  }
+  async function loadOwner() {
+    const data = await ownerRequest('');
+    if (!ownerOpen()) return;
+    ownerList.replaceChildren();
+    $('#ownerCount').textContent = data.count ? `받은 건의 ${data.count}개 · 최신순` : '아직 받은 건의가 없어요.';
+    for (const item of data.items) {
+      const article = document.createElement('article'); article.className = 'owner-item';
+      const meta = document.createElement('p'); meta.className = 'owner-meta';
+      const place = SCENES[item.place]?.place || ({ home: '마을', map: '마을' })[item.place] || '';
+      const date = new Date(item.at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      meta.textContent = [date, place, item.nick].filter(Boolean).join(' · ');
+      const text = document.createElement('p'); text.className = 'owner-text'; text.textContent = item.text;
+      const actions = document.createElement('div'); actions.className = 'owner-delete-row';
+      const remove = ownerButton('삭제하기', () => {
+        const note = document.createElement('p'); note.className = 'owner-delete-note'; note.textContent = '이 건의를 삭제할까요?';
+        const cancel = ownerButton('취소', () => { actions.replaceChildren(remove); remove.focus(); });
+        const confirm = ownerButton('삭제', async () => {
+          confirm.disabled = cancel.disabled = true; ownerFine.textContent = '';
+          try {
+            await ownerRequest('/' + encodeURIComponent(item.id), 'DELETE');
+            await loadOwner();
+            if (ownerOpen()) { ownerFine.textContent = '삭제했어요.'; $('#ownerRefresh').focus({ preventScroll: true }); }
+          } catch (error) { ownerError(error); confirm.disabled = cancel.disabled = false; }
+        });
+        confirm.className = 'btn btn-ember';
+        actions.replaceChildren(note, cancel, confirm); confirm.focus({ preventScroll: true });
+      });
+      actions.append(remove); article.append(meta, text, actions); ownerList.append(article);
+    }
+    ownerLogin.hidden = true;
+    ownerInbox.hidden = false;
+  }
+  ownerLogin.addEventListener('submit', async e => {
+    e.preventDefault();
+    if ($('#ownerSubmit').disabled) return;
+    $('#ownerSubmit').disabled = true; ownerFine.textContent = '';
+    const controller = ownerAbort;
+    const password = ownerPassword.value;
+    ownerPassword.value = '';
+    try {
+      await ownerLogout;
+      if (controller !== ownerAbort || controller.signal.aborted) return;
+      await ownerRequest('/login', 'POST', { password });
+      await loadOwner();
+      if (ownerOpen()) $('#ownerRefresh').focus({ preventScroll: true });
+    } catch (error) { ownerError(error); }
+    finally { if (controller === ownerAbort) $('#ownerSubmit').disabled = false; }
+  });
+  $('#ownerRefresh').addEventListener('click', async () => {
+    $('#ownerRefresh').disabled = true; ownerFine.textContent = '';
+    try { await loadOwner(); } catch (error) { ownerError(error); }
+    finally { $('#ownerRefresh').disabled = false; }
+  });
+
   // 머리 위 닉네임: 한 번에 하나, 3초쯤 떠 있다가 사라진다
   const campName = $('#campName');
   const sceneName = $('#sceneName');
@@ -1385,7 +1512,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (nickOpen() || suggestOpen() || dressOpen() || signOpen()) return;
+    if (nickOpen() || suggestOpen() || ownerOpen() || dressOpen() || signOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
     if (state.view === 'home') {

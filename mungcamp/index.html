@@ -216,7 +216,7 @@
   <div class="modal modal-fixed" id="suggestCard" hidden>
     <form class="modal-card suggest-card" id="suggestForm" role="dialog" aria-modal="true" aria-labelledby="suggest-title" novalidate>
       <h2 id="suggest-title">건의하기</h2>
-      <p class="suggest-lead">멍캠프에 바라는 점, 불편했던 점을 자유롭게 적어 주세요. 운영자만 봐요.</p>
+      <p class="suggest-lead">멍캠프에 바라는 점, 불편했던 점을 자유롭게 적어 주세요. <button class="owner-link" id="ownerBtn" type="button" aria-haspopup="dialog">운영자</button>만 봐요.</p>
       <textarea class="text-input suggest-input" id="suggestInput" maxlength="1000" rows="5" placeholder="이런 곳이 있으면 좋겠어요" aria-labelledby="suggest-title" aria-describedby="suggestFine"></textarea>
       <p class="suggest-fine" id="suggestFine"><span id="suggestCount">0</span> / 1000</p>
       <div class="modal-buttons">
@@ -224,6 +224,29 @@
         <button class="btn btn-ember" type="submit" id="suggestSend">보내기</button>
       </div>
     </form>
+  </div>
+
+  <div class="modal modal-fixed" id="ownerCard" hidden>
+    <section class="modal-card suggest-card owner-card" role="dialog" aria-modal="true" aria-labelledby="owner-title">
+      <h2 id="owner-title">멍캠프 건의함</h2>
+      <form id="ownerLogin">
+        <label class="dress-label" for="ownerPassword">운영자 비밀번호</label>
+        <input class="text-input" id="ownerPassword" type="password" autocomplete="current-password" maxlength="512" required>
+        <div class="modal-buttons owner-actions">
+          <button class="btn btn-ghost" id="ownerCancel" type="button">닫기</button>
+          <button class="btn btn-ember" id="ownerSubmit" type="submit">열기</button>
+        </div>
+      </form>
+      <div id="ownerInbox" hidden>
+        <p class="owner-count" id="ownerCount"></p>
+        <div class="owner-list" id="ownerList"></div>
+        <div class="modal-buttons owner-actions">
+          <button class="btn btn-ghost" id="ownerLock" type="button">닫기</button>
+          <button class="btn btn-ember" id="ownerRefresh" type="button">새로고침</button>
+        </div>
+      </div>
+      <p class="owner-fine" id="ownerFine" role="status" aria-live="polite"></p>
+    </section>
   </div>
 
   <script src="js/util.js" defer></script>

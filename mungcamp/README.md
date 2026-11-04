@@ -264,7 +264,7 @@ cd mungcamp && PORT=8787 node server/presence.js   # → http://localhost:8787/
 첫 화면의 '건의하기'로 보낸 글은 **운영자만** 봅니다. 함께 모이기 서버로 연 사이트(Render 등)에서만 단추가 보입니다.
 
 1. **열쇠 정하기**: Render 대시보드 → `mungcamp` → **Environment** 에서 `OWNER_KEY`를 확인합니다. 블루프린트(`render.yaml`)가 맞춰지면 Render가 긴 열쇠를 저절로 만들어 둡니다. 없으면 **Add Environment Variable**로 `OWNER_KEY`에 남이 짐작 못 할 긴 말을 직접 넣으면 됩니다(저장하면 다시 배포됩니다).
-2. **보기**: `https://내-주소/suggestions?key=열쇠` 를 열면 새것부터 보입니다. 언제, 어디서(마을·모닥불…), 그 사람의 마음 단어가 함께 적혀 있습니다. 뒤에 `&format=json`을 붙이면 JSON. 이 주소는 검색에 잡히지 않게 해 두었습니다.
+2. **보기·삭제**: 첫 화면의 **건의하기 → 본문 속 「운영자」**를 누르면 비밀번호창이 열립니다. `OWNER_KEY` 값을 입력하면 받은 건의를 최신순으로 보고, **삭제하기 → 삭제**로 한 건씩 지울 수 있습니다. 닫으면 인증이 해제되고 목록도 화면에서 비웁니다. 비밀번호는 주소나 브라우저 저장소에 남기지 않습니다. 예전 `https://내-주소/suggestions?key=열쇠` 주소와 `&format=json`도 계속 지원합니다.
 3. **오래 남기기**: 서버는 받은 건의를 메모리와 파일(`server/data/`)에 남기지만, Render 무료 플랜은 서버가 잠들었다 깨거나 다시 배포될 때 파일이 비워져 **사라질 수 있습니다**. 오래 두려면 아래 둘 중 하나를 켜 주세요.
    - **GitHub 이슈 (추천)**: 비공개 저장소(예: `mungcamp-suggestions`)를 하나 만들고, GitHub → Settings → Developer settings → **Fine-grained tokens** 에서 그 저장소 하나만 고르고 **Issues: Read and write** 권한의 토큰을 만듭니다. Render Environment 에 `SUGGEST_GITHUB_TOKEN`(토큰)과 `SUGGEST_GITHUB_REPO`(`내아이디/mungcamp-suggestions`)를 넣으면, 건의가 올 때마다 이슈가 하나씩 생기고 GitHub 메일 알림도 옵니다. **공개 저장소는 쓰지 마세요.** 누구나 보게 됩니다.
    - **웹훅**: `SUGGEST_WEBHOOK`에 디스코드 웹후크 주소(채널 편집 → 연동 → 웹후크) 같은 것을 넣으면 그리로 보냅니다. 슬랙이나 구글 앱스 스크립트 웹 앱 주소도 됩니다.

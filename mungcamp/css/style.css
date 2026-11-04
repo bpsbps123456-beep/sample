@@ -697,6 +697,20 @@ a { color: inherit; }
 .suggest-input::placeholder { color: var(--ink-faint); }
 .suggest-fine { margin: 8px 2px 14px; font-size: var(--step--1); color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
 .suggest-fine.is-warn { color: var(--ember-hi); text-align: center; }
+.owner-link { padding: 0; border: 0; background: none; color: var(--ember-hi); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.owner-card { width: min(620px, 100%); }
+.owner-card h2 { margin-bottom: 12px; }
+.owner-actions { margin-top: 16px; }
+.owner-fine { margin: 12px 0 0; color: var(--ember-hi); font-size: var(--step--1); text-align: center; }
+.owner-fine:empty { display: none; }
+.owner-count { margin: 0 0 12px; color: var(--ink-dim); }
+.owner-list { display: grid; gap: 12px; }
+.owner-item { padding: 14px 16px; border: 1px solid var(--glass-line); border-radius: 18px; background: rgba(255,255,255,0.025); }
+.owner-meta { margin: 0 0 6px; color: var(--ink-dim); font-size: var(--step--1); }
+.owner-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; line-height: 1.45; }
+.owner-delete-row { display: flex; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.owner-delete-row .btn { min-height: 44px; padding: 3px 14px 0; font-size: var(--step--1); }
+.owner-delete-note { flex: 1 0 100%; margin: 0; font-size: var(--step--1); color: var(--ink-dim); }
 
 @media (max-width: 420px) {
   .dock-btn { min-width: 48px; padding: 8px 4px 6px; }

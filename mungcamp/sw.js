@@ -1,7 +1,7 @@
 /* 멍캠프 오프라인 캐시. 파일을 바꾸면 CACHE 이름의 숫자를 올린다
    사이트 파일은 언제나 새로 받아 보고(바뀐 게 없으면 서버가 304로 짧게 답한다),
    인터넷이 없거나 2.5초 안에 답이 없을 때만 캐시에 둔 것을 쓴다. 그래서 고친 것이 다음에 열 때 바로 보인다 */
-const CACHE = 'mungcamp-v22';
+const CACHE = 'mungcamp-v23';
 const WAIT = 2500;
 const ASSETS = [
   './',
@@ -43,6 +43,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // 인증한 건의 목록은 오프라인 캐시에 남기지 않는다.
+  if (url.origin === self.location.origin && (url.pathname.startsWith('/api/') || url.pathname === '/suggestions' || url.pathname === '/health')) return;
   const font = /^fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   if (url.origin !== self.location.origin && !font) return;
   e.respondWith(

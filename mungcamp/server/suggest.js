@@ -2,6 +2,9 @@
 
    POST /api/suggest   {text, nick?, place?}  누구나 보낼 수 있다 (한 사람이 너무 잦으면 쉬게 한다)
    GET  /suggestions?key=OWNER_KEY            운영자만 보는 목록 (?format=json 이면 JSON)
+   POST /api/suggestions/login              비밀번호로 운영자 인증
+   GET  /api/suggestions                    인증한 운영자의 목록
+   DELETE /api/suggestions/:id               인증한 운영자의 개별 삭제
 
    받은 건의는 여기에 남는다:
    - 서버 메모리 (최근 500개)와 파일(SUGGEST_FILE, 기본 server/data/suggestions.jsonl).
@@ -26,6 +29,11 @@ const PLACE_NAMES = { home: '마을', map: '마을', fire: '모닥불', firetowe
 
 const list = [];
 const recent = new Map(); // 보낸 곳(IP) → 보낸 때들
+const sessions = new Map();
+const loginAttempts = new Map();
+const SESSION_MS = 8 * 3600e3;
+const COOKIE = 'mungcamp_owner';
+let mutations = Promise.resolve();
 let hourCount = 0;
 let hourStart = Date.now();
 
@@ -35,7 +43,11 @@ try {
   for (const ln of lines) {
     try {
       const s = JSON.parse(ln);
-      if (s && typeof s.text === 'string') list.push(s);
+      if (s && typeof s.text === 'string') {
+        // 예전에 받은 건의도 재시작 뒤 같은 번호로 삭제할 수 있게 한다.
+        if (!s.id) s.id = crypto.createHash('sha256').update(ln).digest('hex').slice(0, 24);
+        list.push(s);
+      }
     } catch (e) {
       /* 깨진 줄은 건너뛴다 */
     }
@@ -81,6 +93,8 @@ function allowed(ip) {
 setInterval(() => {
   const now = Date.now();
   for (const [ip, times] of recent) if (!times.some((t) => now - t < 86400e3)) recent.delete(ip);
+  for (const [token, expiry] of sessions) if (expiry <= now) sessions.delete(token);
+  for (const [ip, attempt] of loginAttempts) if (attempt.until <= now) loginAttempts.delete(ip);
 }, 3600e3).unref();
 
 function sameOrigin(req, allowedOrigins) {
@@ -151,13 +165,26 @@ async function forward(s) {
   await Promise.all(jobs.map((j) => j.catch((e) => console.warn('건의를 보내지 못했어요:', e.message))));
 }
 
-function store(s) {
-  list.push(s);
-  if (list.length > KEEP) list.splice(0, list.length - KEEP);
-  fs.mkdir(path.dirname(FILE), { recursive: true }, () => {
-    fs.appendFile(FILE, JSON.stringify(s) + '\n', (e) => {
-      if (e) console.warn('건의를 파일에 남기지 못했어요:', e.message);
-    });
+// 접수와 삭제를 순서대로 저장한다. 삭제 직후 늦은 추가 쓰기로 글이 되살아나지 않게.
+function mutate(change) {
+  const job = mutations.then(async () => {
+    const next = list.slice();
+    if (!change(next)) return false;
+    await fs.promises.mkdir(path.dirname(FILE), { recursive: true });
+    await fs.promises.writeFile(FILE + '.tmp', next.map(s => JSON.stringify(s)).join('\n') + (next.length ? '\n' : ''), { mode: 0o600 });
+    await fs.promises.rename(FILE + '.tmp', FILE);
+    list.splice(0, list.length, ...next);
+    return true;
+  });
+  mutations = job.catch(() => {});
+  return job;
+}
+
+async function store(s) {
+  await mutate(next => {
+    next.push(s);
+    if (next.length > KEEP) next.splice(0, next.length - KEEP);
+    return true;
   });
   forward(s);
 }
@@ -171,6 +198,79 @@ function keyOk(given) {
   const a = crypto.createHash('sha256').update(given).digest();
   const b = crypto.createHash('sha256').update(OWNER_KEY).digest();
   return crypto.timingSafeEqual(a, b);
+}
+
+function sessionToken(req) {
+  return (String(req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith(COOKIE + '=')) || '').slice(COOKIE.length + 1);
+}
+
+function ownerOk(req) {
+  const token = sessionToken(req);
+  if ((sessions.get(token) || 0) > Date.now()) return true;
+  sessions.delete(token);
+  return false;
+}
+
+function ownerCookie(req, token, age) {
+  const secure = req.socket.encrypted || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+  return `${COOKIE}=${token}; Path=/api/suggestions; HttpOnly; SameSite=Strict; Max-Age=${age}${secure ? '; Secure' : ''}`;
+}
+
+function ownerApi(req, res, url, allowedOrigins) {
+  const route = url.pathname;
+  if (route !== '/api/suggestions' && !route.startsWith('/api/suggestions/')) return false;
+  if (!sameOrigin(req, allowedOrigins)) {
+    sendJson(res, 403, { ok: false, error: 'origin' });
+    return true;
+  }
+  if (route === '/api/suggestions/login' && req.method === 'POST') {
+    if (!OWNER_KEY) { sendJson(res, 503, { ok: false, error: 'unconfigured' }); return true; }
+    const ip = clientIp(req), now = Date.now();
+    let attempts = loginAttempts.get(ip);
+    if (!attempts || attempts.until <= now) {
+      attempts = { count: 0, until: now + 600e3 }; loginAttempts.set(ip, attempts);
+    }
+    if (attempts.count >= 10) { sendJson(res, 429, { ok: false, error: 'busy' }); return true; }
+    attempts.count++;
+    readBody(req, 4096).then(body => {
+      let data;
+      try { data = JSON.parse(body); } catch (_) {}
+      if (!keyOk(data && data.password)) { sendJson(res, 403, { ok: false, error: 'password' }); return; }
+      loginAttempts.delete(ip);
+      const token = crypto.randomBytes(32).toString('hex');
+      for (const [key, expiry] of sessions) if (expiry <= now) sessions.delete(key);
+      if (sessions.size >= 500) sessions.delete(sessions.keys().next().value);
+      sessions.delete(sessionToken(req));
+      sessions.set(token, now + SESSION_MS);
+      res.setHeader('set-cookie', ownerCookie(req, token, SESSION_MS / 1000));
+      sendJson(res, 200, { ok: true });
+    });
+    return true;
+  }
+  if (route === '/api/suggestions/logout' && req.method === 'POST') {
+    sessions.delete(sessionToken(req));
+    res.setHeader('set-cookie', ownerCookie(req, '', 0));
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+  if (!ownerOk(req)) { sendJson(res, 401, { ok: false, error: 'auth' }); return true; }
+  if (route === '/api/suggestions' && req.method === 'GET') {
+    sendJson(res, 200, { count: list.length, items: list.slice().reverse() });
+    return true;
+  }
+  const match = /^\/api\/suggestions\/([a-zA-Z0-9-]{1,64})$/.exec(route);
+  if (match && req.method === 'DELETE') {
+    mutate(next => {
+      const index = next.findIndex(s => s.id === match[1]);
+      if (index < 0) return false;
+      next.splice(index, 1);
+      return true;
+    }).then(removed => sendJson(res, removed ? 200 : 404, { ok: removed }))
+      .catch(() => sendJson(res, 503, { ok: false, error: 'storage' }));
+    return true;
+  }
+  sendJson(res, 405, { ok: false, error: 'method' });
+  return true;
 }
 
 function ownerPage(res, url) {
@@ -194,6 +294,7 @@ ${rows ? `<ul>${rows}</ul>` : '<p class="empty">아직 받은 건의가 없어�
 // 건의에 관한 요청이면 처리하고 true
 function handle(req, res, allowedOrigins = []) {
   const url = new URL(req.url || '/', 'http://x');
+  if (ownerApi(req, res, url, allowedOrigins)) return true;
   if (url.pathname === '/api/suggest') {
     if (req.method !== 'POST') {
       res.writeHead(405, { allow: 'POST' });
@@ -204,7 +305,7 @@ function handle(req, res, allowedOrigins = []) {
       sendJson(res, 403, { ok: false, error: 'origin' });
       return true;
     }
-    readBody(req, 8192).then((body) => {
+    readBody(req, 8192).then(async (body) => {
       let data = null;
       try {
         data = body ? JSON.parse(body) : null;
@@ -222,9 +323,9 @@ function handle(req, res, allowedOrigins = []) {
       }
       const place = data && typeof data.place === 'string' && PLACE_NAMES[data.place] ? data.place : '';
       const nick = cleanText(data && data.nick, 10).replace(/\n/g, ' ');
-      store({ at: Date.now(), text, place, nick });
+      await store({ id: crypto.randomUUID(), at: Date.now(), text, place, nick });
       sendJson(res, 200, { ok: true });
-    });
+    }).catch(() => sendJson(res, 503, { ok: false, error: 'storage' }));
     return true;
   }
   if (url.pathname === '/suggestions') {
