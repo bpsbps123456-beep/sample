@@ -8,8 +8,12 @@ main(async ({ check, presenceServer, person, enter, until, sleep, cleanup, shot 
   cleanup(() => one.close()); cleanup(() => two.close());
   const A=one.page, B=two.page;
   await enter(A, srv.url, 'firetower');
-  check(await A.evaluate(() => MC.app.state.sceneObj.tower && MC.app.state.sceneObj.logs.length === 4), '별도 탑불멍 장소에 장작탑 네 단');
+  check(await A.evaluate(() => {
+    const s=MC.app.state.sceneObj;
+    return s.tower && s.logs.length===4 && s.logs.every((l,i)=>!i||l.axis!==s.logs[i-1].axis);
+  }), '별도 탑불멍 장소에 가로·세로로 교차한 장작탑 네 단');
   check(await A.isVisible('[data-act=log]') && !(await A.isVisible('[data-act=worry]')), '장작 쌓기 버튼');
+  await shot(A,'tower-four-layers');
   const heights=[];
   for (let i=0;i<8;i++) {
     await A.click('[data-act=log]');
@@ -29,13 +33,17 @@ main(async ({ check, presenceServer, person, enter, until, sleep, cleanup, shot 
   check(await until(A, () => MC.app.net.mine.p === 'firetower' && MC.app.state.sceneObj.crowd.visitors.size===1, null, 10000), '탑불멍에도 다른 사람과 모여 앉는다');
   check(await A.evaluate(() => MC.netClean({p:'firetower',x:0,y:0})?.p==='firetower'), '탑불멍 상태를 보내고 받는다');
   const settled=await A.evaluate(() => {
-    const s=MC.app.state.sceneObj; s.logs[0].fuel=0.1;
+    const s=MC.app.state.sceneObj, axes=s.logs.map(l=>l.axis);
+    s.logs[0].fuel=0.1;
     for(let i=0;i<120;i++)s.update(1/60);
-    return s.logs.length===11 && Math.abs(s.logs[0].y+14)<1 && s.addLog();
+    return s.logs.length===11 && Math.abs(s.logs[0].y+14)<1 &&
+      s.logs.every((l,i)=>l.axis===axes[i+1]) && s.addLog() &&
+      s.flying[0].log.axis!==s.logs[s.logs.length-1].axis;
   });
-  check(settled,'밑단이 타면 내려앉고 다시 장작을 올릴 수 있다');
+  check(settled,'밑단이 타면 방향을 유지하며 내려앉고 다음 단도 직각으로 쌓인다');
   await A.click('#exitBtn'); await until(A,()=>MC.app.state.view==='home');
   check(await A.evaluate(()=>{const c=MC.app.camp,s=MC.CAMP_SPOTS.find(q=>q.id==='firetower');return Math.hypot(c.pup.x-s.x,c.pup.y-s.y)<180;}),'마을의 탑불멍 앞으로 돌아온다');
+  await shot(A,'tower-map');
   await A.evaluate(()=>{MC.app.camp.placeAt('fire');MC.app.enterScene('fire');});
   await until(A,()=>MC.app.state.scene==='fire');
   check(await A.evaluate(()=>!MC.app.state.sceneObj.tower && MC.app.state.sceneObj.logs.length===4) && await A.isVisible('[data-act=worry]'),'기존 모닥불과 걱정 태우기도 그대로 작동한다');

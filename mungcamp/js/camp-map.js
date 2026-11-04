@@ -860,16 +860,26 @@
           g.stroke();
         }
       });
-      // 탑불멍: 같은 폭의 장작을 엇갈려 수직으로 올린다.
+      // 탑불멍: 두 개씩 나란히 놓고 다음 단을 직각으로 얹는 井자 장작탑.
       sp.tower = sprite(130, 150, 65, 126, ss, (g) => {
         g.drawImage(sp.pit.c, -sp.pit.ax, -sp.pit.ay, sp.pit.w, sp.pit.h);
         for (let i = 0; i < 6; i++) {
-          g.save(); g.translate(i % 2 ? 3 : -3, -14 - i * 13); g.rotate(i % 2 ? -0.08 : 0.08);
-          MC.roundRect(g, -33, -6, 66, 12, 5);
-          g.fillStyle = i % 3 === 2 ? '#b9a58a' : '#765039'; g.fill();
-          g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke();
-          g.fillStyle = '#c2915b'; ellipse(g, 28, 0, 4, 4); g.fill();
-          g.restore();
+          for (const piece of MC.FireScene.towerLayer(i % 2)) {
+            g.save();
+            g.translate(piece.x * 0.44, -14 - i * 24 * 0.44 + piece.y * 0.44);
+            g.rotate(piece.a);
+            MC.roundRect(g, -33, -5.5, 66, 11, 5);
+            const wood = g.createLinearGradient(0, -5.5, 0, 5.5);
+            wood.addColorStop(0, i % 3 === 2 ? '#c8b397' : '#926344');
+            wood.addColorStop(1, i % 3 === 2 ? '#8e7a63' : '#4b3021');
+            g.fillStyle = wood; g.fill();
+            g.strokeStyle = INK; g.lineWidth = 1.3; g.stroke();
+            g.strokeStyle = 'rgba(40,24,15,0.45)'; g.lineWidth = 0.8;
+            g.beginPath(); g.moveTo(-25, 1); g.lineTo(20, 1); g.stroke();
+            g.fillStyle = '#c2915b'; ellipse(g, 28, 0, 3, 4); g.fill();
+            g.strokeStyle = '#81502f'; ellipse(g, 28, 0, 1.5, 2.5); g.stroke();
+            g.restore();
+          }
         }
       });
       // 정자: 단청 띠와 처마 끝이 살짝 들린 기와지붕

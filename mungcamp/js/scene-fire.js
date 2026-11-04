@@ -47,6 +47,14 @@
   const LOG_R = 20;
   const PAD = 4;
   const LOG_SCALE = 0.62; // 장면 단위 1에서 장작이 그려지는 배율
+  const TOWER_STEP = 24;
+  // 바닥의 직각인 두 축을 비스듬히 내려다본다. 한 단에는 평행한 장작 두 개,
+  // 다음 단에는 그와 직각인 두 개를 놓아 가운데가 빈 井자 구조를 만든다.
+  const TOWER_LAYERS = [0, 1].map((axis) => [-1, 1].map((side) => ({
+    x: side * 42 * (axis ? 1 : -1),
+    y: side * 42 * 0.32,
+    a: Math.atan(0.32) * (axis ? -1 : 1),
+  })));
 
   function logShape(g) {
     MC.roundRect(g, PAD, PAD, LOG_L, LOG_R * 2, LOG_R);
@@ -682,12 +690,16 @@
       return { x: this.cx + log.x * this.s, y: this.by + log.y * this.s };
     }
 
-    // 한 번 던질 때마다 꼭대기에 한 단. 기울기를 번갈아 주어 장작탑을 만든다.
-    towerLog(level, burnt = 0) {
+    static towerLayer(axis) {
+      return TOWER_LAYERS[axis % 2];
+    }
+
+    // 한 번 던질 때마다 두 장작으로 된 한 단. 밑단이 타도 남은 단의 방향은 유지한다.
+    towerLog(level, burnt = 0, axis = level % 2) {
       return {
         kind: level % 4 === 3 ? 'birch' : 'oak',
-        x: level % 2 ? 5 : -5, y: -14 - level * 24,
-        a: level % 2 ? -0.09 : 0.09, front: true,
+        x: 0, y: -14 - level * TOWER_STEP,
+        a: 0, axis, front: true,
         fuel: 20, fuel0: 20 / (1 - burnt),
         v: level % 2, seed: this.rnd() * 50, sprite: null,
       };
@@ -706,7 +718,8 @@
       // 날아가는 동안 다음 단을 예약하지 않아 장작끼리 겹치지 않는다.
       if (this.tower && this.flying.length) return false;
       const side = Math.random() < 0.5 ? -1 : 1;
-      const target = this.tower ? this.towerLog(this.logs.length) : this.leaning(
+      const last = this.logs[this.logs.length - 1];
+      const target = this.tower ? this.towerLog(this.logs.length, 0, last ? 1 - last.axis : 0) : this.leaning(
         Math.random() < 0.2 ? 'birch' : 'oak',
         side * MC.rand(60, 110), MC.rand(2, 16),
         -side * MC.rand(0, 28), MC.rand(-84, -62),
@@ -929,7 +942,7 @@
         }
         // 밑단이 다 타면 남은 장작이 천천히 내려앉는다.
         if (this.tower) for (let i = 0; i < this.logs.length; i++) {
-          const y = -14 - i * 24;
+          const y = -14 - i * TOWER_STEP;
           this.logs[i].y += (y - this.logs[i].y) * Math.min(1, dt * 5);
         }
       }
@@ -1034,7 +1047,7 @@
         const f = this.flying[i];
         // 창 크기가 달라져도 현재 화면의 꼭대기에 착지한다.
         if (this.tower) {
-          f.log.y = -14 - this.logs.length * 24;
+          f.log.y = -14 - this.logs.length * TOWER_STEP;
           Object.assign(f.to, this.world(f.log), { k: this.s * LOG_SCALE });
         }
         f.t += dt / f.dur;
@@ -1117,15 +1130,31 @@
       g.restore();
     }
 
+    drawTowerLayer(g, l, sprite, x, y, a, k) {
+      g.save();
+      g.translate(x, y);
+      g.rotate(a);
+      const scale = k / LOG_SCALE;
+      for (const piece of FireScene.towerLayer(l.axis)) {
+        this.drawLog(g, sprite, piece.x * scale, piece.y * scale, piece.a, k);
+      }
+      g.restore();
+    }
+
+    drawPlacedLog(g, l, sprite, x, y, a, k) {
+      if (l.axis !== undefined) this.drawTowerLayer(g, l, sprite, x, y, a, k);
+      else this.drawLog(g, sprite, x, y, a, k);
+    }
+
     drawPitLog(g, l) {
       const p = this.world(l);
       const k = this.s * LOG_SCALE;
       const sprite = l.sprite || (l.sprite = this.logSprites[l.kind][l.v % this.logSprites[l.kind].length]);
-      this.drawLog(g, sprite, p.x, p.y, l.a, k);
+      this.drawPlacedLog(g, l, sprite, p.x, p.y, l.a, k);
       const char = MC.clamp(1 - l.fuel / l.fuel0, 0, 1);
       if (char > 0.02) {
         g.globalAlpha = Math.min(0.92, char * 1.1);
-        this.drawLog(g, this.charSprites[l.v % 2], p.x, p.y, l.a, k);
+        this.drawPlacedLog(g, l, this.charSprites[l.v % 2], p.x, p.y, l.a, k);
         g.globalAlpha = 1;
       }
     }
@@ -1136,7 +1165,7 @@
       if (glow < 0.02) return;
       const p = this.world(l);
       g.globalAlpha = Math.min(1, glow);
-      this.drawLog(g, this.crackSprites[l.v % 2], p.x, p.y, l.a, this.s * LOG_SCALE);
+      this.drawPlacedLog(g, l, this.crackSprites[l.v % 2], p.x, p.y, l.a, this.s * LOG_SCALE);
       g.globalAlpha = 1;
     }
 
@@ -1473,7 +1502,7 @@
         const a = MC.lerp(f.from.a, f.to.a, e);
         const k = MC.lerp(f.from.k, f.to.k, e);
         const sprite = f.worry ? (f.t < 0.85 ? f.worry.made.sprite : f.worry.made.plain) : f.log.sprite || (f.log.sprite = this.logSprites[f.log.kind][f.log.v % this.logSprites[f.log.kind].length]);
-        this.drawLog(g, sprite, x, y, a, k);
+        this.drawPlacedLog(g, f.log, sprite, x, y, a, k);
       }
       // 손에 든 걱정 장작
       const wy = this.worry;
