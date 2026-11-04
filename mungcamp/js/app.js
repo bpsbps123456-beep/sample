@@ -15,7 +15,7 @@
       scape: MC.FireScape,
       guidance: '불꽃을 바라봐요',
       actions: [
-        { id: 'log', icon: 'i-log', label: '장작', primary: true },
+        { id: 'log', icon: 'i-log', label: '장작 던지기', primary: true },
         { id: 'worry', icon: 'i-pen', label: '걱정' },
         CHAIR_ACT,
       ],
@@ -1298,7 +1298,7 @@
     const sc = state.sceneObj;
     if (!sc || !state.started) return;
     if (id === 'log') {
-      if (!sc.addLog()) toast(state.scene === 'firetower' ? (sc.flying.length ? '장작이 올라가고 있어요' : '탑이 높이 쌓였어요. 잠시 불멍해요') : '장작이 넉넉해요');
+      if (!sc.addLog()) toast(sc.flying.length ? (state.scene === 'firetower' ? '장작이 올라가고 있어요' : '장작이 불로 날아가고 있어요') : state.scene === 'firetower' ? '탑이 높이 쌓였어요. 잠시 불멍해요' : '장작이 넉넉해요');
     } else if (id === 'worry') {
       if (!sc.worry) togglePanel('worry');
     } else if (id === 'ripple') sc.rippleAt();

@@ -715,8 +715,8 @@
 
     addLog() {
       if (this.logs.length + this.flying.length >= (this.tower ? 12 : 10)) return false;
-      // 날아가는 동안 다음 단을 예약하지 않아 장작끼리 겹치지 않는다.
-      if (this.tower && this.flying.length) return false;
+      // 한 번에 한 개씩 던지고, 불에 닿은 뒤 다음 장작을 든다.
+      if (this.flying.length) return false;
       const side = Math.random() < 0.5 ? -1 : 1;
       const last = this.logs[this.logs.length - 1];
       const target = this.tower ? this.towerLog(this.logs.length, 0, last ? 1 - last.axis : 0) : this.leaning(
@@ -728,8 +728,8 @@
       const to = this.world(target);
       this.flying.push({
         log: target,
-        actor: this.tower,
-        held: this.tower,
+        actor: true,
+        held: true,
         elapsed: 0,
         t: 0,
         dur: 0.95,
@@ -737,13 +737,11 @@
         to: { x: to.x, y: to.y, a: target.a, k: this.s * LOG_SCALE },
         arc: 120 * this.s,
       });
-      if (this.tower) {
-        this.pup.wake();
-        this.pup.lookUpT = 1.2;
-        this.pup.logThrow = { time: 0, side: this.pup.x < this.cx ? 1 : -1 };
-        const f = this.flying[this.flying.length - 1];
-        Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.38 });
-      }
+      this.pup.wake();
+      this.pup.lookUpT = 1.2;
+      this.pup.logThrow = { time: 0, side: this.pup.x < this.cx ? 1 : -1 };
+      const f = this.flying[this.flying.length - 1];
+      Object.assign(f.from, this.pup.logGrip(), { k: this.s * LOG_SCALE * 0.38 });
       return true;
     }
 
@@ -1094,9 +1092,9 @@
         const f = this.flying[i];
         if (this.tower) {
           f.log.y = -14 - this.logs.length * TOWER_STEP;
-          Object.assign(f.to, this.world(f.log), { k: this.s * LOG_SCALE });
         }
         if (f.actor) {
+          Object.assign(f.to, this.world(f.log), { k: this.s * LOG_SCALE });
           f.elapsed += dt;
           const side = this.pup.logThrow?.side || (this.pup.x < this.cx ? 1 : -1);
           this.pup.logThrow = { time: Math.min(f.elapsed, 0.4), side };
