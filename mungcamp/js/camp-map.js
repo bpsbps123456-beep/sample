@@ -1951,7 +1951,7 @@
       const maxV = MC.crowdMaxDrawn ? MC.crowdMaxDrawn() : 16;
       if (near.length > maxV) {
         const me = this.pup;
-        near.sort((a, b) => Math.hypot(a.pup.x - me.x, a.pup.y - me.y) - Math.hypot(b.pup.x - me.x, b.pup.y - me.y));
+        near.sort((a, b) => (+!!a.st.npc - +!!b.st.npc) || Math.hypot(a.pup.x - me.x, a.pup.y - me.y) - Math.hypot(b.pup.x - me.x, b.pup.y - me.y));
         near = near.slice(0, maxV);
       }
       for (const v of near) {

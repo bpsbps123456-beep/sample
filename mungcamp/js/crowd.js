@@ -138,7 +138,13 @@
       seen.add(id);
       const v = map.get(id);
       if (v) v.apply(s);
-      else if (map.size < MAX_VISITORS) map.set(id, new Visitor(id, s, opts));
+      else {
+        if (!s.npc && map.size >= MAX_VISITORS) {
+          const friend = Array.from(map.values()).find(v => v.st.npc);
+          if (friend) map.delete(friend.id);
+        }
+        if (map.size < MAX_VISITORS) map.set(id, new Visitor(id, s, opts));
+      }
     }
     for (const v of map.values()) if (!seen.has(v.id)) v.leaving = true;
   }
@@ -227,7 +233,7 @@
       if (this.perched) {
         // 그루터기에 누가 먼저 앉아 있으면 내려와서 빈자리를 찾는다
         let other = false;
-        for (const v of this.visitors.values()) if (!v.leaving && v.st.q) other = true;
+        for (const v of this.visitors.values()) if (!v.st.npc && !v.leaving && v.st.q) other = true;
         if (!other) return;
         this.hopDown();
         hopped = true;
@@ -237,7 +243,7 @@
       // 누가 앉아 있거나, 앉으러 가는 중인 자리
       const taken = (x, y) => {
         for (const v of this.visitors.values()) {
-          if (v.leaving || v.st.q || !this.sees(v)) continue;
+          if (v.st.npc || v.leaving || v.st.q || !this.sees(v)) continue;
           if (Math.hypot(v.pup.x - x, (v.pup.y - y) * 1.8) < R) return true;
           if (v.st.g) {
             const gq = this.cfg.toScreen(v.st.g[0], v.st.g[1]);
@@ -656,7 +662,7 @@
           const me = cfg.toScreen(this.me.X, this.me.Z);
           const near = 50 * me.k;
           for (const v of this.visitors.values()) {
-            if (v.leaving || v.fade < 0.5 || v.st.w || v.st.q || !(v.id < this.selfId) || !this.sees(v)) continue;
+            if (v.st.npc || v.leaving || v.fade < 0.5 || v.st.w || v.st.q || !(v.id < this.selfId) || !this.sees(v)) continue;
             if (Math.hypot(v.pup.x - me.x, (v.pup.y - me.y) * 1.8) < near) {
               this.clashes = (this.clashes || 0) + 1; // 몇 번 해 봐도 안 되면 그대로 둔다
               this.makeRoom(true);
@@ -713,7 +719,7 @@
       const max = maxDrawn();
       if (all.length > max) {
         const me = this.cfg.toScreen(this.me.X, this.me.Z);
-        all.sort((a, b) => Math.hypot(a.pup.x - me.x, a.pup.y - me.y) - Math.hypot(b.pup.x - me.x, b.pup.y - me.y));
+        all.sort((a, b) => (+!!a.st.npc - +!!b.st.npc) || Math.hypot(a.pup.x - me.x, a.pup.y - me.y) - Math.hypot(b.pup.x - me.x, b.pup.y - me.y));
         all.length = max;
       }
       this.shownSet = new Set(all);

@@ -99,6 +99,8 @@ async function person(opts = {}) {
   const phone = !!opts.phone;
   const viewport = opts.viewport || (phone ? { width: 390, height: 844 } : { width: 1000, height: 700 });
   const ctx = await browser.newContext({ viewport, isMobile: phone, hasTouch: phone, deviceScaleFactor: opts.dpr || 1 });
+  // 기존 시험은 실제 사람 간 동작을 격리해서 확인하고, 상주 친구 시험만 켠다.
+  await ctx.addInitScript(enabled => { window.MC_RESIDENTS_ENABLED = enabled; }, !!opts.residents);
   if (opts.nick !== null) {
     await ctx.addInitScript(([nick, look]) => {
       try {

@@ -181,6 +181,7 @@
   // ── 함께 ─────────────────────────────────────────────
   // 같은 곳의 멍이와 마음 단어, 마을의 네 글자 상태 팻말이 보인다
   const net = new MC.Net();
+  const residents = new MC.Residents(camp);
   net.start();
   setInterval(() => net.tick(), 1000);
   // 누군가 내 멍이에게 하트를 보내면 내 멍이가 폴짝
@@ -203,7 +204,7 @@
     }
   };
   camp.onBoop = (id) => {
-    net.boop(id);
+    if (!residents.is(id)) net.boop(id);
     const v = camp.visitors.get(id);
     if (v) showName(campName, v.pup, v.st.n, false, () => camp.visitors.get(id) === v && !v.leaving);
   };
@@ -734,12 +735,12 @@
     if (now - together.at < 0.5) return;
     together.at = now;
     if (state.view === 'session') {
-      showTogether(together.session, net.count(state.scene));
+      showTogether(together.session, net.count(state.scene) + residents.count(state.scene));
       return;
     }
     // 마을에 있는 사람과 멍캠프 어디에든 있는 사람 (둘 이상일 때만)
-    const here = net.count('map');
-    const all = net.total();
+    const here = net.count('map') + residents.count('map');
+    const all = net.total() + residents.total();
     const el = together.camp;
     const on = all >= 2;
     if (el.hidden === on) el.hidden = !on;
@@ -753,7 +754,7 @@
     for (const s of MC.CAMP_SPOTS) {
       const e = spotEls[s.id];
       if (!e || !e.count) continue;
-      const n = net.count(s.id);
+      const n = net.count(s.id) + residents.count(s.id);
       const on = n > 0;
       if (e.count.hidden === on) e.count.hidden = !on;
       if (on && e.count.lastChild.textContent !== String(n)) e.count.lastChild.textContent = String(n);
@@ -855,7 +856,7 @@
     if (tag.el === campName) placeName((x, y) => camp.toScreen(x, y));
     // 함께 있는 사람들에게 내 자리를 알리고, 그들의 멍이를 데려온다
     net.set(camp.netState());
-    camp.syncVisitors(net.list('map'));
+    camp.syncVisitors(residents.merge('map', net.list('map'), camp));
     net.tick();
     updateTogether();
     // 걷는 곳에 따라 소리가 섞인다
@@ -1044,7 +1045,7 @@
     if (scene.crowd) {
       const crowd = scene.crowd;
       crowd.onBoop = (id) => {
-        net.boop(id);
+        if (!residents.is(id)) net.boop(id);
         const v = crowd.visitors.get(id);
         if (v) showName(sceneName, v.pup, v.st.n, false, () => crowd.visitors.get(id) === v && !v.leaving);
       };
@@ -1174,7 +1175,7 @@
     if (sc.crowd) {
       sc.crowd.selfId = net.id;
       net.set(sc.crowd.state());
-      sc.crowd.sync(net.list(state.scene));
+      sc.crowd.sync(residents.merge(state.scene, net.list(state.scene), sc));
       net.tick();
       updateTogether();
     }
@@ -1686,5 +1687,5 @@
     }
   } catch (e) { /* 등록할 수 없는 환경 */ }
 
-  MC.app = { state, sound, camp, net, openSession, enterScene, doAction, toggleBreath, finishTimer };
+  MC.app = { state, sound, camp, net, residents, openSession, enterScene, doAction, toggleBreath, finishTimer };
 })(window.MC = window.MC || {});
