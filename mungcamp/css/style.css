@@ -189,6 +189,7 @@ a { color: inherit; }
 .spot[data-tone="moss"] { --tone: var(--moss); }
 .spot[data-tone="paper"] { --tone: #f3dfb6; }
 .spot[data-tone="glamp"] { --tone: #ffd590; }
+.spot[data-tone="lodge"] { --tone: #ffc98a; }
 .spot-name {
   margin: 0;
   padding: 1px 14px 0;

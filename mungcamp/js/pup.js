@@ -151,6 +151,8 @@
       this.chairTo = 0;
       this.pageT = -1;
       this.nextPage = MC.rand(6, 11);
+      // 귤: 껍질을 까고(peel) 한 쪽씩 먹는다(eat)
+      this.snack = null;
       this.walkPhase = 0;
       this.cv = null;
     }
@@ -170,6 +172,20 @@
     // 침대에 엎드려 눕기 / 일어나 앉기
     setLie(on) {
       this.lieTo = on ? 1 : 0;
+    }
+
+    // 귤 하나를 까먹는다. 이미 먹는 중이거나 마시멜로를 먹는 중이면 다음에
+    eatMandarin() {
+      if (this.snack || this.mood === 'eating') return false;
+      this.wake();
+      this.snack = { t: 0, phase: 'peel', bites: 0 };
+      this.setMood('eating', Infinity);
+      this.emit('peel');
+      return true;
+    }
+
+    get eating() {
+      return !!this.snack;
     }
 
     // 의자를 펴고 앉아 책 읽기 / 일어나 접기
@@ -417,7 +433,7 @@
       } else if (this.mood === 'asleep') {
         tiltT = 0.15;
         dropT = 4;
-      } else if (this.mallow.phase === 'munch') {
+      } else if (this.mallow.phase === 'munch' || (this.snack && this.snack.phase === 'eat')) {
         dropT = Math.abs(Math.sin(this.t * 11)) * 1.4;
       }
       this.tilt += (tiltT - this.tilt) * Math.min(1, dt * 2.5);
@@ -489,6 +505,28 @@
       } else if (this.spinHold > 0) {
         this.spinHold -= dt;
         if (this.spinHold <= 0 && this.view !== this.restView) this.spin = { t: 0, dur: 0.36, to: this.restView, hold: 0, switched: false };
+      }
+
+      // 귤: 1.6초 동안 껍질을 별 모양으로 까고, 세 번에 나눠 오물오물
+      if (this.snack) {
+        const sn = this.snack;
+        sn.t += dt;
+        if (sn.phase === 'peel' && sn.t >= 1.6) {
+          sn.phase = 'eat';
+          sn.t = 0;
+        } else if (sn.phase === 'eat') {
+          const b = Math.min(3, Math.floor(sn.t / 0.6) + 1);
+          if (b > sn.bites) {
+            sn.bites = b;
+            this.emit('nom');
+          }
+          if (sn.t >= 1.9) {
+            this.snack = null;
+            this.setMood('happy', 1.8);
+            this.addHearts(2);
+            this.emit('yum');
+          }
+        }
       }
 
       // 마시멜로: 노릇해지면 휙 던져 냠냠
@@ -971,10 +1009,69 @@
       o.restore();
       if (this.outfit === 'scarf') this.paintScarf(o, false);
       const reading = this.chair > 0.72;
-      if (this.stick && !reading) this.paintStick(o);
+      if (this.stick && !reading && !this.snack) this.paintStick(o);
       if (reading) this.paintBook(o);
+      else if (this.snack) this.paintMandarin(o);
       this.paintPaws(o);
       this.paintHeadGroup(o, b);
+    }
+
+    // 두 앞발로 든 귤: 껍질이 별처럼 벌어지고, 한 쪽씩 줄어든다
+    paintMandarin(o) {
+      const sn = this.snack;
+      const peel = sn.phase === 'peel' ? MC.smooth(0.15, 1.5, sn.t) : 1;
+      const left = sn.phase === 'eat' ? 1 - sn.bites / 3.2 : 1;
+      o.save();
+      o.translate(0, -30);
+      const r = 11;
+      // 벌어진 껍질 다섯 장 (껍질 안쪽은 하얗다)
+      if (peel > 0.02) {
+        for (let i = 0; i < 5; i++) {
+          const a = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+          const open = peel * 1.05;
+          o.save();
+          o.rotate(a + Math.PI / 2);
+          o.beginPath();
+          o.moveTo(-5.5, 0);
+          o.quadraticCurveTo(-6.5, -r * (0.7 + 0.5 * open), 0, -r * (0.95 + 0.75 * open));
+          o.quadraticCurveTo(6.5, -r * (0.7 + 0.5 * open), 5.5, 0);
+          o.closePath();
+          o.fillStyle = open > 0.5 ? '#fff4dc' : '#f7912a';
+          o.fill();
+          o.lineWidth = 1.6;
+          o.strokeStyle = '#c2611a';
+          o.stroke();
+          o.restore();
+        }
+      }
+      // 알맹이 (먹을수록 작아진다)
+      const rr = r * (peel > 0.5 ? 0.82 : 1) * Math.max(0.15, left);
+      ellipse(o, 0, 0, rr, rr * 0.92);
+      o.fillStyle = peel > 0.5 ? '#ffb347' : '#f7912a';
+      o.fill();
+      o.lineWidth = 1.8;
+      o.strokeStyle = '#c2611a';
+      o.stroke();
+      if (peel > 0.5) {
+        o.strokeStyle = 'rgba(255,240,210,0.85)';
+        o.lineWidth = 1;
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          o.beginPath();
+          o.moveTo(0, 0);
+          o.lineTo(Math.cos(a) * rr * 0.9, Math.sin(a) * rr * 0.85);
+          o.stroke();
+        }
+      } else {
+        // 꼭지와 잎
+        o.fillStyle = '#5e8a3a';
+        ellipse(o, 2, -r + 1, 3.6, 1.8, -0.4);
+        o.fill();
+        o.fillStyle = 'rgba(255,255,255,0.55)';
+        ellipse(o, -4, -4, 2.6, 1.6, -0.6);
+        o.fill();
+      }
+      o.restore();
     }
 
     paintBack(o, b) {
@@ -1040,10 +1137,11 @@
 
     paintPaws(o) {
       const reading = this.chair > 0.72;
-      const holding = this.stick && !reading;
+      const snacking = !!this.snack && !reading;
+      const holding = this.stick && !reading && !snacking;
       const step = Math.sin(this.walkPhase) * 2.2 * this.walk;
       const bd = this.sleeping ? 9 * this.droop : 0;
-      const paws = reading ? [[-23, -19 + bd, 0.9], [23, -19 + bd, -0.9]] : holding ? [[-4, -29, 0.35], [8.5, -32, -0.25]] : [[-10, -3 + step, 0], [10, -3 - step, 0]];
+      const paws = reading ? [[-23, -19 + bd, 0.9], [23, -19 + bd, -0.9]] : snacking ? [[-14, -24, 0.6], [14, -24, -0.6]] : holding ? [[-4, -29, 0.35], [8.5, -32, -0.25]] : [[-10, -3 + step, 0], [10, -3 - step, 0]];
       for (const [x, y, rot] of paws) {
         ellipse(o, x, y, 8, 5.8, rot);
         o.fillStyle = '#fffaf1';

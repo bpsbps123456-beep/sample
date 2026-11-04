@@ -1,5 +1,5 @@
 /* 멍캠프 — 소리.
-   바탕은 실제로 녹음한 자연의 소리(sounds/: 장작불, 풀벌레, 새, 계곡물, 비, 바닷물)이고,
+   바탕은 실제로 녹음한 자연의 소리(sounds/: 장작불, 풀벌레, 새, 계곡물, 비, 바닷물, 끓는 물, 바람)이고,
    그 위에 화면과 맞물리는 작은 소리(불티, 파도의 부서짐, 물방울, 다람쥐…)를 Web Audio로 합성해 얹는다.
    녹음을 받기 전이나 받지 못하면(인터넷 없이 처음 열 때 등) 합성한 소리만으로도 온전히 난다 */
 (function (MC) {
@@ -27,6 +27,9 @@
     stream: { url: 'sounds/stream.mp3' }, // 계곡물 (gluckose, CC0)
     rain: { url: 'sounds/rain.mp3' }, // 비 (alex36917, CC BY)
     sea: { url: 'sounds/sea.mp3' }, // 바닷물결 (Luftrum, CC BY). 크기를 고르게 눌러 두어 물의 결로만 쓴다
+    kettle: { url: 'sounds/kettle.mp3' }, // 끓는 물 (Moodist 소리 모음, Pixabay 콘텐츠 라이선스·CC0): 숙소 난로 위 주전자
+    bubbles: { url: 'sounds/bubbles.mp3' }, // 보글보글 거품 (Moodist 소리 모음, Pixabay 콘텐츠 라이선스·CC0)
+    wind: { url: 'sounds/wind.mp3' }, // 바람 (felix.blume, CC0): 숙소 창밖
   };
   // 풀어 둘 때의 표본률. 전체 소리가 10.5kHz 아래로 걸러지니 낮춰서 메모리를 아낀다
   const DECODE_RATE = 22050;
@@ -329,6 +332,19 @@
       } else if (kind === 'page') {
         // 책장 넘기는 사르륵
         this.rustle(0.01, 0.32, 2600, 0.016);
+      } else if (kind === 'peel') {
+        // 귤껍질을 까는 소리: 톡 하고 갈라진 뒤 사락사락 벗겨진다
+        tone(1900, 1500, 0.025, 0.014, 0, 'triangle');
+        for (const [d, dur, f, a] of [[0.06, 0.1, 3600, 0.02], [0.34, 0.14, 3000, 0.017], [0.62, 0.09, 4100, 0.018], [0.9, 0.16, 3300, 0.016], [1.22, 0.12, 3800, 0.014]]) this.rustle(d, dur, f, a);
+      } else if (kind === 'roll') {
+        // 이불 위를 데굴데굴
+        this.rustle(0.02, 0.34, 760, 0.03);
+        this.rustle(0.38, 0.34, 620, 0.026);
+        tone(470, 720, 0.12, 0.028, 0.84);
+      } else if (kind === 'yum') {
+        // 다 먹고 행복해서 '냐암'
+        tone(620, 930, 0.12, 0.03);
+        tone(830, 1240, 0.16, 0.024, 0.13);
       }
     }
 
@@ -1416,10 +1432,21 @@
       fs.connect(snd.verbIn);
       this.cricketBed = this.rec('crickets', far, { level: MapScape.CRICKETS, len: [7, 12], xf: 2.5, spread: 0.7, rate: [0.96, 1.03] });
       this.cricketBed.onReady = () => { this.realCrickets = true; };
+      // 눈 내리는 숙소 둘레: 가까이 갈수록 찬 바람이 일고 풀벌레는 잦아든다
+      const cold = snd.filter('lowpass', 1100, 0.4);
+      cold.connect(this.layers.night);
+      this.coldWind = this.rec('wind', cold, { level: 0.001, len: [5, 8], xf: 2.4, spread: 0.5, rate: [0.9, 1.02] });
+      this.lodge = 0;
     }
 
     setParams(p) {
       this.pavilion = p.pavilion || 0;
+      const L = p.lodge || 0;
+      if (Math.abs(L - this.lodge) > 0.01) {
+        this.lodge = L;
+        this.coldWind.setLevel(0.001 + MapScape.COLD * L, 1.2);
+        this.cricketBed.setLevel(MapScape.CRICKETS * (1 - 0.85 * L), 1.5);
+      }
     }
 
     schedule() {
@@ -1460,6 +1487,7 @@
       }
     }
   }
+  MapScape.COLD = 0.3;
   MapScape.layers = [{ key: 'night', label: '밤', value: 1 }];
   MapScape.CRICKETS = 0.035;
 
@@ -1683,7 +1711,161 @@
   ];
   TentScape.LEVELS = { stove: 3.2, outFire: 0.5, crickets: 0.06, rain: 1 };
 
+  // ── 숙소 ────────────────────────────────────────────────
+  // 석유난로 위 주전자가 쉬지 않고 보글보글 (진짜 끓는 물 녹음에 거품 소리가 밀려왔다 잦아든다. 가습기처럼).
+  // 김 서린 창 너머로는 눈 내리는 먹먹한 겨울바람, 가끔 처마에서 눈이 툭 떨어진다.
+  // 코타츠 속으로 들어가면 모든 소리가 이불에 묻혀 낮고 포근해진다
+  class LodgeScape extends Scape {
+    constructor(snd) {
+      super(snd, LodgeScape.layers);
+      const s = snd;
+      const ctx = s.ctx;
+      const T = LodgeScape.LEVELS;
+      // 주전자 → (코타츠 속이면 닫히는) 저역 통과 → 주전자 층. 방 안이라 아주 조금 울린다
+      this.kettleLp = s.filter('lowpass', 6500, 0.5);
+      this.kettleLp.connect(this.layers.kettle);
+      const send = s.gain(0.1);
+      this.kettleLp.connect(send);
+      send.connect(s.verbIn);
+      this.kettleBus = s.gain(1);
+      this.kettleBus.connect(this.kettleLp);
+      this.kettle = this.rec('kettle', this.kettleBus, { level: T.kettle, len: [5, 8], xf: 1.8, pan: 0.3, spread: 0.06 });
+      this.kettle.onReady = () => { this.realKettle = true; };
+      // 보글보글: 거품이 밀려왔다 잦아든다 (swell 을 천천히 오르내린다)
+      this.swell = s.gain(0.5);
+      this.swell.connect(this.kettleBus);
+      this.bubbles = this.rec('bubbles', this.swell, { level: T.bubbles, len: [2.2, 3.6], xf: 0.9, pan: 0.34, spread: 0.08, rate: [0.9, 1.04] });
+      this.bubbles.onReady = () => { this.realBubbles = true; };
+      // 녹음을 못 받으면: 끓는 물의 쉬이 (합성)
+      this.simmer = this.noiseLayer('pink', [['bandpass', 900, 0.7]], 0, this.kettleBus);
+      // 방 안의 낮은 숨 (따뜻한 공기)
+      this.room = this.noiseLayer('brown', [['lowpass', 180, 0.6]], 0.04, this.layers.kettle);
+      this.modulate(this.room.gain.gain, 0.3, 0.012);
+      // 창 너머 바람: 유리를 사이에 두고 먹먹하게. 센바람이면 조금 열린다
+      this.outLp = s.filter('lowpass', 620, 0.5);
+      this.outLp.connect(this.layers.outside);
+      this.outBus = s.gain(1);
+      this.outBus.connect(this.outLp);
+      this.wind = this.rec('wind', this.outBus, { level: T.wind, len: [5, 8], xf: 2.4, pan: -0.32, spread: 0.2, rate: [0.88, 1.0] });
+      this.wind.onReady = () => { this.realWind = true; glide(this.windSyn.gain.gain, 0, 1.2, ctx); };
+      this.windSyn = this.noiseLayer('brown', [['lowpass', 420, 0.6]], 0.1, this.outBus);
+      this.modulate(this.windSyn.gain.gain, 0.25, 0.05);
+      // 처마에서 눈덩이가 툭 (창 너머라 먹먹하게)
+      this.snowLp = s.filter('lowpass', 900, 0.5);
+      this.snowLp.connect(this.layers.outside);
+      // 코타츠 속: 이불에 묻힌 포근한 숨
+      this.quilt = this.noiseLayer('brown', [['lowpass', 240, 0.6]], 0, this.layers.kettle);
+      this.inside = 0;
+      this.gust = 0;
+      const now = MC.clock();
+      this.nextSwell = now + 1;
+      this.nextBlub = now + 0.2;
+      this.nextLid = now + MC.rand(14, 26);
+    }
+
+    setParams(p) {
+      const ctx = this.snd.ctx;
+      const now = ctx.currentTime;
+      const T = LodgeScape.LEVELS;
+      this.inside = p.inside || 0;
+      this.gust = p.gust || 0;
+      const I = this.inside;
+      const G = this.gust;
+      // 코타츠 속이면 주전자도 바람도 이불 너머로
+      this.kettleLp.frequency.setTargetAtTime(6500 * Math.pow(800 / 6500, I), now, 0.4);
+      this.kettleBus.gain.setTargetAtTime(1 - 0.35 * I, now, 0.4);
+      this.outLp.frequency.setTargetAtTime((620 + 520 * G) * (1 - 0.55 * I), now, 0.6);
+      this.outBus.gain.setTargetAtTime((0.8 + 0.55 * G) * (1 - 0.45 * I), now, 0.8);
+      this.quilt.gain.gain.setTargetAtTime(0.06 * I, now, 0.5);
+      this.simmer.gain.gain.setTargetAtTime(this.realKettle ? 0 : 0.05, now, 0.5);
+      this.wind.setLevel(T.wind * (0.85 + 0.4 * G), 1.2);
+    }
+
+    schedule() {
+      const s = this.snd;
+      const now = MC.clock();
+      const until = now + 1.3;
+      // 거품이 밀려왔다 잦아든다: 몇 초마다 다음 크기로 천천히
+      if (now > this.nextSwell) {
+        const v = Math.random() < 0.25 ? MC.rand(0.75, 1) : MC.rand(0.2, 0.6);
+        this.swell.gain.setTargetAtTime(v, s.ctx.currentTime, MC.rand(0.8, 1.6));
+        this.nextSwell = now + MC.rand(3, 7);
+      }
+      // 녹음이 없으면 작은 거품을 합성해 보글보글
+      if (this.realKettle && this.realBubbles) this.nextBlub = until;
+      while (this.nextBlub < until) {
+        if (this.nextBlub > now - 0.05) this.blub(this.nextBlub);
+        this.nextBlub += -Math.log(1 - Math.random()) / 6;
+      }
+      // 이따금 뚜껑이 들썩 '달각' 하고 김이 쉬이
+      if (now > this.nextLid) {
+        this.nextLid = now + MC.rand(16, 34);
+        this.lid(0.5);
+      }
+    }
+
+    // 합성한 거품 하나: 낮은 데서 '보' 하고 올라가는 짧은 울림
+    blub(t) {
+      const s = this.snd;
+      const at = Math.max(s.ctx.currentTime + 0.005, s.toCtx(t));
+      const f = MC.rand(320, 620);
+      this.blip(at, this.kettleBus, f, f * MC.rand(1.6, 2.2), MC.rand(0.045, 0.08), MC.rand(0.006, 0.018));
+    }
+
+    // 주전자 뚜껑이 '달각', 이어서 김이 쉬이
+    lid(amp = 1) {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = ctx.currentTime + 0.02;
+      this.blip(at, this.kettleBus, 2650, 2450, 0.05, 0.016 * amp, 'triangle');
+      this.blip(at + 0.07, this.kettleBus, 2500, 2300, 0.04, 0.01 * amp, 'triangle');
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.white;
+      const bp = s.filter('bandpass', 4200, 0.8);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.022 * amp, at + 0.25);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 1.1);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.kettleBus);
+      src.start(at, Math.random() * 3, 1.2);
+    }
+
+    // 주전자를 톡: 뚜껑이 들썩, 김이 퐁
+    puff() {
+      this.lid(1);
+    }
+
+    // 처마에 쌓인 눈이 툭: 낮고 먹먹한 '풀썩' (창밖으로 눈덩이가 떨어질 때)
+    flump() {
+      const s = this.snd;
+      const ctx = s.ctx;
+      const at = ctx.currentTime + 0.02;
+      const src = ctx.createBufferSource();
+      src.buffer = s.noise.brown;
+      const bp = s.filter('lowpass', 420, 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.16 * (1 - 0.5 * this.inside), at + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      const p = s.pan(-0.35);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(p);
+      p.connect(this.snowLp);
+      src.start(at, Math.random() * 3, 0.6);
+    }
+  }
+  LodgeScape.layers = [
+    { key: 'kettle', label: '주전자', value: 1 },
+    { key: 'outside', label: '바깥', value: 0.7 },
+  ];
+  // 녹음의 크기 (README 의 sounds/ 처리 뒤 -1~-2dBFS 봉우리 기준)
+  LodgeScape.LEVELS = { kettle: 0.5, bubbles: 0.22, wind: 0.6 };
+
   MC.Sound = Sound;
+  MC.LodgeScape = LodgeScape;
   MC.TentScape = TentScape;
   MC.MapScape = MapScape;
   MC.FireScape = FireScape;

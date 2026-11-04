@@ -1,6 +1,6 @@
 /* 멍캠프 — 캠프 마을: 멍이를 데리고 걸어 다니는 지도
    해 질 녘의 캠프 마을. 마을을 한 바퀴 도는 둘레길과 모닥불에서 뻗은 지름길을 따라 연등이 켜져 있고,
-   모닥불·바다·숲·글램핑장에 가까이 가면 들어갈 수 있다. 연못가에는 긴 의자가 있다.
+   모닥불·바다·숲·글램핑장·숙소에 가까이 가면 들어갈 수 있다. 연못가에는 긴 의자가 있다.
    정자에는 목탁이 있다. 똑 치면 번뇌가 하나 줄어든다. */
 (function (MC) {
   'use strict';
@@ -29,12 +29,19 @@
   // 연못: 서쪽 둘레길 곁, 연잎과 갈대, 바라보는 긴 의자
   const POND = { x: 470, y: 1480, rx: 175, ry: 92 };
   const BENCH = { x: 470, y: 1640 };
+  // 숙소: 마을 남서쪽(7시 방향) 구석에 쏙 들어앉은 작은 나무집. 창에 불이 켜져 있고 굴뚝에서 연기가 오른다.
+  // 이 둘레만 조금 더 춥다: 눈이 소복이 쌓이고 하늘하늘 내리며, 입김이 하얗게 난다. 곁에는 감만 남은 감나무
+  const LODGE = { x: 560, y: 1880 };
+  const PERSIMMON = { x: 372, y: 1866 };
+  const COLD = { x: LODGE.x - 10, y: LODGE.y - 50, rx: 380, ry: 260 };
+  const inCold = (x, y, pad = 1) => ((x - COLD.x) / (COLD.rx * pad)) ** 2 + ((y - COLD.y) / (COLD.ry * pad)) ** 2 < 1;
 
   const SPOTS = [
     { id: 'fire', label: '모닥불', tone: 'ember', x: FIRE.x - 30, y: FIRE.y + 40, r: 150, act: '들어가기', ax: FIRE.x, ay: FIRE.y - 112 },
     { id: 'water', label: '달빛 바다', tone: 'sea', x: shoreX(DOCK_Y) + 160, y: DOCK_Y, r: 120, act: '들어가기', ax: shoreX(DOCK_Y) + 170, ay: DOCK_Y - 70 },
     { id: 'forest', label: '편백 숲', tone: 'moss', x: STUMP.x + 20, y: STUMP.y + 30, r: 140, act: '들어가기', ax: STUMP.x, ay: STUMP.y - 110 },
     { id: 'tent', label: '글램핑', tone: 'glamp', x: GLAMP.x, y: GLAMP.y + 46, r: 135, act: '들어가기', ax: GLAMP.x, ay: GLAMP.y - 152 },
+    { id: 'lodge', label: '숙소', tone: 'lodge', x: LODGE.x, y: LODGE.y + 64, r: 125, act: '들어가기', ax: LODGE.x, ay: LODGE.y - 220 },
     { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 120, act: '똑', ax: PAVILION.x, ay: PAVILION.y - 204 },
   ];
 
@@ -52,6 +59,8 @@
     [[FIRE.x - 60, FIRE.y + 20], [900, 900], [720, 760], [STUMP.x + 20, STUMP.y + 44]],
     // 모닥불에서 더 밑으로: 텐트 사이로 내려가 글램핑장 마당에 닿는다
     [[FIRE.x, FIRE.y + 70], [1150, 1300], [1160, 1560], [1185, 1790], [GLAMP.x, GLAMP.y + 70]],
+    // 둘레길에서 숙소 툇마루 앞까지 눈 덮인 오솔길
+    [[874, 1794], [770, 1872], [660, 1926], [LODGE.x, LODGE.y + 44]],
   ];
 
   function catmull(keys, step = 12, loop = false) {
@@ -138,6 +147,10 @@
       this.cam = { x: this.pup.x, y: this.pup.y - 40 };
       this.rnd = MC.rng(1717);
       this.layout();
+      // 숙소 둘레에 내리는 눈과 멍이들의 입김
+      this.snow = [];
+      for (let i = 0; i < 46; i++) this.snow.push(this.newFlake(true));
+      this.breaths = [];
       this.flies = [];
       // 반딧불이: 숲, 정자 언저리, 연못가, 글램핑장 뒤 풀밭
       for (let i = 0; i < 52; i++) {
@@ -149,6 +162,19 @@
 
     audioParams() {
       return null;
+    }
+
+    newFlake(any) {
+      const a = this.rnd() * Math.PI * 2;
+      const r = Math.sqrt(this.rnd());
+      return {
+        x: COLD.x + Math.cos(a) * COLD.rx * r * 0.95,
+        y0: COLD.y + Math.sin(a) * COLD.ry * r * 0.95,
+        h: any ? this.rnd() * 220 : 220,
+        fall: 16 + this.rnd() * 14,
+        ph: this.rnd() * 6,
+        r: 1.4 + this.rnd() * 1.6,
+      };
     }
 
     // ── 배치 ─────────────────────────────────────────────
@@ -169,6 +195,10 @@
       if (((x - 1290) / 470) ** 2 + ((y - 1790) / 220) ** 2 < 1) return false;
       if (((x - POND.x) / (POND.rx + 70)) ** 2 + ((y - POND.y) / (POND.ry + 60)) ** 2 < 1) return false;
       if (Math.hypot(x - BENCH.x, y - BENCH.y) < 80) return false;
+      // 숙소와 감나무 둘레, 숙소 앞마당 (앞에 선 나무가 집을 가리지 않게)
+      if (((x - LODGE.x) / 200) ** 2 + ((y - (LODGE.y - 6)) / 125) ** 2 < 1) return false;
+      if (Math.abs(x - LODGE.x) < 190 && y > LODGE.y - 20 && y < LODGE.y + 230) return false;
+      if (Math.hypot(x - PERSIMMON.x, y - PERSIMMON.y) < 80) return false;
       return true;
     }
 
@@ -228,6 +258,7 @@
           if (x > shoreX(y) - 30) continue;
           if (((x - 1290) / 420) ** 2 + ((y - 1790) / 190) ** 2 < 1) continue;
           if (((x - POND.x) / (POND.rx + 20)) ** 2 + ((y - POND.y) / (POND.ry + 20)) ** 2 < 1) continue;
+          if (((x - LODGE.x) / 150) ** 2 + ((y - LODGE.y) / 70) ** 2 < 1) continue;
           if (this.lanterns.some((l) => (l.x - x) ** 2 + (l.y - y) ** 2 < 60 * 60)) continue;
           if (SPOTS.some((q) => Math.hypot(q.x - x, q.y - y) < 70)) continue;
           this.lanterns.push({ x, y, c: LANTERN_COLORS[this.lanterns.length % LANTERN_COLORS.length], ph: rnd() * 6 });
@@ -269,6 +300,8 @@
         { x: BRAZIER.x, y: BRAZIER.y - 4, r: 26, sy: 1.6 },
         { x: BENCH.x, y: BENCH.y - 6, r: 46, sy: 2.6 },
         { x: POND.x, y: POND.y, r: POND.rx + 8, sy: (POND.rx + 8) / (POND.ry + 8) },
+        { x: LODGE.x, y: LODGE.y - 34, r: 122, sy: 3 },
+        { x: PERSIMMON.x, y: PERSIMMON.y - 2, r: 14, sy: 1.8 },
       ];
       for (const tn of TENTS) this.blockers.push({ x: tn.x, y: tn.y - 14 * tn.s, r: 62 * tn.s, sy: 1.6 });
       for (const [x, y] of POSTS) this.blockers.push({ x, y, r: 8, sy: 1.6 });
@@ -394,6 +427,43 @@
         const x = shoreX(y) - 170 + rnd() * 150;
         g.fillStyle = `rgba(${rnd() < 0.5 ? '255,250,235' : '150,125,90'},${0.15 + rnd() * 0.2})`;
         g.fillRect(x, y, 2, 2);
+      }
+      // 숙소 둘레: 소복이 쌓인 눈 (가장자리는 녹아 풀이 비친다)
+      {
+        const snow = g.createRadialGradient(COLD.x, COLD.y + 30, 40, COLD.x, COLD.y + 30, COLD.rx);
+        snow.addColorStop(0, 'rgba(240,244,250,0.96)');
+        snow.addColorStop(0.62, 'rgba(232,238,248,0.85)');
+        snow.addColorStop(1, 'rgba(226,234,246,0)');
+        g.save();
+        g.translate(0, COLD.y + 30);
+        g.scale(1, COLD.ry / COLD.rx);
+        g.translate(0, -(COLD.y + 30));
+        g.fillStyle = snow;
+        g.fillRect(COLD.x - COLD.rx, COLD.y + 30 - COLD.rx, COLD.rx * 2, COLD.rx * 2);
+        g.restore();
+        // 가장자리 눈 무더기와 푸른 그늘
+        for (let i = 0; i < 70; i++) {
+          const a = rnd() * Math.PI * 2;
+          const r = 0.55 + rnd() * 0.5;
+          const x = COLD.x + Math.cos(a) * COLD.rx * r;
+          const y = COLD.y + 30 + Math.sin(a) * COLD.ry * r;
+          g.fillStyle = rnd() < 0.7 ? `rgba(240,244,250,${0.35 + rnd() * 0.4})` : `rgba(170,186,214,${0.18 + rnd() * 0.15})`;
+          ellipse(g, x, y, 14 + rnd() * 34, 6 + rnd() * 14);
+          g.fill();
+        }
+        // 눈 위에 찍힌 작은 발자국: 오솔길에서 숙소 문 앞까지
+        g.fillStyle = 'rgba(150,166,196,0.55)';
+        for (let i = 0; i < 9; i++) {
+          const u = i / 8;
+          const x = MC.lerp(LODGE.x + 150, LODGE.x + 26, u) + (i % 2 ? 7 : -7);
+          const y = MC.lerp(LODGE.y + 70, LODGE.y + 40, u);
+          ellipse(g, x, y, 3.6, 2.6);
+          g.fill();
+          for (const dx of [-3.6, 0, 3.6]) {
+            ellipse(g, x + dx, y - 4, 1.3, 1.1);
+            g.fill();
+          }
+        }
       }
       // 오솔길
       for (const path of PATHS) {
@@ -527,6 +597,19 @@
         if (x > shoreX(y) - 175 || this.nearPath(x, y, 30)) continue;
         if (((x - POND.x) / (POND.rx + 16)) ** 2 + ((y - POND.y) / (POND.ry + 14)) ** 2 < 1) continue;
         if (((x - 1290) / 400) ** 2 + ((y - 1800) / 160) ** 2 < 1) continue;
+        // 눈 덮인 숙소 둘레에는 들꽃 대신 눈 위로 삐죽한 마른 풀만
+        if (inCold(x, y, 0.85)) {
+          if (rnd() < 0.5) continue;
+          g.strokeStyle = 'rgba(150,130,96,0.55)';
+          g.lineWidth = 1.2;
+          g.beginPath();
+          g.moveTo(x - 2, y);
+          g.lineTo(x - 3, y - 6);
+          g.moveTo(x + 2, y);
+          g.lineTo(x + 3, y - 5);
+          g.stroke();
+          continue;
+        }
         if (rnd() < 0.7) {
           g.strokeStyle = `rgba(${rnd() < 0.5 ? '120,180,120' : '50,100,70'},0.6)`;
           g.lineWidth = 1.4;
@@ -886,6 +969,341 @@
         g.fill();
       });
       // 그루터기와 빨간 버섯
+      // 숙소: 기와지붕 나무집. 불 켜진 창살 창 둘, 가운데 미닫이문엔 발바닥 무늬 노렌, 툇마루, 처마 끝 곶감
+      sp.lodge = sprite(300, 260, 150, 236, ss, (g) => {
+        g.fillStyle = 'rgba(0,0,0,0.26)';
+        ellipse(g, 0, 4, 132, 17);
+        g.fill();
+        // 돌 기단
+        MC.roundRect(g, -112, -22, 224, 22, 5);
+        g.fillStyle = '#9b958c';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2.2;
+        g.stroke();
+        g.strokeStyle = 'rgba(60,56,50,0.4)';
+        g.lineWidth = 1.2;
+        for (let x = -96; x < 110; x += 26) {
+          g.beginPath();
+          g.moveTo(x, -21);
+          g.lineTo(x + 4, -1);
+          g.stroke();
+        }
+        // 나무 벽
+        g.beginPath();
+        g.rect(-102, -124, 204, 104);
+        const wall = g.createLinearGradient(-102, 0, 102, 0);
+        wall.addColorStop(0, '#a87b52');
+        wall.addColorStop(0.5, '#c0935f');
+        wall.addColorStop(1, '#94683f');
+        g.fillStyle = wall;
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2.2;
+        g.stroke();
+        g.strokeStyle = 'rgba(80,50,28,0.35)';
+        g.lineWidth = 1.2;
+        for (let y = -112; y < -22; y += 11) {
+          g.beginPath();
+          g.moveTo(-100, y);
+          g.lineTo(100, y);
+          g.stroke();
+        }
+        // 기둥
+        g.fillStyle = '#6e4a2e';
+        for (const x of [-104, -30, 26, 96]) {
+          g.fillRect(x, -124, 8, 104);
+          g.strokeStyle = INK;
+          g.lineWidth = 1.6;
+          g.strokeRect(x, -124, 8, 104);
+        }
+        // 불 켜진 창: 창살 사이로 따뜻한 빛
+        for (const cx of [-66, 61]) {
+          g.beginPath();
+          g.rect(cx - 24, -100, 48, 40);
+          const win = g.createLinearGradient(0, -100, 0, -60);
+          win.addColorStop(0, '#ffe6ad');
+          win.addColorStop(1, '#ffc46f');
+          g.fillStyle = win;
+          g.fill();
+          g.strokeStyle = '#5a3a22';
+          g.lineWidth = 3;
+          g.stroke();
+          g.lineWidth = 1.4;
+          g.beginPath();
+          for (const u of [-8, 8]) {
+            g.moveTo(cx + u, -100);
+            g.lineTo(cx + u, -60);
+          }
+          g.moveTo(cx - 24, -80);
+          g.lineTo(cx + 24, -80);
+          g.stroke();
+          // 창턱
+          g.fillStyle = '#7a5434';
+          g.fillRect(cx - 28, -60, 56, 5);
+        }
+        // 가운데 미닫이문과 노렌
+        g.beginPath();
+        g.rect(-24, -108, 48, 86);
+        g.fillStyle = '#ffd890';
+        g.fill();
+        g.strokeStyle = '#5a3a22';
+        g.lineWidth = 3;
+        g.stroke();
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(0, -108);
+        g.lineTo(0, -22);
+        for (let y = -90; y < -24; y += 16) {
+          g.moveTo(-24, y);
+          g.lineTo(24, y);
+        }
+        g.stroke();
+        g.beginPath();
+        g.moveTo(-28, -110);
+        g.lineTo(28, -110);
+        g.lineTo(28, -80);
+        g.quadraticCurveTo(14, -77, 1.5, -80);
+        g.lineTo(1.5, -110);
+        g.moveTo(-1.5, -110);
+        g.lineTo(-1.5, -80);
+        g.quadraticCurveTo(-14, -77, -28, -80);
+        g.closePath();
+        g.fillStyle = '#4f6f9e';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 1.8;
+        g.stroke();
+        g.fillStyle = 'rgba(255,248,236,0.9)';
+        ellipse(g, -13, -92, 4.4, 3.8);
+        g.fill();
+        for (const [dx, dy] of [[-5.6, -4.6], [-2, -6.6], [2, -6.6], [5.6, -4.6]]) {
+          ellipse(g, -13 + dx, -92 + dy, 1.5, 1.8);
+          g.fill();
+        }
+        // 툇마루
+        MC.roundRect(g, -118, -28, 236, 10, 3);
+        g.fillStyle = '#c99a63';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2;
+        g.stroke();
+        g.strokeStyle = 'rgba(110,70,40,0.4)';
+        g.lineWidth = 1;
+        for (let x = -108; x < 116; x += 16) {
+          g.beginPath();
+          g.moveTo(x, -27);
+          g.lineTo(x, -19);
+          g.stroke();
+        }
+        // 댓돌 위 실내화 한 켤레
+        for (const dx of [-7, 7]) {
+          ellipse(g, dx, -10, 5.5, 3);
+          g.fillStyle = '#e68a7a';
+          g.fill();
+          g.strokeStyle = INK;
+          g.lineWidth = 1.2;
+          g.stroke();
+        }
+        // 지붕: 끝이 살짝 들린 기와지붕
+        g.beginPath();
+        g.moveTo(-146, -116);
+        g.quadraticCurveTo(-120, -130, -104, -134);
+        g.lineTo(-74, -196);
+        g.lineTo(74, -196);
+        g.lineTo(104, -134);
+        g.quadraticCurveTo(120, -130, 146, -116);
+        g.quadraticCurveTo(0, -136, -146, -116);
+        g.closePath();
+        const roof = g.createLinearGradient(0, -196, 0, -116);
+        roof.addColorStop(0, '#5d667f');
+        roof.addColorStop(1, '#3f4559');
+        g.fillStyle = roof;
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 2.4;
+        g.stroke();
+        g.save();
+        g.clip();
+        g.strokeStyle = 'rgba(20,24,36,0.45)';
+        g.lineWidth = 1.4;
+        for (let y = -186; y < -118; y += 10) {
+          g.beginPath();
+          g.moveTo(-150, y + 4);
+          g.quadraticCurveTo(0, y - 6, 150, y + 4);
+          g.stroke();
+        }
+        for (let x = -140; x <= 140; x += 14) {
+          g.beginPath();
+          g.moveTo(x * 0.52, -196);
+          g.lineTo(x, -118);
+          g.stroke();
+        }
+        g.restore();
+        // 지붕에 소복이 쌓인 눈: 위는 두툼하게, 처마 끝으로 살짝 늘어진다
+        g.beginPath();
+        g.moveTo(-78, -200);
+        g.lineTo(78, -200);
+        g.lineTo(106, -140);
+        g.quadraticCurveTo(124, -134, 146, -121);
+        for (let x = 146; x >= -146; x -= 12) g.lineTo(x, -122 + (x === 146 || x === -146 ? 0 : 3 + 3 * Math.sin(x * 0.4) + (rnd() < 0.25 ? 5 : 0)) - (Math.abs(x) < 104 ? (1 - Math.abs(x) / 104) * 12 : 0));
+        g.quadraticCurveTo(-124, -134, -106, -140);
+        g.closePath();
+        const roofSnow = g.createLinearGradient(0, -202, 0, -118);
+        roofSnow.addColorStop(0, '#ffffff');
+        roofSnow.addColorStop(1, '#dfe6f2');
+        g.fillStyle = roofSnow;
+        g.fill();
+        g.strokeStyle = 'rgba(120,135,165,0.8)';
+        g.lineWidth = 1.6;
+        g.stroke();
+        // 고드름
+        g.fillStyle = 'rgba(225,238,255,0.9)';
+        for (const x of [-132, -96, -60, -18, 30, 74, 112, 136]) {
+          const len = 6 + (Math.abs(x * 7) % 9);
+          g.beginPath();
+          g.moveTo(x - 2.4, -118 + (Math.abs(x) < 104 ? -(1 - Math.abs(x) / 104) * 12 : 0));
+          g.lineTo(x + 2.4, -118 + (Math.abs(x) < 104 ? -(1 - Math.abs(x) / 104) * 12 : 0));
+          g.lineTo(x, -118 + len + (Math.abs(x) < 104 ? -(1 - Math.abs(x) / 104) * 12 : 0));
+          g.closePath();
+          g.fill();
+        }
+        // 용마루
+        g.fillStyle = '#2f3444';
+        MC.roundRect(g, -80, -202, 160, 8, 4);
+        g.fill();
+        // 처마 끝에 매단 곶감
+        for (const x of [-126, 124]) {
+          g.strokeStyle = '#4a3a2a';
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(x, -122);
+          g.lineTo(x, -78);
+          g.stroke();
+          for (let i = 0; i < 4; i++) {
+            ellipse(g, x, -114 + i * 11, 4, 5);
+            g.fillStyle = i % 2 ? '#c26a2c' : '#b55d24';
+            g.fill();
+            g.strokeStyle = 'rgba(80,40,16,0.7)';
+            g.stroke();
+          }
+        }
+        // 처마에 매단 작은 등
+        ellipse(g, 42, -112, 7, 9);
+        g.fillStyle = '#f0a05c';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 1.4;
+        g.stroke();
+        // 굴뚝 (난로 연통)
+        g.fillStyle = '#5a5a60';
+        g.fillRect(56, -226, 14, 44);
+        g.strokeStyle = INK;
+        g.lineWidth = 1.8;
+        g.strokeRect(56, -226, 14, 44);
+        g.fillStyle = '#3e3e44';
+        g.fillRect(52, -230, 22, 6);
+        g.strokeRect(52, -230, 22, 6);
+        // 툇마루 끝과 창턱 위의 눈
+        g.fillStyle = '#f4f7fc';
+        for (const cx of [-66, 61]) {
+          MC.roundRect(g, cx - 29, -63, 58, 4, 2);
+          g.fill();
+        }
+        MC.roundRect(g, -120, -31, 30, 5, 2.5);
+        g.fill();
+        MC.roundRect(g, 92, -31, 28, 5, 2.5);
+        g.fill();
+      });
+      // 감나무: 잎은 거의 지고 주황 감만 남은 가지
+      sp.persimmon = sprite(170, 190, 85, 176, ss, (g) => {
+        g.fillStyle = 'rgba(0,0,0,0.22)';
+        ellipse(g, 0, 0, 40, 8);
+        g.fill();
+        const fruit = [];
+        const branch = (x0, y0, len, ang, wd, depth) => {
+          const x1 = x0 + Math.cos(ang) * len;
+          const y1 = y0 + Math.sin(ang) * len;
+          g.strokeStyle = '#4e3a2c';
+          g.lineWidth = wd;
+          g.beginPath();
+          g.moveTo(x0, y0);
+          const mx = (x0 + x1) / 2 + (rnd() - 0.5) * 8;
+          g.quadraticCurveTo(mx, (y0 + y1) / 2, x1, y1);
+          g.stroke();
+          // 가지 위에 얹힌 눈
+          if (wd > 2 && Math.abs(x1 - x0) > Math.abs(y1 - y0) * 0.35) {
+            g.strokeStyle = '#f2f5fb';
+            g.lineWidth = Math.max(1.6, wd * 0.5);
+            g.beginPath();
+            g.moveTo(x0, y0 - wd * 0.45);
+            g.quadraticCurveTo(mx, (y0 + y1) / 2 - wd * 0.45, x1, y1 - wd * 0.45);
+            g.stroke();
+          }
+          if (depth <= 0) {
+            if (rnd() < 0.7) fruit.push([x1, y1 + 3]);
+            return;
+          }
+          const n = 2 + (rnd() < 0.35 ? 1 : 0);
+          for (let i = 0; i < n; i++) branch(x1, y1, len * (0.66 + rnd() * 0.14), ang + (i - (n - 1) / 2) * 0.62 + (rnd() - 0.5) * 0.3, wd * 0.64, depth - 1);
+        };
+        branch(0, 0, 58, -Math.PI / 2, 9, 4);
+        for (const [x, y] of fruit) {
+          ellipse(g, x, y, 5.6, 5);
+          g.fillStyle = '#f08a2c';
+          g.fill();
+          g.strokeStyle = 'rgba(110,50,16,0.8)';
+          g.lineWidth = 1.2;
+          g.stroke();
+          g.fillStyle = '#4f6b34';
+          ellipse(g, x, y - 4.6, 2.4, 1.2);
+          g.fill();
+        }
+      });
+      // 숙소 둘레의 나무에 얹힌 눈 (나무 그림과 같은 크기·기준점으로 위에 겹친다)
+      const snowy = (base, draw) => base.map((b, v) => sprite(b.w, b.h, b.ax, b.ay, ss, (g) => {
+        g.fillStyle = '#f2f5fb';
+        g.strokeStyle = 'rgba(130,145,175,0.75)';
+        g.lineWidth = 1.2;
+        draw(g, v);
+      }));
+      sp.snow = {
+        cypress: snowy(sp.cypress, (g, v) => {
+          const h = 128 + v * 22;
+          const w = 46 + v * 6;
+          g.beginPath();
+          g.moveTo(0, -h - 1);
+          g.quadraticCurveTo(w * 0.14, -h + 12, w * 0.2, -h + 22);
+          g.quadraticCurveTo(0, -h + 16, -w * 0.2, -h + 22);
+          g.quadraticCurveTo(-w * 0.14, -h + 12, 0, -h - 1);
+          g.fill();
+          g.stroke();
+          g.strokeStyle = '#f2f5fb';
+          g.lineWidth = 3.6;
+          for (let i = 2; i < 5; i++) {
+            const y = -h + (i / 5) * (h - 12);
+            const half = (w / 2) * Math.pow(i / 5, 0.7) * 0.8;
+            g.beginPath();
+            g.moveTo(-half, y + 1);
+            g.quadraticCurveTo(0, y + 7, half, y + 1);
+            g.stroke();
+          }
+        }),
+        round: snowy(sp.round, (g) => {
+          for (const [x, y, r] of [[0, -82, 27], [-18, -60, 24], [16, -62, 25]]) {
+            ellipse(g, x, y - r * 0.64, r * 0.8, r * 0.36);
+            g.fill();
+            g.stroke();
+          }
+        }),
+        bush: snowy(sp.bush, (g) => {
+          for (const [x, y, r] of [[0, -22, 14], [-12, -12, 13], [10, -13, 14]]) {
+            ellipse(g, x, y - r * 0.6, r * 0.78, r * 0.36);
+            g.fill();
+            g.stroke();
+          }
+        }),
+      };
       sp.stump = sprite(110, 80, 50, 58, ss, (g) => {
         g.fillStyle = 'rgba(0,0,0,0.22)';
         ellipse(g, 0, 2, 36, 9);
@@ -1162,12 +1580,20 @@
         forest: near(Math.hypot(p.x - 500, p.y - 420), 120, 900),
         pavilion: near(Math.hypot(p.x - PAVILION.x, p.y - PAVILION.y), 60, 520),
         glamp: near(Math.hypot(p.x - BRAZIER.x, p.y - BRAZIER.y), 50, 520),
+        lodge: near(Math.hypot(p.x - LODGE.x, p.y - LODGE.y), 60, 520),
       };
     }
 
     // ── 움직임 ───────────────────────────────────────────
     update(dt) {
       this.t += dt;
+      for (let i = 0; i < this.snow.length; i++) {
+        const f = this.snow[i];
+        f.h -= f.fall * dt;
+        f.x += 5 * dt;
+        if (f.h <= 0) this.snow[i] = this.newFlake(false);
+      }
+      this.updateBreath(dt);
       const pup = this.pup;
       let vx = 0;
       let vy = 0;
@@ -1357,10 +1783,15 @@
       const right = vx0 + w / z + 120;
       for (const tr of this.trees) {
         if (tr.y < top || tr.y > bottom + 160 || tr.x < left || tr.x > right) continue;
+        const cold = inCold(tr.x, tr.y, 1.05);
         items.push({ y: tr.y, d: () => {
           const s = sp[tr.kind][tr.v];
           const sway = Math.sin(t * 0.7 + tr.sway) * (tr.kind === 'bush' ? 0 : 0.8);
           g.drawImage(s.c, tr.x - s.ax + sway, tr.y - s.ay, s.w, s.h);
+          if (cold) {
+            const sn = sp.snow[tr.kind][tr.v];
+            g.drawImage(sn.c, tr.x - sn.ax + sway, tr.y - sn.ay, sn.w, sn.h);
+          }
         } });
       }
       for (const ln of this.lanterns) {
@@ -1379,6 +1810,10 @@
       put(sp.pit, FIRE.x, FIRE.y);
       put(sp.pavilion, PAVILION.x, PAVILION.y);
       put(sp.stump, STUMP.x, STUMP.y);
+      put(sp.lodge, LODGE.x, LODGE.y);
+      put(sp.persimmon, PERSIMMON.x, PERSIMMON.y);
+      // 숙소 굴뚝의 연기: 천천히 오르며 바람에 밀려 흩어진다
+      items.push({ y: LODGE.y + 0.5, d: () => this.drawSmoke(g) });
       items.push({ y: PAVILION.y + 0.5, d: () => this.drawMoktak(g) });
       items.push({ y: PAVILION.y + 0.6, d: () => this.drawChime(g) });
       // 화면 안의 사람 가운데 내 곁부터 (MC.crowdMaxDrawn: 기기가 버거우면 줄어든다)
@@ -1417,6 +1852,19 @@
         pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
         g.stroke();
       }
+      // 숙소 둘레에 하늘하늘 내리는 눈과 하얀 입김
+      if (COLD.y + COLD.ry > top && COLD.y - COLD.ry - 240 < bottom) {
+        g.fillStyle = '#ffffff';
+        for (const f of this.snow) {
+          const y = f.y0 - f.h;
+          const x = f.x + Math.sin(t * 1.1 + f.ph) * 10;
+          g.globalAlpha = Math.min(1, f.h / 40, (220 - f.h) / 30 + 0.2) * 0.9;
+          ellipse(g, x, y, f.r, f.r);
+          g.fill();
+        }
+        g.globalAlpha = 1;
+        this.drawBreath(g);
+      }
       // 연못에 이는 잔물결
       if (POND.y + POND.ry > top && POND.y - POND.ry < bottom) {
         g.save();
@@ -1446,6 +1894,22 @@
       g.restore();
       g.fillStyle = 'rgba(22,28,72,0.3)';
       g.fillRect(0, 0, w, h);
+      // 숙소 둘레는 조금 더 차갑게: 푸르스름한 냉기
+      {
+        const c = this.toScreen(COLD.x, COLD.y);
+        const R = COLD.rx * 1.25 * z;
+        if (c.x + R > 0 && c.x - R < w && c.y + R > 0 && c.y - R < h) {
+          g.save();
+          g.translate(c.x, c.y);
+          g.scale(1, COLD.ry / COLD.rx);
+          const cg = g.createRadialGradient(0, 0, R * 0.2, 0, 0, R);
+          cg.addColorStop(0, 'rgba(176,202,255,0.16)');
+          cg.addColorStop(1, 'rgba(176,202,255,0)');
+          g.fillStyle = cg;
+          g.fillRect(-R, -R, R * 2, R * 2);
+          g.restore();
+        }
+      }
 
       // 불빛들
       g.save();
@@ -1461,6 +1925,15 @@
       glow([255, 140, 60], FIRE.x, FIRE.y - 10, 260 * fl, 0.42);
       for (const tn of TENTS) glow([255, 200, 120], tn.x, tn.y - 24 * tn.s, 70 * tn.s, 0.55);
       glow([255, 214, 150], PAVILION.x, PAVILION.y - 70, 110, 0.35);
+      // 숙소의 불 켜진 창과 문, 처마 등
+      if (LODGE.y + 100 > top && LODGE.y - 240 < bottom) {
+        const lf = 0.92 + 0.08 * MC.fbm(t * 0.9 + 3);
+        glow([255, 196, 118], LODGE.x - 66, LODGE.y - 80, 64 * lf, 0.5);
+        glow([255, 196, 118], LODGE.x + 61, LODGE.y - 80, 64 * lf, 0.5);
+        glow([255, 206, 130], LODGE.x, LODGE.y - 60, 80 * lf, 0.42);
+        glow([255, 150, 80], LODGE.x + 42, LODGE.y - 112, 26, 0.6);
+        glow([255, 200, 130], LODGE.x, LODGE.y + 10, 120, 0.2);
+      }
       // 글램핑장 화로
       const bf = 0.8 + 0.2 * MC.fbm(t * 3.7 + 5);
       glow([255, 150, 70], BRAZIER.x, BRAZIER.y - 30, 150 * bf, 0.36);
@@ -1488,7 +1961,7 @@
         const fy = f.y + MC.fbm(t * 0.17 * f.sp + f.ph * 1.3) * 30;
         if (fy < top || fy > bottom) continue;
         const b = Math.max(0, Math.sin(t * f.sp * 1.6 + f.ph));
-        if (b < 0.05) continue;
+        if (b < 0.05 || inCold(fx, fy, 1.1)) continue;
         glow([210, 255, 140], fx, fy, 10, b * 0.9);
       }
       g.globalAlpha = 1;
@@ -1518,6 +1991,50 @@
       g.restore();
     }
 
+    // 숙소 둘레의 추운 곳에서는 멍이들 입에서 하얀 입김이 폴폴
+    updateBreath(dt) {
+      const pups = [this.pup];
+      for (const v of this.visitors.values()) if (!v.leaving) pups.push(v.pup);
+      for (const p of pups) {
+        if (!inCold(p.x, p.y)) continue;
+        p.breathT = (p.breathT == null ? Math.random() * 2 : p.breathT) - dt;
+        if (p.breathT > 0) continue;
+        p.breathT = MC.rand(1.8, 3);
+        if (p.restView === 'back' || p.view === 'back') continue;
+        const side = p.flip * (Math.abs(p.baseTurn) > 0.4 ? Math.sign(p.baseTurn) : 0);
+        this.breaths.push({ x: p.x + (side * 34 + p.baseTurn * 8) * p.k, y: p.y - (58 + (p.seatLift || 0)) * p.k, t: 0, k: p.k, dir: side || (Math.random() < 0.5 ? -1 : 1) * 0.3 });
+      }
+      for (const b of this.breaths) b.t += dt;
+      this.breaths = this.breaths.filter((b) => b.t < 1.4);
+    }
+
+    drawBreath(g) {
+      if (!this.breaths.length) return;
+      const puff = this.glow([240, 244, 252]);
+      for (const b of this.breaths) {
+        const u = b.t / 1.4;
+        const r = (6 + 16 * u) * b.k;
+        g.globalAlpha = 0.55 * Math.sin(Math.PI * Math.min(1, u * 1.6)) * (1 - u);
+        g.drawImage(puff, b.x + b.dir * 18 * u * b.k - r, b.y - 14 * u * b.k - r * 0.7, r * 2, r * 1.4);
+      }
+      g.globalAlpha = 1;
+    }
+
+    // 굴뚝 연기: 여섯 덩이가 차례로 올라가며 커지고 옅어진다
+    drawSmoke(g) {
+      const t = this.t;
+      const x0 = LODGE.x + 63;
+      const y0 = LODGE.y - 232;
+      const puff = this.glow([226, 226, 236]);
+      for (let i = 0; i < 6; i++) {
+        const u = (t * 0.12 + i / 6) % 1;
+        const r = 10 + u * 34;
+        g.globalAlpha = 0.34 * Math.sin(Math.PI * Math.min(1, u * 1.4)) * (1 - u);
+        g.drawImage(puff, x0 + u * u * 70 + Math.sin(t * 0.7 + i) * 6 - r, y0 - u * 110 - r * 0.8, r * 2, r * 1.6);
+      }
+      g.globalAlpha = 1;
+    }
+
     // 멍이 앞(아래쪽)에 선 나무·텐트·정자가 멍이를 덮고 있는지
     hiddenBehind() {
       const p = this.pup;
@@ -1533,6 +2050,7 @@
         if (tn.y > p.y && hx > tn.x - 60 * tn.s && hx < tn.x + 60 * tn.s && hy > tn.y - 118 * tn.s && hy < tn.y - 8) return true;
       }
       if (PAVILION.y > p.y && covers(this.sp.pavilion, PAVILION.x, PAVILION.y, 26)) return true;
+      if (LODGE.y > p.y && covers(this.sp.lodge, LODGE.x, LODGE.y, 30)) return true;
       return false;
     }
 

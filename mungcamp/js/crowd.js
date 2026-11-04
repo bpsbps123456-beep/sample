@@ -86,6 +86,8 @@
       const lie = env.lieOf ? env.lieOf(st) : !!st.l;
       p.setLie(lie && !this.jumpFrom);
       p.setChair(!!st.ch && !lie && !st.q && !this.jumpFrom);
+      // 귤을 까먹는 중이면 그 모습도 (끝나는 때는 내 화면에서 정해진다)
+      if (st.m && !p.snack && p.mood !== 'eating') p.eatMandarin();
       p.rest = this.jumpFrom ? null : env.restOf ? env.restOf(st) : null;
       if (this.jumpFrom) this.jumpT += dt;
       // 가만히 앉아 숨만 쉴 때는 드문드문, 움직일 때는 자주 다시 그린다
@@ -175,7 +177,8 @@
        pose(X, Z) → {view, turn, flip, stick, tip}  멈췄을 때 앉는 모습
        lightFor(pup, X, Z, a)        불빛 (모닥불)
        env() → {}                    다른 멍이 update에 넘길 것
-       perch {X, Z, seat(id), hit(x, y)}  올라앉는 자리 (숲의 그루터기) */
+       perch {X, Z, seat(id), hit(x, y)}  올라앉는 자리 (숲의 그루터기)
+       visible(v) → bool             이 사람의 멍이가 지금 내 화면의 같은 곳에 있는지 (숙소의 코타츠 속과 방) */
     constructor(pup, cfg) {
       this.pup = pup;
       this.cfg = cfg;
@@ -234,7 +237,7 @@
       // 누가 앉아 있거나, 앉으러 가는 중인 자리
       const taken = (x, y) => {
         for (const v of this.visitors.values()) {
-          if (v.leaving || v.st.q) continue;
+          if (v.leaving || v.st.q || !this.sees(v)) continue;
           if (Math.hypot(v.pup.x - x, (v.pup.y - y) * 1.8) < R) return true;
           if (v.st.g) {
             const gq = this.cfg.toScreen(v.st.g[0], v.st.g[1]);
@@ -404,7 +407,7 @@
     hitVisitor(x, y) {
       let best = null;
       for (const v of this.visitors.values()) {
-        if (v.leaving || v.fade < 0.3) continue;
+        if (v.leaving || v.fade < 0.3 || !this.sees(v)) continue;
         if (v.pup.hit(x, y) && (!best || v.pup.y > best.pup.y)) best = v;
       }
       return best;
@@ -653,7 +656,7 @@
           const me = cfg.toScreen(this.me.X, this.me.Z);
           const near = 50 * me.k;
           for (const v of this.visitors.values()) {
-            if (v.leaving || v.fade < 0.5 || v.st.w || v.st.q || !(v.id < this.selfId)) continue;
+            if (v.leaving || v.fade < 0.5 || v.st.w || v.st.q || !(v.id < this.selfId) || !this.sees(v)) continue;
             if (Math.hypot(v.pup.x - me.x, (v.pup.y - me.y) * 1.8) < near) {
               this.clashes = (this.clashes || 0) + 1; // 몇 번 해 봐도 안 되면 그대로 둔다
               this.makeRoom(true);
@@ -697,6 +700,11 @@
       dropFaded(this.visitors);
     }
 
+    // 그 사람의 멍이가 지금 내 화면의 같은 곳에 있는지 (장면이 정한다. 정하지 않으면 늘 같은 곳)
+    sees(v) {
+      return !this.cfg.visible || this.cfg.visible(v);
+    }
+
     // 많이 모이면 내 곁의 사람들부터 (한 프레임에 한 번만 고른다)
     shown() {
       if (this.shownAt === this.t && this.shownSet) return this.shownSet;
@@ -727,6 +735,7 @@
     // 함께 있는 사람들에게 알릴 내 모습
     state() {
       const p = this.pup;
+      const ex = this.cfg.extra ? this.cfg.extra() : {};
       return {
         p: this.cfg.place,
         x: Math.round(this.me.X),
@@ -741,8 +750,11 @@
         hp: p.heartBursts || 0,
         // 가려는 자리: 돌아가는 디딤돌이 아니라 마지막에 앉을 곳 (다른 사람이 그 자리를 피한다)
         g: this.target ? ((q) => [Math.round(q.X), Math.round(q.Z)])(this.path && this.path.length ? this.path[this.path.length - 1] : this.target) : null,
-        l: this.cfg.extra ? this.cfg.extra().l || 0 : 0,
+        l: ex.l || 0,
         ch: p.chairOn ? 1 : 0,
+        k: ex.k ? 1 : 0,
+        m: p.snack ? 1 : 0,
+        rl: ex.rl || 0,
       };
     }
 
@@ -761,12 +773,18 @@
           draw: (g) => {
             if (a <= 0.01) return;
             if (a < 1) g.globalAlpha = a;
-            const tilt = cfg.tilt ? cfg.tilt(p, me, v) : 0;
+            // 기울기: 각도, 또는 {a, dy} (멍이 발밑에서 dy 만큼 위를 축으로 돈다: 데굴데굴)
+            let tilt = cfg.tilt ? cfg.tilt(p, me, v) : 0;
+            let py = p.y;
+            if (tilt && typeof tilt === 'object') {
+              py = p.y + tilt.dy;
+              tilt = tilt.a;
+            }
             if (tilt) {
               g.save();
-              g.translate(p.x, p.y);
+              g.translate(p.x, py);
               g.rotate(tilt);
-              g.translate(-p.x, -p.y);
+              g.translate(-p.x, -py);
             }
             if (cfg.under) cfg.under(g, p, me, v);
             if (me && marked && !p.rest) drawMark(g, p, this.t);
@@ -781,7 +799,7 @@
       if (!which || which(this.me.Z, this.perched, mySpot)) put(this.pup, this.alpha, this.perched, true, null);
       const shown = this.shown();
       for (const v of this.visitors.values()) {
-        if (!shown.has(v)) continue;
+        if (!shown.has(v) || !this.sees(v)) continue;
         if (which && !which(v.y, !!v.st.q, v.st.q ? v.st.l || 0 : 0)) continue;
         const p = v.pup;
         if (w && (p.x < -160 * p.k || p.x > w + 160 * p.k)) continue;

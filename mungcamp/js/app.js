@@ -55,6 +55,20 @@
       ],
       space: 'stove',
     },
+    // 정자 동쪽 숲 가장자리의 나무집: 코타츠가 놓인 다다미방
+    lodge: {
+      place: '숙소',
+      make: () => new MC.LodgeScene({}),
+      scape: MC.LodgeScape,
+      guidance: '편안하게 몸을 녹여요',
+      actions: [
+        { id: 'mandarin', icon: 'i-orange', label: '귤', primary: true },
+        { id: 'kotatsu', icon: 'i-kotatsu', label: '코타츠 속', toggle: true },
+        { id: 'roll', icon: 'i-roll', label: '구르기' },
+        CHAIR_ACT,
+      ],
+      space: 'mandarin',
+    },
   };
 
   // 따로 고르지 않아도 20분쯤 머물면 종이 한 번 울린다
@@ -625,7 +639,7 @@
       a.fire.presence(0.06 + 0.94 * Math.max(pr.fire, 0.4 * pr.glamp));
       a.water.presence(0.06 + 0.94 * pr.water);
       a.forest.presence(0.04 + 0.96 * pr.forest);
-      a.map.setParams({ pavilion: pr.pavilion });
+      a.map.setParams({ pavilion: pr.pavilion, lodge: pr.lodge });
     }
   }
 
@@ -791,6 +805,12 @@
       scene.onToggle = (id, on) => setPressed(id, on);
       scene.onToast = (msg) => toast(msg);
     }
+    if (state.scene === 'lodge') {
+      // 미닫이문으로 걸어 나가면 마을의 숙소 앞으로
+      scene.onExit = () => leave();
+      scene.onToast = (msg) => toast(msg);
+      scene.onInside = (on) => setPressed('kotatsu', on);
+    }
     scene.onCute = (kind) => sound.cute(kind);
     if (scene.crowd) {
       const crowd = scene.crowd;
@@ -834,6 +854,9 @@
     } else if (state.scene === 'tent') {
       scene.events = () => scape.drain();
       scene.onLog = () => scape.log();
+    } else if (state.scene === 'lodge') {
+      scene.onPuff = () => scape.puff();
+      scene.onFlump = () => scape.flump();
     } else {
       scene.onGust = () => scape.gust();
       scene.onChirp = () => scape.chirp();
@@ -1034,6 +1057,9 @@
     else if (id === 'stove') {
       if (!sc.addLog()) toast('난로가 따뜻해요');
     } else if (id === 'lights') setPressed('lights', sc.toggleLights());
+    else if (id === 'mandarin') sc.eat();
+    else if (id === 'kotatsu') setPressed('kotatsu', sc.toggleInside());
+    else if (id === 'roll') sc.rollOver();
     else if (id === 'rain') setPressed('rain', sc.toggleRain());
   }
 

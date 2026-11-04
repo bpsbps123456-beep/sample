@@ -5,8 +5,8 @@
    함께 모이기에서는 닉네임(열 글자) 말고는 글을 받지 않고, 아무것도 남기지 않는다. 모든 것은 메모리에만 있고 연결이 끊기면 사라진다.
    따로, 건의함(server/suggest.js)이 사람들이 보낸 건의를 받아 운영자만 보게 남긴다.
 
-   - 장소(map, fire, water, forest)마다 방을 나누고, 한 방이 차면 다음 방을 연다
-     (모닥불·바다·숲은 ROOM_CAP=16, 텐트 안은 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
+   - 장소(map, fire, water, forest, tent, lodge)마다 방을 나누고, 한 방이 차면 다음 방을 연다
+     (모닥불·바다·숲은 ROOM_CAP=16, 글램핑 텐트 안과 숙소는 TENT_CAP=8, 마을은 MAP_CAP=40). 사람이 많아도 한자리가 붐비지 않는다.
    - 받은 값은 아는 칸만, 숫자는 범위 안으로 다듬고, 너무 잦은 메시지는 버린다.
    - 바뀐 것만 모아서 1초에 TICK_HZ번 보낸다. 장소별 사람 수는 2초마다.
 
@@ -32,7 +32,7 @@ const MAP_CAP = +(process.env.MAP_CAP || 40);
 const TENT_CAP = +(process.env.TENT_CAP || 8);
 const MAX_CLIENTS = +(process.env.MAX_CLIENTS || 20000);
 const TICK_HZ = 8;
-const PLACES = ['map', 'fire', 'water', 'forest', 'tent'];
+const PLACES = ['map', 'fire', 'water', 'forest', 'tent', 'lodge'];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const MAX_FRAME = 2048;
 
@@ -88,6 +88,9 @@ function clean(raw) {
     g: gx != null && gy != null ? [Math.round(gx), Math.round(gy)] : null,
     l: num(raw.l, 0, 9) | 0,
     ch: raw.ch ? 1 : 0,
+    k: raw.k ? 1 : 0,
+    m: raw.m ? 1 : 0,
+    rl: num(raw.rl, -1e6, 1e6) | 0,
     n: cleanName(raw.n),
   };
 }
@@ -102,7 +105,8 @@ function joinRoom(c, place) {
   const list = rooms.get(place);
   // 가장 붐비지만 아직 자리가 있는 방: 사람들이 흩어지지 않고 모이도록
   let room = null;
-  const cap = place === 'map' ? MAP_CAP : place === 'tent' ? TENT_CAP : ROOM_CAP;
+  // 텐트와 숙소는 방이 작아 오붓하게
+  const cap = place === 'map' ? MAP_CAP : place === 'tent' || place === 'lodge' ? TENT_CAP : ROOM_CAP;
   for (const r of list) if (r.members.size < cap && (!room || r.members.size > room.members.size)) room = r;
   if (!room) {
     room = { id: ++roomSeq, place, members: new Set(), changed: new Map(), left: new Set() };
