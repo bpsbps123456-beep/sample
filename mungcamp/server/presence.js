@@ -97,6 +97,7 @@ function clean(raw) {
     bt: p === 'map' && raw.bt ? 1 : 0,
     ba: p === 'map' ? Math.round(num(raw.ba, -180, 180) || 0) : 0,
     fs: p === 'map' && !raw.w ? num(raw.fs, 0, 2) | 0 : 0,
+    dv: p === 'water' && raw.dv ? 1 : 0,
   };
 }
 

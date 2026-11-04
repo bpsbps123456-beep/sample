@@ -13,7 +13,7 @@
   const BEAT = 2.5; // 탭끼리는 가만히 있어도 가끔 '여기 있어요'
   const STALE = 9; // 이만큼 소식이 없으면 떠난 것으로 본다 (탭끼리)
   const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge'];
-  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0, sg: '', bt: 0, ba: 0, fs: 0 };
+  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0, sg: '', bt: 0, ba: 0, fs: 0, dv: 0 };
 
   // 처음 온 날 털빛과 모자를 하나 골라 두고 계속 입는다
   function myLook() {
@@ -88,6 +88,7 @@
       bt: p === 'map' && raw.bt ? 1 : 0,
       ba: p === 'map' ? num(raw.ba, -180, 180) || 0 : 0,
       fs: p === 'map' && !raw.w ? num(raw.fs, 0, 2) | 0 : 0,
+      dv: p === 'water' && raw.dv ? 1 : 0,
     };
   }
 

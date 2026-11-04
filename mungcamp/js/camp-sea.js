@@ -31,9 +31,50 @@
       this.onToast = null;
       this.time = 0;
       this.rowers = new WeakMap();
+      this.touches = [];
     }
 
     note(text) { if (this.onToast) this.onToast(text); }
+
+    poke(x, y) {
+      if (x < shoreX(y) + 15 || this.onDeck(x, y, -8)) return false;
+      this.touches.push({ x, y, age: 0 });
+      if (this.touches.length > 8) this.touches.shift();
+      return true;
+    }
+
+    drawLife(g, left, top, right, bottom) {
+      const t = this.time;
+      for (let i = 0; i < 10; i++) {
+        const y = 180 + i * 182, x = shoreX(y) + 125 + i % 3 * 170;
+        if (x < left - 100 || x > right + 100 || y < top - 60 || y > bottom + 100) continue;
+        g.save(); g.globalAlpha = .3; MC.SeaLife.kelp(g, x, y, .45 + i % 2 * .15, t + i); g.restore();
+      }
+      for (let i = 0; i < 6; i++) {
+        const y = 260 + i * 285 + 20 * Math.sin(t * .14 + i), x = shoreX(y) + 220 + i % 3 * 210 + Math.sin(t * .13 + i * 2) * 115;
+        if (x < left - 130 || x > right + 130 || y < top - 65 || y > bottom + 65) continue;
+        const dir = Math.cos(t * .13 + i * 2) < 0 ? -1 : 1;
+        const near = this.touches.find(q => Math.hypot(q.x - x, q.y - y) < 200);
+        const dart = near ? Math.sin(Math.min(1, near.age / 1.6) * Math.PI) * 55 : 0;
+        g.save(); g.globalAlpha = .55;
+        for (let j = 0; j < 6; j++) MC.SeaLife.fish(g, x - j * 18 * dir + dart * dir, y + (j % 3 - 1) * 12 + Math.sin(t + j) * 3, .62, dir, t + j, i % 2 ? '#ace3c8' : '#d6ddad');
+        g.restore();
+      }
+      for (const q of this.touches) {
+        g.strokeStyle = `rgba(222,255,244,${.5 * (1 - q.age / 2.5)})`; g.lineWidth = 1.7;
+        for (let i = 0; i < 2; i++) { const r = 8 + q.age * 30 + i * 12; g.beginPath(); g.ellipse(q.x, q.y, r, r * .38, 0, 0, Math.PI * 2); g.stroke(); }
+      }
+    }
+
+    drawGulls(g, left, top, right, bottom) {
+      const t = this.time;
+      for (let i = 0; i < 3; i++) {
+        const y = 640 + i * 360 + Math.sin(t * .13 + i) * 75, x = shoreX(y) + 180 + i * 145 + Math.sin(t * .1 + i) * 210;
+        if (x < left - 30 || x > right + 30 || y < top - 30 || y > bottom + 30) continue;
+        g.fillStyle = 'rgba(19,65,84,.13)'; g.beginPath(); g.ellipse(x + 12, y + 60, 14, 3, 0, 0, Math.PI * 2); g.fill();
+        MC.SeaLife.gull(g, x, y, .8, t + i * 2);
+      }
+    }
 
     onDeck(x, y, inset = 0) {
       return rect(PIER, x, y, inset) || rect(DECK, x, y, inset) || rect(BRANCH, x, y, inset);
@@ -171,6 +212,8 @@
 
     update(dt, moving) {
       this.time += dt;
+      for (const q of this.touches) q.age += dt;
+      this.touches = this.touches.filter(q => q.age < 2.5);
       if (this.fishing) {
         if (moving || !this.canFish()) this.stopFishing(true);
         else {

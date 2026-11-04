@@ -95,7 +95,7 @@
       p.paintEvery = paintGap(lively);
       if (st.z && !p.sleeping) p.setMood('sleepy', 2.5);
       else if (!st.z && p.sleeping) p.wake();
-      p.update(dt, Object.assign({}, env, { walking: !st.bt && (!!st.w || d > (env.walkEps || 3)), noSleep: true }));
+      p.update(dt, Object.assign({}, env, { walking: !st.bt && !st.dv && (!!st.w || d > (env.walkEps || 3)), noSleep: true }));
     }
   }
 
@@ -715,7 +715,7 @@
     shown() {
       if (this.shownAt === this.t && this.shownSet) return this.shownSet;
       this.shownAt = this.t;
-      const all = Array.from(this.visitors.values());
+      const all = Array.from(this.visitors.values()).filter(v => this.sees(v));
       const max = maxDrawn();
       if (all.length > max) {
         const me = this.cfg.toScreen(this.me.X, this.me.Z);
@@ -761,6 +761,7 @@
         k: ex.k ? 1 : 0,
         m: p.snack ? 1 : 0,
         rl: ex.rl || 0,
+        dv: ex.dv ? 1 : 0,
       };
     }
 

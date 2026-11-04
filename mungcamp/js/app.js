@@ -35,7 +35,8 @@
       scape: MC.WaterScape,
       guidance: '파도에 숨을 맞춰요',
       actions: [
-        { id: 'ripple', icon: 'i-drop', label: '물결', primary: true },
+        { id: 'ripple', icon: 'i-drop', label: '물수제비', primary: true },
+        { id: 'dive', icon: 'i-drop', label: '잠수', toggle: true },
         { id: 'bottle', icon: 'i-bottle', label: '편지' },
         CHAIR_ACT,
       ],
@@ -1302,6 +1303,15 @@
     } else if (id === 'worry') {
       if (!sc.worry) togglePanel('worry');
     } else if (id === 'ripple') sc.rippleAt();
+    else if (id === 'dive') {
+      held.clear(); applyKeys();
+      const on = sc.toggleDive();
+      setPressed('dive', on); setPressed('chair', false);
+      $('#dockScene [data-act="dive"] span').textContent = on ? '물 위로' : '잠수';
+      $('#dockScene [data-act="ripple"] span').textContent = on ? '공기 방울' : '물수제비';
+      for (const id of ['bottle', 'chair']) $('#dockScene [data-act="' + id + '"]').hidden = on;
+      showGuidance(on ? '바닷속을 톡, 천천히 헤엄쳐요' : state.def.guidance);
+    }
     else if (id === 'bottle') {
       if (sc.bottle) toast('병이 아직 떠가고 있어요');
       else togglePanel('bottle');

@@ -438,11 +438,21 @@
       g.fill();
       band(0, 0);
       const sea = g.createLinearGradient(2100, 0, W, 0);
-      sea.addColorStop(0, '#5aa0b8');
-      sea.addColorStop(0.25, '#3c7aa0');
-      sea.addColorStop(1, '#264a78');
+      sea.addColorStop(0, '#78cabb');
+      sea.addColorStop(0.25, '#439fa4');
+      sea.addColorStop(1, '#285c87');
       g.fillStyle = sea;
       g.fill();
+      g.save(); band(0, 0); g.clip();
+      for (let i = 0; i < 17; i++) {
+        const y = 40 + i * 126, x = shoreX(y) + 75 + i % 3 * 100;
+        const r = 90 + i % 4 * 18;
+        g.save(); g.translate(x, y); g.rotate(-.3); g.scale(1, .45);
+        const patch = g.createRadialGradient(0, 0, 0, 0, 0, r);
+        patch.addColorStop(0, 'rgba(215,235,178,.2)'); patch.addColorStop(1, 'rgba(215,235,178,0)');
+        g.fillStyle = patch; g.fillRect(-r, -r, r * 2, r * 2); g.restore();
+      }
+      g.restore();
       for (let i = 0; i < 260; i++) {
         const y = rnd() * H;
         const x = shoreX(y) - 170 + rnd() * 150;
@@ -1601,6 +1611,8 @@
         this.hitMoktak();
         return 'moktak';
       }
+      const water = this.sea.poke(p.x, p.y);
+      if (water && !this.sea.boating) return 'sea';
       const tgt = { x: p.x, y: p.y };
       this.collide(tgt, 1.3);
       this.route = this.sea.walkRoute(tgt);
@@ -1888,6 +1900,7 @@
         g.fillRect(x - 6, y, 12, 1.6);
       }
       // 선착장
+      this.sea.drawLife(g, vx0, top, vx0 + w / z, bottom);
       this.sea.drawHarbor(g);
 
       // 앞뒤 순서대로 세우기 (아래에 있을수록 앞)
@@ -1971,6 +1984,7 @@
       } });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.d();
+      this.sea.drawGulls(g, left, top, right, bottom);
       // 줄전구 줄
       g.strokeStyle = 'rgba(40,30,24,0.75)';
       g.lineWidth = 1.3;

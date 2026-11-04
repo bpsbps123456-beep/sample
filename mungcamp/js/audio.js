@@ -1036,6 +1036,9 @@
   class WaterScape extends Scape {
     constructor(snd) {
       super(snd, WaterScape.layers);
+      this.submerge = snd.filter('lowpass', 12000, .5);
+      for (const layer of Object.values(this.layers)) { layer.disconnect(); layer.connect(this.submerge); }
+      this.submerge.connect(this.out);
       this.bed = this.noiseLayer('brown', [['lowpass', 260, 0.5]], 0.17, this.layers.waves);
       this.swell = this.noiseLayer('brown', [['lowpass', 400, 0.6]], 0.05, this.layers.waves);
       this.crash = this.noiseLayer('pink', [['bandpass', 850, 0.4]], 0.0001, this.layers.waves);
@@ -1072,6 +1075,7 @@
 
     setParams(p) {
       this.lapLevel = p.float ? 1 : 0;
+      this.submerge.frequency.setTargetAtTime(p.dive ? 650 : 12000, this.snd.ctx.currentTime, .65);
     }
 
     schedule() {

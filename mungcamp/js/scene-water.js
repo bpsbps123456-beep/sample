@@ -1,6 +1,7 @@
 /* 멍캠프 — 물멍: 블루아워의 달빛 바다. 파도는 10초마다 밀려온다.
    바다로 걸어 들어가면 털모자 빛깔의 튜브에 엎드려 둥실둥실 떠다닌다. 물을 저으면 야광 플랑크톤이 푸르게 반짝이고,
-   가끔 먼 바다에서 고래가 숨을 쉰다(보는 사람 모두에게 같은 때). 마음에 걸리는 말은 유리병에 넣어 달빛 쪽으로 띄워 보낸다 */
+   가끔 먼 바다에서 고래가 숨을 쉰다(보는 사람 모두에게 같은 때). 마음에 걸리는 말은 유리병에 넣어 달빛 쪽으로 띄워 보낸다.
+   잠수하면 유리 헬멧과 공기통을 착용하고 바닷속을 산책한다. 물 위로 나올 때는 원래 자리로 돌아온다. */
 (function (MC) {
   'use strict';
 
@@ -245,6 +246,9 @@
       this.quality = 1;
       this.t = 0;
       this.ripples = [];
+      this.underwater = false;
+      this.dive = new MC.DiveWorld();
+      this.stone = null;
       this.plank = []; // 야광 플랑크톤 반짝임
       this.onRipple = null;
       this.onCute = null;
@@ -276,6 +280,8 @@
           outfit: 'scarf',
           light: { ambient: 'rgba(22,32,80,0.3)', glow: [205, 218, 255], glowA: 0.2, from: 70 },
           start: { X: 290, Z: 340 },
+          extra: () => ({ dv: this.underwater ? 1 : 0 }),
+          visible: v => !!v.st.dv === this.underwater,
           toScreen: (X, Z) => this.toScreen(X, Z),
           toCanon: (x, y) => this.toCanon(x, y),
           bounds: () => {
@@ -283,21 +289,21 @@
             return { x0: m, x1: 1000 - m, z0: -ZFAR, z1: 1000 };
           },
           blockers: () => [],
-          floor: (x, y) => y > this.hy + 4,
-          speed: () => (this.crowd && this.crowd.me.Z < SEA_Z ? 72 : 140) * this.s,
-          pose: (X, Z) => ({ view: Z < SEA_Z ? 'front' : 'back', turn: 0, flip: 1, stick: false }),
+          floor: (x, y) => this.underwater || y > this.hy + 4,
+          speed: () => (this.underwater ? 110 : this.crowd && this.crowd.me.Z < SEA_Z ? 72 : 140) * this.s,
+          pose: (X, Z) => ({ view: this.underwater || Z < SEA_Z ? 'front' : 'back', turn: 0, flip: 1, stick: false }),
           seats: () => WATER_SEATS,
           env: () => ({
             wind: 0.45 + 0.25 * Math.sin(this.t * 0.31),
             walkEps: 4,
-            lieOf: (st) => st.y < SEA_Z,
-            restOf: (st) => (st.y < SEA_Z ? 'tube' : null),
+            lieOf: (st) => !st.dv && st.y < SEA_Z,
+            restOf: (st) => st.dv ? 'dive' : st.y < SEA_Z ? 'tube' : null,
           }),
-          drifting: (X, Z) => Z < SEA_Z,
-          bob: (X, Z, id) => (Z < SEA_Z ? this.bobAt(X, Z, id) : 0),
+          drifting: (X, Z) => this.underwater || Z < SEA_Z,
+          bob: (X, Z, id) => this.underwater ? Math.sin(this.t * 1.4 + (id ? strHash(id) * 6 : 0)) * 3 * this.s : Z < SEA_Z ? this.bobAt(X, Z, id) : 0,
           tilt: (p, me, v) => (p.rest === 'tube' ? 0.045 * Math.sin(this.t * 1.1 + (v ? strHash(v.id) * 6.28 : 1.3)) : 0),
-          under: (g, p, me, v) => { if (p.rest === 'tube') this.drawTube(g, p, v); },
-          over: (g, p, me, v) => { if (p.rest === 'tube') this.drawLap(g, p, v); },
+          under: (g, p, me, v) => { if (this.underwater) this.dive.gear(g, p, false); else if (p.rest === 'tube') this.drawTube(g, p, v); },
+          over: (g, p, me, v) => { if (this.underwater) this.dive.gear(g, p, true); else if (p.rest === 'tube') this.drawLap(g, p, v); },
         });
       }
       sprites();
@@ -314,6 +320,7 @@
     }
 
     toScreen(X, Z) {
+      if (this.underwater) return { x: X / 1000 * this.w, y: this.h * (.27 + (Z + 1000) / 2000 * .55), k: this.s * .85 };
       const b = this.band();
       const x = (X / 1000) * this.w;
       if (Z >= 0) return { x, y: b.top + (Z / 1000) * (b.bot - b.top), k: this.s * 0.95 * (0.9 + (0.22 * Z) / 1000) };
@@ -324,6 +331,7 @@
     }
 
     toCanon(x, y) {
+      if (this.underwater) return { X: x / this.w * 1000, Z: (y / this.h - .27) / .55 * 2000 - 1000 };
       const b = this.band();
       const X = (x / this.w) * 1000;
       if (y >= b.top) return { X, Z: ((y - b.top) / (b.bot - b.top)) * 1000 };
@@ -345,7 +353,7 @@
     }
 
     audioParams() {
-      return { float: this.floating ? 1 : 0 };
+      return { float: this.floating ? 1 : 0, dive: this.underwater ? 1 : 0 };
     }
 
     resize(w, h, dpr) {
@@ -359,6 +367,7 @@
       this.moon = this.moonAt();
       this.buildBackground();
       this.buildRows();
+      this.dive.resize(w, h, this.s, dpr);
       const pup = this.pup;
       pup.k = this.s * 0.95;
       pup.x = w * (portrait ? 0.27 : 0.3);
@@ -501,10 +510,10 @@
 
       // 바다
       const sea = g.createLinearGradient(0, hy, 0, sandTop);
-      sea.addColorStop(0, '#5a5c86');
+      sea.addColorStop(0, '#587b8a');
       sea.addColorStop(0.12, '#323a68');
-      sea.addColorStop(0.55, '#19234a');
-      sea.addColorStop(1, '#0e1534');
+      sea.addColorStop(0.55, '#1c4a64');
+      sea.addColorStop(1, '#153e50');
       g.fillStyle = sea;
       g.fillRect(0, hy, w, sandTop - hy + 2);
 
@@ -646,6 +655,17 @@
     }
 
     pointerDown(x, y) {
+      if (this.underwater) {
+        if (this.dive.poke(x, y)) {
+          if (this.onToast) this.onToast('조개가 작은 진주를 보여 줬어요');
+          if (this.onRipple) this.onRipple(.3, x / this.w * 2 - 1);
+          return true;
+        }
+        if (this.pup.hit(x, y)) { this.pup.poke(); return true; }
+        if (this.crowd && this.crowd.boopAt(x, y)) return true;
+        this.dive.burst(x, y, 3);
+        return !!(this.crowd && this.crowd.walkTo(x, y));
+      }
       if (this.pup.hit(x, y)) {
         this.pup.poke();
         return true;
@@ -683,10 +703,62 @@
     }
 
     rippleAt() {
-      const x = this.w * MC.rand(0.25, 0.75);
-      const y = MC.lerp(this.hy, this.sandTop, MC.rand(0.35, 0.8));
-      this.ripple(x, y);
+      if (this.underwater) { this.dive.burst(this.pup.x, this.pup.y - 55 * this.pup.k, 8); return true; }
+      if (this.stone) return false;
+      const x = MC.clamp(this.pup.x / this.w, .2, .8), dir = x > .5 ? -1 : 1;
+      this.stone = { age: 0, hop: 0, count: 3 + Math.floor(Math.random() * 3), x, dir };
       return true;
+    }
+
+    stoneAt(u) {
+      const q = this.stone;
+      return { x: (q.x + q.dir * .32 * u) * this.w, y: MC.lerp(this.hy, this.sandTop, .85 - .58 * u) };
+    }
+
+    updateStone(dt) {
+      const q = this.stone;
+      if (!q) return;
+      q.age += dt;
+      const hop = Math.min(q.count, Math.floor(q.age / .42));
+      if (hop > q.hop) {
+        for (let i = q.hop + 1; i <= hop; i++) { const p = this.stoneAt(i / q.count); this.ripple(p.x, p.y); }
+        q.hop = hop;
+      }
+      if (q.age >= q.count * .42) {
+        this.stone = null;
+        if (this.onToast) this.onToast(`통통, ${q.count}번 물수제비!`);
+      }
+    }
+
+    drawStone(g) {
+      const q = this.stone;
+      if (!q) return;
+      const u = MC.clamp(q.age / (q.count * .42), 0, 1), p = this.stoneAt(u);
+      const lift = Math.sin((q.age / .42 % 1) * Math.PI) * 34 * this.s * (1 - .65 * u);
+      g.fillStyle = '#b8c7c5'; g.strokeStyle = '#527c82'; g.lineWidth = this.s;
+      g.beginPath(); g.ellipse(p.x, p.y - lift, 4 * this.s * (1 - .5 * u), 2 * this.s, -.3, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+
+    toggleDive() {
+      const c = this.crowd;
+      if (!c) return false;
+      const on = !this.underwater;
+      if (on) this.surfacePos = { X: c.me.X, Z: c.me.Z };
+      this.underwater = on;
+      c.target = c.path = c.portal = null;
+      c.moving = false; c.setKeys(0, 0); c.roomMade = true; c.posed = false;
+      c.me.X = on ? MC.clamp(c.me.X, 180, 820) : this.surfacePos.X;
+      c.me.Z = on ? 0 : this.surfacePos.Z;
+      this.floating = !on && this.inSea(c.me.Z);
+      const p = this.pup;
+      p.setChair(false); p.chair = 0; p.setLie(false); p.lie = 0; p.paddle = 0;
+      p.rest = on ? 'dive' : this.floating ? 'tube' : null;
+      p.setLie(this.floating);
+      p.view = p.restView = on || this.floating ? 'front' : 'back'; p.baseTurn = 0; p.headDrop = 0;
+      c.layout();
+      if (on) this.dive.burst(p.x, p.y - 55 * p.k, 9);
+      if (this.onToast) this.onToast(on ? '잠수 준비 완료!' : '달빛 바다로 돌아왔어요');
+      return on;
     }
 
     // 야광 플랑크톤: 물이 흔들린 자리에서 푸르게 반짝이다 스러진다
@@ -711,12 +783,13 @@
     // ── 튜브 걸이 앞의 '튜브 타기' ───────────────────────────────
     portalHint() {
       const c = this.crowd;
-      if (!c || this.floating || c.moving || c.target || c.portal || this.bottle) return null;
+      if (!c || this.underwater || this.floating || c.moving || c.target || c.portal || this.bottle) return null;
       const st = this.stand;
       return { x: st.x, y: st.y - 86 * this.s, label: '튜브 타기' };
     }
 
     usePortal() {
+      if (this.underwater) return;
       const c = this.crowd;
       if (!c) return;
       const X = MC.clamp(c.me.X, 150, 850);
@@ -726,7 +799,7 @@
     // ── 유리병 편지 ─────────────────────────────────────────────
     // 적은 말은 어디에도 남지 않는다. 병만 달빛 기둥을 따라 멀어진다
     sendBottle() {
-      if (this.bottle) return false;
+      if (this.underwater || this.bottle) return false;
       const p = this.pup;
       const from = { x: p.x + 10 * p.k, y: p.y - 70 * p.k };
       const entryY = this.floating ? p.y + 4 * p.k : MC.lerp(this.hy, this.sandTop, 0.9);
@@ -856,6 +929,15 @@
 
     update(dt) {
       this.t += dt;
+      if (this.underwater) {
+        if (this.crowd) this.crowd.update(dt);
+        this.pup.rest = 'dive'; this.pup.setLie(false);
+        this.pup.view = this.pup.restView = 'front';
+        this.pup.update(dt, { wind: .12, walking: false, noSleep: true });
+        this.dive.update(dt, this.pup);
+        return;
+      }
+      this.updateStone(dt);
       const s = this.s;
       // 달과 구름은 벽시계를 따라 아주 천천히
       this.moon = this.moonAt();
@@ -899,6 +981,7 @@
       // 다른 사람 멍이: 바다에 들어오면 첨벙, 저으면 앞발이 움직인다
       if (c) {
         for (const v of c.visitors.values()) {
+          if (!c.sees(v)) continue;
           const sea = v.st.y < SEA_Z;
           if (v.sea !== sea) {
             if (v.sea !== undefined && sea && v.fade > 0.5) this.splashAt(v.pup.x, v.pup.y, v.pup.k);
@@ -1152,6 +1235,12 @@
 
     draw(g) {
       if (!this.bg) return;
+      if (this.underwater) {
+        this.dive.draw(g);
+        if (this.crowd) this.crowd.draw(g, this.dpr, null, this.w);
+        this.dive.drawFront(g);
+        return;
+      }
       const { w, h, s, hy, t } = this;
       g.drawImage(this.bg, 0, 0, w, h);
       this.drawMoon(g);
@@ -1268,6 +1357,7 @@
       }
 
       this.drawShore(g);
+      this.drawStone(g);
       if (this.bottle) this.drawBottle(g);
       if (this.crowd) {
         const sb = this.standBox;
