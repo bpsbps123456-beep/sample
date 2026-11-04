@@ -62,7 +62,7 @@
       <p class="together together-camp" id="campTogether" hidden><svg class="ico-pup" viewBox="0 0 120 104" aria-hidden="true"><use href="#pup-face"/></svg><span>마을 <b data-n="here"></b></span><span class="together-sep" aria-hidden="true"></span><span>모두 <b data-n="all"></b></span></p>
       <p class="camp-hint" id="campHint"></p>
       <div class="camp-tools">
-        <button class="chip camp-tool camp-suggest" id="suggestBtn" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg><span>건의하기</span></button>
+        <button class="chip camp-tool camp-suggest" id="suggestBtn" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg><span>건의</span></button>
         <div class="camp-tools-right">
           <button class="chip camp-tool" id="dressBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-palette"/></svg><span>꾸미기</span></button>
           <button class="chip camp-tool" id="signBtn" type="button" aria-pressed="false"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 14v7M4 3h16v11H4zM8 7h8M8 10h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>팻말</span></button>
@@ -215,7 +215,7 @@
   <!-- 건의하기: 운영자에게만 전해진다 -->
   <div class="modal modal-fixed" id="suggestCard" hidden>
     <form class="modal-card suggest-card" id="suggestForm" role="dialog" aria-modal="true" aria-labelledby="suggest-title" novalidate>
-      <h2 id="suggest-title">건의하기</h2>
+      <h2 id="suggest-title">건의</h2>
       <p class="suggest-lead">멍캠프에 바라는 점, 불편했던 점을 자유롭게 적어 주세요. <button class="owner-link" id="ownerBtn" type="button" aria-haspopup="dialog">운영자</button>만 봐요.</p>
       <textarea class="text-input suggest-input" id="suggestInput" maxlength="1000" rows="5" placeholder="이런 곳이 있으면 좋겠어요" aria-labelledby="suggest-title" aria-describedby="suggestFine"></textarea>
       <p class="suggest-fine" id="suggestFine"><span id="suggestCount">0</span> / 1000</p>
