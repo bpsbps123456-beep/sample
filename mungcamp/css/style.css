@@ -641,6 +641,80 @@ a { color: inherit; }
 .name-tag.is-on { opacity: 1; }
 .name-tag.is-me { color: var(--ember-hi); }
 
+/* 앉아서 펼치는 작은 책장. 본문은 종이색 바탕과 읽기 편한 별도 글꼴을 쓴다. */
+.book-launch {
+  position: fixed;
+  z-index: 12;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  color: #f5e9d4;
+  background: rgba(46, 40, 34, .94);
+  border-color: rgba(236, 206, 159, .4);
+  box-shadow: 0 5px 24px rgba(0, 0, 0, .2);
+}
+.in-session .book-launch { z-index: 51; bottom: calc(114px + env(safe-area-inset-bottom, 0px)); }
+body.is-reading { overflow: hidden; }
+.book-reader {
+  --accent: #805b38;
+  color-scheme: light;
+  width: min(780px, calc(100% - 32px));
+  height: min(690px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: clamp(20px, 4vw, 36px);
+  border: 1px solid #d7c6a8;
+  border-radius: 24px;
+  background: #f4ecdc;
+  color: #3c342b;
+  box-shadow: 0 24px 100px rgba(0, 0, 0, .4);
+  font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+.book-reader[open] { display: flex; flex-direction: column; }
+.book-reader::backdrop { background: rgba(5, 9, 15, .62); backdrop-filter: blur(3px); }
+.book-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: none; }
+.book-eyebrow { margin: 0 0 7px; color: #78654e; font-size: 11px; letter-spacing: .14em; }
+.book-head h2 { margin: 0; font-family: "Batang", "AppleMyungjo", serif; font-size: clamp(23px, 4vw, 30px); line-height: 1.45; font-weight: 600; }
+.book-close { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border: 1px solid #d7c6a8; border-radius: 50%; color: #64513d; background: transparent; cursor: pointer; }
+.book-close:hover { background: #e9dcc6; }
+.book-note { margin: 12px 0 22px; color: #78654e; font-size: 12px; line-height: 1.7; flex: none; }
+.book-shelf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 12px; min-height: 0; padding: 3px; overflow-y: auto; overscroll-behavior: contain; }
+.book-pick { display: flex; gap: 16px; align-items: center; min-width: 0; padding: 18px 14px; text-align: left; color: inherit; font: inherit; background: #fcf7ed; border: 1px solid #dfd1b9; border-radius: 12px; cursor: pointer; }
+.book-pick:last-child { grid-column: 1 / -1; }
+.book-pick:hover { background: #fffaf1; border-color: #ac8d67; }
+.book-cover { display: grid; place-items: center; flex: none; width: 54px; height: 76px; border-radius: 2px 6px 6px 2px; color: #fff6e6; background: linear-gradient(90deg, rgba(0,0,0,.24) 0 4px, transparent 4px 8px, rgba(255,255,255,.12) 8px 9px, transparent 9px), var(--book-color); box-shadow: 3px 3px 0 #dfd4c0; font-family: Georgia, serif; font-size: 21px; }
+.book-info { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.book-info strong { font-size: 15px; line-height: 1.6; font-weight: 600; }
+.book-description { font-size: 12px; line-height: 1.7; color: #786b5c; }
+.book-bookmark { margin-top: 3px; font-size: 11px; color: #805b38; }
+.book-page { display: flex; flex: 1; min-height: 0; flex-direction: column; border-top: 1px solid #dcd0bb; }
+.book-content { flex: 1; min-height: 0; padding: 10px clamp(0px, 2vw, 18px) 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #baaa90 transparent; font-family: "Batang", "AppleMyungjo", "Noto Serif KR", serif; font-size: 17px; line-height: 2; word-break: normal; overflow-wrap: break-word; user-select: text; -webkit-user-select: text; }
+.book-content:focus { outline: none; }
+.book-content:focus-visible { box-shadow: inset 2px 0 #b89a74; }
+.book-content p { margin: 16px 0; }
+.book-content .book-end { margin-top: 32px; text-align: center; font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 12px; letter-spacing: .15em; color: #8c7459; }
+.book-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid #dcd0bb; flex: none; }
+.book-nav button, .book-back { min-height: 44px; padding: 10px 15px; border: 1px solid #d4c2a5; border-radius: 8px; background: transparent; color: #634d34; font: inherit; font-size: 13px; cursor: pointer; }
+.book-nav button:hover:not(:disabled), .book-back:hover { background: #e9dcc6; }
+.book-nav button:disabled { opacity: .35; cursor: default; }
+.book-nav span { color: #78654e; font-size: 12px; font-variant-numeric: tabular-nums; }
+.book-back { align-self: flex-start; margin-top: 12px; padding-left: 0; padding-right: 10px; border-color: transparent; font-size: 12px; flex: none; }
+@media (max-width: 540px) {
+  .book-reader { width: calc(100% - 20px); height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); padding: 22px 18px 14px; border-radius: 18px; }
+  .book-shelf { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .book-pick { padding: 14px; }
+  .book-cover { width: 46px; height: 64px; }
+  .book-note { margin-bottom: 16px; }
+  .book-content { font-size: 16px; line-height: 1.95; }
+}
+@media (max-height: 480px) {
+  .book-reader { padding: 12px 20px; }
+  .book-note { display: none; }
+  .book-head h2 { font-size: 21px; }
+  .book-back { margin-top: 2px; }
+}
+
 /* ── 들어가기 / 나오기 ───────────────── */
 .modal {
   position: absolute;

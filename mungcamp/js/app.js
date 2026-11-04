@@ -822,6 +822,20 @@
     campCanvas.focus({ preventScroll: true });
   });
 
+  const reading = new MC.Reading({
+    canRead: () => {
+      if (state.leaving || (state.view === 'session' && (!state.started || !$('#endCard').hidden))) return false;
+      const pup = state.view === 'home' ? camp.pup : state.sceneObj && state.sceneObj.pup;
+      return !!(pup && pup.chairOn && pup.chair === 1);
+    },
+    onOpen: () => {
+      held.clear(); applyKeys(); closePanels();
+      if (state.timerDone) stay(); // 쉼 안내가 뜨기 직전에 책을 골라도 소리와 밝기를 유지한다.
+      wake();
+    },
+    onClose: () => wake(),
+  });
+
   camp.sea.onToast = msg => toast(msg);
   const seaControls = $('#seaControls'), seaAction = $('#seaAction'), seaStop = $('#seaStop'), seaTravel = $('#seaTravel'), seaStatus = $('#seaStatus');
   let seaLayoutKey = '';
@@ -877,6 +891,7 @@
     }
     const chairOn = String(camp.pup.chairOn);
     if (chairBtn.getAttribute('aria-pressed') !== chairOn) chairBtn.setAttribute('aria-pressed', chairOn);
+    reading.sync();
     if (camp.moving && !state.walked) {
       state.walked = true;
       MC.store.set('walked', true);
@@ -1021,6 +1036,7 @@
 
   // ── 세션 열고 닫기 ─────────────────────────────────────
   function openSession(name) {
+    reading.close();
     if (state.view === 'session') {
       if (state.scene === name) return;
       teardown();
@@ -1124,6 +1140,7 @@
   }
 
   function teardown() {
+    reading.close();
     hideName();
     held.clear();
     if (state.runner) state.runner.stop();
@@ -1171,6 +1188,7 @@
   function leave() {
     if (state.leaving) return;
     state.leaving = true;
+    reading.close();
     closePanels();
     $('#endCard').hidden = true;
     ui.classList.add('is-hidden');
@@ -1209,6 +1227,7 @@
       updateTogether();
     }
     placeSceneAct(sc);
+    reading.sync();
     if (sc.crowd) {
       const on = sc.crowd.pup.chairOn;
       if (state.chairShown !== on) {
@@ -1232,11 +1251,12 @@
   }
 
   function checkTime() {
-    if (state.started && !state.timerDone && elapsedSec() >= SESSION_MIN * 60) finishTimer();
+    if (state.started && !state.timerDone && !reading.isOpen && elapsedSec() >= SESSION_MIN * 60) finishTimer();
   }
 
   // 20분쯤 지나면 종이 한 번 울리고, 소리와 빛이 서서히 잦아든다
   function finishTimer() {
+    if (reading.isOpen) return;
     state.timerDone = true;
     sound.chime();
     if (state.scape) state.scape.duck(0.35, 18);
@@ -1487,7 +1507,7 @@
     if (!state.started) return;
     state.idleTimer = setTimeout(() => {
       const sc = state.sceneObj;
-      if (anyPanelOpen() || modalOpen() || (sc && sc.worry) || document.activeElement === $('#worryInput')) {
+      if (reading.isOpen || anyPanelOpen() || modalOpen() || (sc && sc.worry) || document.activeElement === $('#worryInput')) {
         armIdle();
         return;
       }
@@ -1586,6 +1606,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
+    if (reading.isOpen) return;
     if (nickOpen() || suggestOpen() || ownerOpen() || dressOpen() || signOpen()) return;
     const t = e.target;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
