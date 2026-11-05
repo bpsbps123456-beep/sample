@@ -12,7 +12,7 @@
   const SEND_GAP = 0.12; // 움직이는 동안 1초에 8번쯤 알린다
   const BEAT = 2.5; // 탭끼리는 가만히 있어도 가끔 '여기 있어요'
   const STALE = 9; // 이만큼 소식이 없으면 떠난 것으로 본다 (탭끼리)
-  const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge', 'playground'];
+  const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge', 'playground', 'learn'];
   const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, ep: 0, ek: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0, sg: '', bt: 0, ba: 0, fs: 0, dv: 0, hd: 0 };
 
   // 처음 온 날 털빛과 모자를 하나 골라 두고 계속 입는다
@@ -133,6 +133,11 @@
           // 서버에 올라간 사이트의 버전 (다시 배포되면 바뀐다)
           if (typeof m.v === 'string' && m.v.length <= 64 && net.onVersion) net.onVersion(m.v);
         }
+        else if (typeof m.t === 'string' && m.t.startsWith('learn-')) {
+          if (m.t === 'learn-access') net.learnAccess = m;
+          if (m.t === 'learn-state') net.learning = m;
+          if (net.onLearning) net.onLearning(m);
+        }
         else if (m.t === 'pg' || m.t === 'pg-position' || m.t === 'pg-error') {
           if (m.t === 'pg') { net.playground = m; net.playgroundAt = Date.now(); }
           if (net.onPlayground) net.onPlayground(m);
@@ -150,6 +155,8 @@
       };
       ws.onclose = () => {
         net.online = false;
+        net.learnAccess = null; net.learning = null;
+        if (net.onLearning) net.onLearning({ t: 'learn-offline' });
         net.playground = null;
         if (net.onPlayground) net.onPlayground({ t: 'pg-offline' });
         net.clear();
@@ -164,6 +171,10 @@
     open();
     return {
       kind: 'socket',
+      learn(action, value) {
+        if (!ws || ws.readyState !== 1) return false;
+        ws.send(JSON.stringify({ t: 'learn', action, value })); return true;
+      },
       game(action, value) {
         if (!ws || ws.readyState !== 1) return false;
         ws.send(JSON.stringify({ t: 'pg', action, value }));

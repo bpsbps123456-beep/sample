@@ -86,6 +86,10 @@
       actions: [{ id: 'play', icon: 'i-wind', label: '숨기', primary: true }],
       space: 'play',
     },
+    learn: {
+      place: '배움터', make: () => new MC.LearnScene({ net }), scape: MC.ForestScape,
+      guidance: '멍이 앞 팻말에 내 생각을 놓아요', actions: [],
+    },
   };
 
   // 따로 고르지 않아도 20분쯤 머물면 종이 한 번 울린다
@@ -191,6 +195,14 @@
   // ── 함께 ─────────────────────────────────────────────
   // 같은 곳의 멍이와 마음 단어, 마을의 네 글자 상태 팻말이 보인다
   const net = new MC.Net();
+  const learnGate = new MC.LearnGate(net, () => {
+    closeEmotes(); state.allowEnter = 'learn'; location.hash = 'learn';
+  });
+  $('#learnBtn').addEventListener('click', () => learnGate.open());
+  net.onLearning = m => {
+    learnGate.accept(m);
+    if (state.scene === 'learn' && state.sceneObj) state.sceneObj.accept(m);
+  };
   const residents = new MC.Residents(camp);
   net.start();
   setInterval(() => net.tick(), 1000);
@@ -655,7 +667,7 @@
     try {
       const data = await ownerRequest('/presence');
       $('#ownerOnline').textContent = String(data.total);
-      const names = { map: '마을', fire: '모닥불', firetower: '탑불멍', water: '바다', forest: '숲', tent: '글램핑', lodge: '숙소', playground: '놀이터' };
+      const names = { map: '마을', fire: '모닥불', firetower: '탑불멍', water: '바다', forest: '숲', tent: '글램핑', lodge: '숙소', playground: '놀이터', learn: '배움터' };
       $('#ownerPlaces').textContent = Object.entries(names).map(([id, name]) => `${name} ${data.places[id] || 0}`).join(' · ');
       $('#ownerPresenceNote').textContent = '더미 제외 · 열린 화면 기준 · 5초마다 갱신';
     } catch (error) {
@@ -1316,7 +1328,7 @@
     session.hidden = true;
     home.hidden = false;
     document.body.classList.remove('in-session');
-    camp.placeAt(state.lastSpot || from);
+    if (from !== 'learn') camp.placeAt(state.lastSpot || from);
     startCamp();
   }
 
@@ -1352,6 +1364,7 @@
       const cur = state.view === 'session' ? state.scene : '';
       try { history.replaceState(null, '', location.pathname + location.search + (cur ? '#' + cur : '')); } catch (e) { /* 막혀 있으면 그대로 */ }
       if (state.view === 'home') {
+        if (name === 'learn') { learnGate.open(); return; }
         state.lastSpot = name;
         camp.placeAt(name);
       }
@@ -1365,7 +1378,7 @@
     if (sc.crowd) {
       sc.crowd.selfId = net.id;
       net.set(sc.crowd.state());
-      sc.crowd.sync(state.scene === 'playground' ? net.list(state.scene) : residents.merge(state.scene, net.list(state.scene), sc));
+      sc.crowd.sync(['playground', 'learn'].includes(state.scene) ? net.list(state.scene) : residents.merge(state.scene, net.list(state.scene), sc));
       net.tick();
       updateTogether();
     }
@@ -1396,7 +1409,7 @@
   }
 
   function checkTime() {
-    if (state.scene !== 'playground' && state.started && !state.timerDone && !reading.isOpen && elapsedSec() >= SESSION_MIN * 60) finishTimer();
+    if (!['playground', 'learn'].includes(state.scene) && state.started && !state.timerDone && !reading.isOpen && elapsedSec() >= SESSION_MIN * 60) finishTimer();
   }
 
   // 20분쯤 지나면 종이 한 번 울리고, 소리와 빛이 서서히 잦아든다
@@ -1650,7 +1663,7 @@
   }
   function armIdle() {
     clearTimeout(state.idleTimer);
-    if (!state.started || state.scene === 'playground') return;
+    if (!state.started || ['playground', 'learn'].includes(state.scene)) return;
     state.idleTimer = setTimeout(() => {
       const sc = state.sceneObj;
       if (reading.isOpen || anyPanelOpen() || modalOpen() || (sc && sc.worry) || document.activeElement === $('#worryInput')) {
@@ -1661,6 +1674,7 @@
     }, 5000);
   }
   function hideUI() {
+    if (state.scene === 'learn') return;
     ui.classList.add('is-hidden');
     session.classList.add('is-idle');
     closePanels();
@@ -1763,8 +1777,10 @@
       openOwner();
       return;
     }
+    if (document.querySelector('.learn-gate[open], .learn-owner[open], .learn-detail[open]')) return;
     if (nickOpen() || suggestOpen() || ownerOpen() || dressOpen() || signOpen()) return;
     const t = e.target;
+    if (state.scene === 'learn' && t?.closest?.('input,textarea,select')) return;
     const typing = t && t.matches && t.matches('input[type="text"], textarea');
     if (state.view === 'home') {
       if (typing || !state.campVisible) return;

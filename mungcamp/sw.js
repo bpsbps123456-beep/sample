@@ -1,7 +1,7 @@
 /* 멍캠프 오프라인 캐시. 파일을 바꾸면 CACHE 이름의 숫자를 올린다
    사이트 파일은 언제나 새로 받아 보고(바뀐 게 없으면 서버가 304로 짧게 답한다),
    인터넷이 없거나 2.5초 안에 답이 없을 때만 캐시에 둔 것을 쓴다. 그래서 고친 것이 다음에 열 때 바로 보인다 */
-const CACHE = 'mungcamp-v66';
+const CACHE = 'mungcamp-v67';
 const WAIT = 2500;
 const ASSETS = [
   './',
@@ -30,6 +30,8 @@ const ASSETS = [
   'assets/fonts/Jua-Regular.woff',
   'js/playground-art.js',
   'js/scene-playground.js',
+  'js/scene-learn.js',
+  'assets/learning-room.svg',
   'assets/playground/tree.svg',
   'assets/playground/bush.svg',
   'assets/playground/crate.svg',

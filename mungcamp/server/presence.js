@@ -26,6 +26,7 @@ const path = require('path');
 const zlib = require('zlib');
 const suggest = require('./suggest');
 const Playground = require('./playground');
+const Learning = require('./learning');
 const playgroundRules = require('../js/playground-rules');
 
 const PORT = +(process.env.PORT || 8787);
@@ -35,9 +36,9 @@ const MAP_CAP = +(process.env.MAP_CAP || 200);
 const TENT_CAP = +(process.env.TENT_CAP || 40);
 const MAX_CLIENTS = +(process.env.MAX_CLIENTS || 20000);
 const TICK_HZ = 8;
-const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge', 'playground'];
+const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge', 'playground', 'learn'];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
-const MAX_FRAME = 2048;
+const MAX_FRAME = 8192;
 
 // ── 받은 값 다듬기 (js/net.js 의 clean 과 같은 규칙) ─────────
 function num(v, lo, hi) {
@@ -115,13 +116,14 @@ function clean(raw) {
 const rooms = new Map(PLACES.map((p) => [p, []]));
 let roomSeq = 0;
 const clients = new Set();
+const learning = new Learning(send, () => clients);
 
 function joinRoom(c, place) {
   const list = rooms.get(place);
   // 가장 붐비지만 아직 자리가 있는 방: 사람들이 흩어지지 않고 모이도록
   let room = null;
   // 실내는 야외보다 낮은 정원을 둔다.
-  const cap = place === 'map' ? MAP_CAP : place === 'tent' || place === 'lodge' ? TENT_CAP : ROOM_CAP;
+  const cap = place === 'learn' ? 100 : place === 'map' ? MAP_CAP : place === 'tent' || place === 'lodge' ? TENT_CAP : ROOM_CAP;
   for (const r of list) if (r.members.size < cap && (!room || r.members.size > room.members.size)) room = r;
   if (!room) {
     room = { id: ++roomSeq, place, members: new Set(), changed: new Map(), left: new Set() };
@@ -139,6 +141,7 @@ function joinRoom(c, place) {
   send(c, { t: 'd', j: all, l: [], full: 1 });
   room.changed.set(c.id, c.state);
   room.left.delete(c.id);
+  if (place === 'learn') learning.publish();
 }
 
 function leaveRoom(c) {
@@ -149,6 +152,7 @@ function leaveRoom(c) {
   room.changed.delete(c.id);
   room.left.add(c.id);
   c.room = null;
+  if (room.place === 'learn') { c.learn = null; learning.publish(); }
   if (room.members.size === 0) {
     const list = rooms.get(room.place);
     const i = list.indexOf(room);
@@ -274,6 +278,7 @@ function onMessage(c, text) {
     return;
   }
   if (!m) return;
+  if (m.t === 'learn') { learning.command(c, m.action, m.value); return; }
   if (m.t === 'pg') {
     if (c.room && c.room.game) c.room.game.command(c, m.action, m.value);
     return;
@@ -281,6 +286,9 @@ function onMessage(c, text) {
   if (m.t !== 's') return;
   const st = clean(m.s);
   if (!st) return;
+  if (st.p === 'learn' && (!learning.authorized(c) || c.room?.place !== 'learn' && learning.members().length >= 100)) {
+    send(c, { t: 'learn-denied', message: '비밀번호를 입력하고 배움터에 들어와 주세요.' }); return;
+  }
   if (st.p === 'playground') {
     // 새 장소 입장 후부터는 지형과 이동 속도를 서버에서도 확인한다.
     if (c.room && c.room.game) c.room.game.move(c, st, now);
@@ -491,6 +499,7 @@ server.on('upgrade', (req, socket) => {
   socket.setNoDelay(true);
   const c = {
     id: crypto.randomBytes(6).toString('base64url'),
+    ip: String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress,
     socket,
     buf: Buffer.alloc(0),
     state: null,
