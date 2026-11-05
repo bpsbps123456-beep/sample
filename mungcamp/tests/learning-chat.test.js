@@ -35,9 +35,9 @@ main(async ({ check, until, person, presenceServer, cleanup, shot }) => {
   await shot(a.page, 'learning-chat-desktop'); await shot(b.page, 'learning-chat-phone');
   await b.page.setViewportSize({ width: 320, height: 568 });
   check(await until(b.page, () => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(); return c.top >= h.bottom && c.bottom <= r.top && c.height > 140 && r.bottom <= innerHeight && document.documentElement.scrollWidth === innerWidth; }), '작은 휴대폰에서도 여섯 보기와 대화 공간 확보');
-  for (const width of [844, 1280]) {
-    await b.page.setViewportSize({ width, height: 390 });
-    check(await until(b.page, () => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(), send = document.querySelector('.learn-chat-form button').getBoundingClientRect(); return c.right < r.left && c.height > 120 && send.bottom <= innerHeight; }), `가로 ${width}px 화면에서 대화와 답 입력부 분리`);
+  for (const { width, height } of [{ width: 844, height: 390 }, { width: 1280, height: 390 }, { width: 943, height: 512 }, { width: 1280, height: 512 }]) {
+    await b.page.setViewportSize({ width, height });
+    check(await until(b.page, () => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(), send = document.querySelector('.learn-chat-form button').getBoundingClientRect(); return c.right < r.left && c.height > 120 && send.bottom <= innerHeight; }), `가로 ${width}×${height}px 화면에서 대화와 답 입력부 분리`);
   }
   await shot(b.page, 'learning-chat-landscape');
   await b.page.setViewportSize({ width: 390, height: 844 });
