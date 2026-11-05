@@ -12,8 +12,8 @@ for(let x=0;x<1400;x+=70) body += line(`M${x} 0V330`,'#283e39',1,'opacity=".35"'
 function tree(x,y,s,fill) {
   return `<g transform="translate(${x} ${y}) scale(${s})">${rect(-3,-60,6,72,'#35443b',2)}<path d="M0-142Q-18-138-17-118Q-36-106-29-85Q-49-62-35-46Q-52-24-34-14Q0-2 34-14Q52-24 35-46Q49-62 29-85Q36-106 17-118Q18-138 0-142Z" fill="${fill}" stroke="#293c39" stroke-width="2"/></g>`;
 }
-// 가운데 창은 휴대폰의 좁은 화면에도 숲과 달빛을 남긴다.
-for(const [i,x,w] of [[0,70,224],[1,328,744],[2,1106,224]]) {
+// 벽을 가로지르는 파노라마 창. 창틀 너머로 숲과 달빛이 이어진다.
+for(const [i,x,w] of [[1,70,1260]]) {
   defs += `<clipPath id="window${i}">${rect(x,76,w,224,'#fff',28)}</clipPath>`;
   body += rect(x-10,66,w+20,246,'#223b36',36) + rect(x-5,71,w+10,236,'url(#wood)',32);
   let view = rect(x,76,w,224,'url(#sky)',28);
@@ -23,7 +23,7 @@ for(const [i,x,w] of [[0,70,224],[1,328,744],[2,1106,224]]) {
   for(let j=0;j<Math.ceil(w/46)+2;j++) view += tree(x+j*47-10,289+j%3*10,.65+j%4*.12,['#3c5d51','#36594e','#426456'][j%3]);
   view += `<path d="M${x} 284Q${x+w/2} 260 ${x+w} 280V310H${x}Z" fill="#314e42"/><path d="M${x+14} 82L${x+w*.3} 82L${x+w*.7} 300H${x+w*.5}Z" fill="#f2e6bb" opacity=".035"/>`;
   body += `<g clip-path="url(#window${i})">${view}</g>`;
-  for(let xx=x+w/(i===1?4:2);xx<x+w-5;xx+=w/(i===1?4:2)) body += line(`M${xx} 77V300`,'#8e795f',7) + line(`M${xx+2} 80V297`,'#c1a780',1);
+  for(let xx=x+w/8;xx<x+w-5;xx+=w/8) body += line(`M${xx} 77V300`,'#8e795f',5) + line(`M${xx+2} 80V297`,'#c1a780',1);
   body += line(`M${x} 226H${x+w}`,'#927b60',6) + rect(x-16,301,w+32,13,'url(#wood)',4) + line(`M${x-12} 302H${x+w+12}`,'#ccb18a',1);
 }
 body += rect(0,327,1400,673,'url(#floor)');

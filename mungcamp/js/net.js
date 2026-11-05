@@ -138,6 +138,7 @@
           if (m.t === 'learn-state') net.learning = m;
           if (m.t === 'learn-chat') net.learningChat = m.history ? m.messages : [...(net.learningChat || []), ...m.messages].slice(-50);
           if (m.t === 'learn-chat-clear') net.learningChat = [];
+          if (m.t === 'learn-chat-delete') net.learningChat = (net.learningChat || []).filter(item => item.id !== m.id);
           if (net.onLearning) net.onLearning(m);
         }
         else if (m.t === 'pg' || m.t === 'pg-position' || m.t === 'pg-error') {

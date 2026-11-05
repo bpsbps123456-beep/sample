@@ -72,8 +72,13 @@ module.exports = class Learning {
       }
       this.answers.set(c.id, answer);
     } else {
-      if (c.learn.role !== 'owner') return this.error(c, '운영자만 질문을 진행할 수 있어요.');
-      if (action === 'clear-chat') {
+      if (c.learn.role !== 'owner') return this.error(c, '이 기능은 진행자만 사용할 수 있어요.');
+      if (action === 'delete-chat') {
+        const index = this.messages.findIndex(item => item.id === value);
+        if (!Number.isSafeInteger(value) || index < 0) return;
+        this.messages.splice(index, 1);
+        for (const member of this.members()) this.send(member, { t: 'learn-chat-delete', id: value }); return;
+      } else if (action === 'clear-chat') {
         this.messages = []; for (const member of this.members()) this.send(member, { t: 'learn-chat-clear' }); return;
       } else if (action === 'start') {
         const question = text(value?.text, 240), type = value?.type;

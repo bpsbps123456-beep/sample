@@ -23,6 +23,9 @@ main(async ({ check, until, person, presenceServer, cleanup, shot }) => {
   await b.page.click('.learn-chat-toggle'); await b.page.fill('#learnChatInput', '<b>안녕</b> 멍!'); await b.page.press('#learnChatInput', 'Enter');
   check(await until(a.page, () => [...document.querySelectorAll('.learn-chat-message p')].some(n => n.textContent === '<b>안녕</b> 멍!')), '모바일에서 보낸 메시지를 PC로 전달');
   check(await a.page.evaluate(() => !document.querySelector('.learn-chat-message p b')), '대화의 HTML을 글자로 표시');
+  check(await a.page.evaluate(() => !document.querySelector('.learn-delete-message') && document.querySelector('.learn-chat-tools').hidden), '참여자에게 대화 관리 버튼 숨김');
+  await owner.page.click('.learn-delete-message >> nth=0');
+  check(await until(a.page, () => MC.app.state.sceneObj.chatItems.size === 2 && MC.app.net.learningChat.length === 2 && !document.querySelector('.learn-chat-log').textContent.includes('친구들아, 반가워!')), '운영자의 개별 삭제를 모두의 대화·최근 기록에 반영');
   await owner.page.click('.learn-open-owner'); await owner.page.fill('[name="question"]', '오늘 하고 싶은 일은?'); await owner.page.fill('[name="options"]', '산책\n배구\n독서\n이야기\n휴식\n낚시'); await owner.page.click('.learn-question-form [type="submit"]');
   await until(b.page, () => MC.app.state.sceneObj.lesson.question);
   await b.page.check('.learn-answer-form input[value="1"]'); await b.page.click('.learn-answer-form [type="submit"]');
@@ -40,9 +43,9 @@ main(async ({ check, until, person, presenceServer, cleanup, shot }) => {
   await b.page.setViewportSize({ width: 390, height: 844 });
   await b.page.click('.learn-chat-head button');
   check(await b.page.evaluate(() => document.querySelector('.learn-chat').hidden && getComputedStyle(document.querySelector('.learn-floor')).visibility === 'visible'), '대화를 접으면 멍이와 팻말로 복귀');
-  await owner.page.click('.learn-open-owner'); await owner.page.click('.learn-clear-chat');
+  await owner.page.click('.learn-chat-clear');
   check(await until(b.page, () => MC.app.state.sceneObj.chatItems.size === 0 && MC.app.net.learningChat.length === 0), '운영자의 대화 지우기를 모두에게 반영');
-  await owner.page.click('[data-dismiss]'); await a.page.click('#exitBtn');
+  await a.page.click('#exitBtn');
   check(await until(a.page, () => MC.app.state.view === 'home' && !document.querySelector('.learn-chat') && !MC.app.net.learningChat.length), '퇴장 시 대화 UI와 임시 기록 정리');
   server.proc.kill();
   check(await until(b.page, () => document.querySelector('#learnChatInput').disabled && document.querySelector('.learn-chat-form [type="submit"]').disabled), '연결이 끊기면 대화 입력·전송을 멈추고 재입장 안내');

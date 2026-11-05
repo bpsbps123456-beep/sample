@@ -25,6 +25,15 @@ assert.equal(lesson.messages.length, 50); assert.equal(Array.from(lesson.message
 assert.ok(lesson.messages[0].id < lesson.messages.at(-1).id);
 const count = lesson.messages.length; b.room = { place: 'map' }; lesson.command(b, 'chat', '마을에서 보낸 말');
 assert.equal(lesson.messages.length, count);
+const deleted = lesson.messages[10].id;
+lesson.command(a, 'delete-chat', deleted); assert.equal(lesson.messages.length, count);
+sent.length = 0; lesson.command(owner, 'delete-chat', deleted);
+assert.equal(lesson.messages.length, count - 1); assert.ok(!lesson.messages.some(item => item.id === deleted));
+assert.deepEqual(sent.map(m => ({ to: m.to, t: m.t, id: m.id })), [{ to: 'owner', t: 'learn-chat-delete', id: deleted }, { to: 'a', t: 'learn-chat-delete', id: deleted }]);
+lesson.chatHistory(a); assert.ok(!sent.at(-1).messages.some(item => item.id === deleted));
+assert.equal(lesson.snapshot(a).own.text, '나만 아는 답'); assert.equal(lesson.snapshot(owner).boards.a.text, undefined);
+for (const value of [deleted, '1', -1, null, {}, 1.5]) lesson.command(owner, 'delete-chat', value);
+assert.equal(lesson.messages.length, count - 1);
 lesson.command(owner, 'clear-chat'); assert.equal(lesson.messages.length, 0);
 assert.equal(sent.at(-1).t, 'learn-chat-clear');
-console.log('✓ 대화 입장 권한·교실 한정 전송·운영자 대화·도배 제한·길이 제한·최근 기록·운영자 기록 지우기·답안 비공개 유지');
+console.log('✓ 대화 인증·도배/길이 제한·최근 기록·운영자 개별/전체 삭제·삭제 동기화·늦은 입장 기록·답안 비공개 유지');
