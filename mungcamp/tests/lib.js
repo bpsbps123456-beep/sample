@@ -40,6 +40,7 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.woff': 'font/woff',
   '.png': 'image/png',
   '.mp3': 'audio/mpeg',
   '.webmanifest': 'application/manifest+json',

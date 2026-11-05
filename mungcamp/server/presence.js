@@ -178,6 +178,12 @@ setInterval(() => {
   }
 }, 1000 / TICK_HZ);
 
+// 배구 물리는 60회 갱신하고, 상태 전송은 게임에서 초당 20회로 제한한다.
+setInterval(() => {
+  const now = Date.now();
+  for (const room of rooms.get('playground') || []) if (room.game?.mode === 'volley') room.game.tick(now);
+}, 1000 / 60).unref();
+
 // 장소별 사람 수
 setInterval(() => {
   const c = {};
@@ -331,6 +337,7 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml',
+  '.woff': 'font/woff',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg',
