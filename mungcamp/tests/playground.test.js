@@ -4,17 +4,19 @@ main(async ({ check, until, sleep, enter, person, presenceServer, staticServer, 
   const server = await presenceServer(); cleanup(server.close);
   const a = await person({ nick: '산책멍' }), b = await person({ nick: '숨는멍' });
   cleanup(a.close); cleanup(b.close);
+  const frames = new Map([[a.page, []], [b.page, []]]);
+  for (const [page, log] of frames) page.on('websocket', ws => ws.on('framereceived', ({ payload }) => { try { const m = JSON.parse(payload); if (m.t === 'd') { log.push(m); if (log.length > 100) log.shift(); } } catch (_) {} }));
   check(await enter(a.page, server.url, 'playground'), '글램핑 옆 놀이터 입장');
   check(await a.page.evaluate(async () => {
     await MC.PlaygroundArt.ready;
-    return MC.PlaygroundArt.loaded === 5 && !MC.PlaygroundArt.failed.length;
-  }), '놀이터 SVG 다섯 종류 실제 디코딩');
+    return MC.PlaygroundArt.loaded === 10 && !MC.PlaygroundArt.failed.length;
+  }), '경기장·네트·공·정원·배경을 포함한 SVG 열 종류 실제 디코딩');
   // 운영 사이트는 HTTPS에서 자동 등록한다. 로컬 시험 서버는 직접 등록한다.
   await a.page.evaluate(() => navigator.serviceWorker.register('sw.js'));
   check(await until(a.page, async () => {
     if (!navigator.serviceWorker.controller) return false;
-    const cache = await caches.open('mungcamp-v65');
-    return !!(await cache.match('assets/playground/gate.svg')) && !!(await cache.match('assets/playground/tree.svg'));
+    const cache = await caches.open('mungcamp-v66');
+    return !!(await cache.match('assets/playground/arena.svg')) && !!(await cache.match('assets/playground/park-details.svg')) && !!(await cache.match('assets/playground/surround.svg'));
   }), '새 오프라인 캐시에 SVG 저장');
   check(await enter(b.page, server.url, 'playground'), '두 번째 친구 놀이터 입장');
   check(await until(a.page, () => MC.app.state.sceneObj.game && MC.app.net.list('playground').length === 1), '서버로 친구 연결');
@@ -31,6 +33,7 @@ main(async ({ check, until, sleep, enter, person, presenceServer, staticServer, 
   await until(a.page, () => MC.app.state.sceneObj.game.phase === 'ready');
   const aSeeker = await a.page.evaluate(() => MC.app.state.sceneObj.game.seeker === MC.app.net.id);
   const seeker = aSeeker ? a.page : b.page, runner = aSeeker ? b.page : a.page;
+  const runnerId = await runner.evaluate(() => MC.app.net.id);
   check(await seeker.evaluate(() => MC.app.state.sceneObj.frozen), '준비 중 술래 이동 차단');
   const before = await runner.evaluate(() => MC.app.state.sceneObj.player.x);
   await runner.keyboard.down('ArrowLeft'); await sleep(300); await runner.keyboard.up('ArrowLeft');
@@ -39,14 +42,27 @@ main(async ({ check, until, sleep, enter, person, presenceServer, staticServer, 
   check(await until(runner, () => Math.hypot(MC.app.state.sceneObj.player.x - 480, MC.app.state.sceneObj.player.y - 610) < 6), '덤불까지 이동');
   await runner.click('[data-act="play"]');
   check(await until(runner, () => MC.app.state.sceneObj.hidden), '숨기 버튼');
-  check(await until(seeker, () => [...MC.app.state.sceneObj.visitors.values()].some(v => v.st.hd)), '숨은 상태 서버 공유');
+  check(await until(seeker, id => !MC.app.net.peers.has(id) && !MC.app.state.sceneObj.visitors.has(id), runnerId), '숨으면 술래의 좌표·멍이 목록에서도 제거');
+  const watcher = await person({ nick: '구경멍' }); cleanup(watcher.close);
+  check(await enter(watcher.page, server.url, 'playground'), '진행 중에 관전자 입장');
+  check(await until(watcher.page, id => MC.app.state.sceneObj.game?.phase === 'ready' && !MC.app.net.peers.has(id), runnerId), '늦게 온 관전자에게도 숨은 위치 비공개');
   check(await until(seeker, () => MC.app.state.sceneObj.game.phase === 'playing', null, 18000), '준비 후 같은 라운드 시작');
   check(await seeker.evaluate(() => { const sc = MC.app.state.sceneObj; return [...sc.visitors].every(([id, v]) => !v.st.hd || !sc.visible(id, v)); }), '숨어 있는 멍이를 술래 화면에서 감춤');
+  await seeker.evaluate(() => { MC.app.state.sceneObj.target = { x: 510, y: 650 }; });
+  check(await until(seeker, () => Math.hypot(MC.app.state.sceneObj.player.x - 510, MC.app.state.sceneObj.player.y - 650) < 6), '숨어 있는 덤불 바로 옆까지 수색 이동');
+  await sleep(400);
+  check(await seeker.evaluate(id => !MC.app.net.peers.has(id), runnerId), '가까이 와도 자동으로 정체가 드러나지 않음');
+  check(frames.get(seeker).slice(-3).every(m => !m.j?.[runnerId]), '실제 웹소켓 메시지에도 숨은 좌표가 없음');
   await shot(runner, 'playground-hiding');
   await runner.keyboard.down('ArrowDown'); await sleep(180); await runner.keyboard.up('ArrowDown');
   check(await until(runner, () => !MC.app.state.sceneObj.hidden), '움직이면 숨기 해제');
-  await seeker.keyboard.press('KeyC');
-  await seeker.click('[data-pg="leave"]');
+  check(await until(seeker, id => MC.app.net.peers.has(id), runnerId), '시야 안에서 나오면 다시 위치 공유');
+  await runner.click('[data-act="play"]'); await until(seeker, id => !MC.app.net.peers.has(id), runnerId);
+  await seeker.click('[data-act="play"]');
+  check(await until(runner, () => MC.app.state.sceneObj.game.phase === 'ended' && MC.app.state.sceneObj.game.result.includes('술래의 승리')), '수색 버튼으로 직접 찾아야 발견');
+  await a.page.click('[data-pg="start"]'); await until(a.page, () => MC.app.state.sceneObj.game.phase === 'ready');
+  const nextSeeker = await a.page.evaluate(() => MC.app.state.sceneObj.game.seeker === MC.app.net.id) ? a.page : b.page;
+  await nextSeeker.click('[data-pg="leave"]');
   check(await until(runner, () => MC.app.state.sceneObj.game.phase === 'ended'), '술래 참가 취소 시 종료');
   await a.page.click('#exitBtn');
   check(await until(a.page, () => MC.app.state.view === 'home'), '나가기 후 글램핑 옆으로 복귀');

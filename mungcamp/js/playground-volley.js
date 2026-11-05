@@ -7,6 +7,7 @@
     constructor(scene) {
       this.scene = scene; this.pups = [new MC.Pup({}), new MC.Pup({})];
       this.sim = V.create(); this.display = JSON.parse(JSON.stringify(this.sim)); this.axisAt = 0; this.lastAxis = null;
+      this.trail = []; this.sparks = [];
       this.controls = document.createElement('div'); this.controls.className = 'volley-controls'; this.controls.hidden = true;
       this.controls.setAttribute('aria-label', '배구 조작');
       this.controls.innerHTML = '<div class="volley-arrows"><button type="button" data-axis="-1" aria-label="배구 왼쪽으로 이동">←</button><button type="button" data-axis="1" aria-label="배구 오른쪽으로 이동">→</button></div><p>← → 이동 · ↑ 또는 Space 점프<span>휴대폰은 버튼을 꾹 눌러요</span></p><button type="button" data-jump>점프 <span>↑</span></button>';
@@ -25,7 +26,16 @@
       document.querySelector('#session').appendChild(this.controls);
     }
     get side() { return this.scene.game?.players.findIndex(p => p.id === this.scene.net.id) ?? -1; }
-    accept(s) { if (s) { this.sim = JSON.parse(JSON.stringify(s)); this.received = this.scene.t; } }
+    accept(s) {
+      if (!s) return;
+      const total = s.score[0] + s.score[1];
+      if (this.scoreTotal != null && total > this.scoreTotal && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const x = s.score[0] > this.sim.score[0] ? 240 : 720;
+        for (let i = 0; i < 22; i++) this.sparks.push({ x, y: 270, vx: Math.cos(i * 2.4) * (60 + i * 5), vy: -100 - i * 7, age: 0, color: ['#f5da91', '#e8ab8c', '#b7cda1'][i % 3] });
+      }
+      if (!total && this.scoreTotal) { this.sparks = []; this.trail = []; }
+      this.scoreTotal = total; this.sim = JSON.parse(JSON.stringify(s)); this.received = this.scene.t;
+    }
     jump() {
       if (this.side < 0 || this.scene.game?.phase !== 'playing') return;
       if (this.scene.t < (this.jumpAt || 0)) return;
@@ -59,6 +69,12 @@
       const layout = this.layout();
       const dog = this.display.dogs[this.side];
       Object.assign(sc.pup, dog ? { x: layout.x + dog.x * layout.z, y: layout.y + dog.y * layout.z, k: .9 * layout.z } : { x: -1000, y: -1000, k: 0 });
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && sc.t > (this.trailAt || 0)) {
+        this.trailAt = sc.t + .03; this.trail.push({ x: this.display.ball.x, y: this.display.ball.y });
+        if (this.trail.length > 5) this.trail.shift();
+      }
+      for (const s of this.sparks) { s.age += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 300 * dt; }
+      this.sparks = this.sparks.filter(s => s.age < 1.2);
     }
     layout() {
       const { w, h } = this.scene;
@@ -71,41 +87,32 @@
     }
     draw(g) {
       const sc = this.scene, w = sc.w, h = sc.h;
-      const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#b7d4c3'); sky.addColorStop(.55, '#e2e6c1'); sky.addColorStop(1, '#b4bd8c');
+      const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#88aba4'); sky.addColorStop(.5, '#d9dfbc'); sky.addColorStop(1, '#82936b');
       g.fillStyle = sky; g.fillRect(0, 0, w, h);
+      MC.PlaygroundArt.surround(g, w, h);
       const { x, y, z } = this.layout();
-      g.save(); g.translate(x, y); g.scale(z, z);
-      ellipse(g, 805, 75, 44, 44, 'rgba(255,246,198,.62)');
-      for (let i = 0; i < 6; i++) {
-        const tx = 32 + i * 183;
-        MC.PlaygroundArt.obstacle(g, { x: tx, y: 240 + i % 2 * 15, w: 40, h: 45, kind: 'tree' });
+      if (w <= 600 && y > 260) {
+        g.textAlign = 'center'; g.fillStyle = '#466958'; g.font = '23px Jua, sans-serif';
+        g.fillText('숲속 멍이 배구', w / 2, y - 58);
+        g.font = '12px system-ui, sans-serif'; g.fillStyle = '#5c7865';
+        g.fillText('친구와 함께, 한 점씩 즐겁게', w / 2, y - 34);
       }
-      ellipse(g, 480, 460, 479, 69, 'rgba(62,81,44,.12)');
-      const sand = g.createLinearGradient(0, 280, 0, 500); sand.addColorStop(0, '#e2d2aa'); sand.addColorStop(1, '#c7b687');
-      g.fillStyle = sand; g.beginPath(); g.roundRect(10, 278, 940, 219, 40); g.fill();
-      g.strokeStyle = '#f8edce'; g.lineWidth = 3; g.beginPath(); g.moveTo(42, 430); g.lineTo(918, 430); g.lineTo(880, 477); g.lineTo(80, 477); g.closePath(); g.stroke();
-      g.strokeStyle = 'rgba(158,137,91,.25)'; g.lineWidth = 1;
-      for (let i = 0; i < 130; i++) { const a = MC.hash(i + 8); g.beginPath(); g.moveTo(30 + MC.hash(i) * 900, 310 + a * 160); g.lineTo(32 + MC.hash(i) * 900, 310 + a * 160); g.stroke(); }
-      // 네트의 그림자, 테두리와 매듭.
-      ellipse(g, 492, 448, 24, 60, 'rgba(84,77,46,.1)');
-      g.fillStyle = 'rgba(255,248,220,.26)'; g.fillRect(474, V.netTop, 12, 146);
-      g.strokeStyle = 'rgba(111,111,77,.5)'; g.lineWidth = 1;
-      for (let yy = V.netTop; yy <= 430; yy += 12) { g.beginPath(); g.moveTo(474, yy); g.lineTo(486, yy); g.stroke(); }
-      for (const xx of [474, 480, 486]) { g.beginPath(); g.moveTo(xx, V.netTop); g.lineTo(xx, 430); g.stroke(); }
-      g.fillStyle = '#a88455'; g.fillRect(469, 278, 5, 159); g.fillRect(486, 278, 5, 159);
-      g.fillStyle = '#fff1ca'; g.fillRect(469, 278, 22, 6);
+      g.save(); g.translate(x, y); g.scale(z, z);
+      if (!MC.PlaygroundArt.arena(g)) { g.fillStyle = '#ddcba1'; g.fillRect(10, 295, 940, 196); }
+      g.fillStyle = '#4c6451'; g.font = '18px Jua, sans-serif'; g.textAlign = 'center';
+      g.fillText('멍이', 432, 192); g.fillText('배구', 528, 192);
+      if (!MC.PlaygroundArt.net(g, V.net, V.netTop - 10)) { g.fillStyle = '#a88455'; g.fillRect(472, V.netTop, 16, V.ground - V.netTop); }
       this.display.dogs.forEach((d, i) => {
         ellipse(g, d.x, V.ground + 5, 37 - (V.ground - d.y) * .07, 8, 'rgba(91,78,46,.18)');
         const p = this.pups[i]; p.x = d.x; p.y = d.y; p.k = .9; p.draw(g, Math.min(2, sc.dpr * z), true);
       });
       const b = this.display.ball;
+      this.trail.forEach((pt, i) => ellipse(g, pt.x, pt.y, 4 + i * 1.5, 4 + i * 1.5, `rgba(255,243,203,${i * .045})`));
       ellipse(g, b.x, V.ground + 5, Math.max(6, 16 - (V.ground - b.y) * .025), 4, 'rgba(91,78,46,.18)');
       g.save(); g.translate(b.x, b.y); g.rotate(sc.t * 2.4);
-      const ball = g.createRadialGradient(-6, -8, 1, 0, 0, V.radius); ball.addColorStop(0, '#fffbe5'); ball.addColorStop(1, '#e0bb72');
-      ellipse(g, 0, 0, V.radius, V.radius, ball); g.strokeStyle = '#a48453'; g.lineWidth = 1.2; g.stroke();
-      g.strokeStyle = '#779e96'; g.lineWidth = 3.5;
-      for (let i = 0; i < 3; i++) { g.rotate(Math.PI * 2 / 3); g.beginPath(); g.moveTo(0, -17); g.bezierCurveTo(11, -7, 12, 5, 0, 17); g.stroke(); }
+      if (!MC.PlaygroundArt.ball(g, 0, 0, V.radius / 30)) ellipse(g, 0, 0, V.radius, V.radius, '#fff0c4');
       g.restore();
+      for (const s of this.sparks) { g.save(); g.globalAlpha = 1 - s.age / 1.2; g.translate(s.x, s.y); g.rotate(s.age * 3 + s.vx); g.fillStyle = s.color; g.fillRect(-2, -4, 4, 8); g.restore(); }
       g.restore();
     }
     destroy() { this.controls.remove(); }

@@ -25,6 +25,16 @@ module.exports = class Playground {
       volley: this.mode === 'volley' ? this.volley : null,
       players: [...this.players.values()].map(p => ({ id: p.client.id, n: p.client.state.n || '멍이', caught: p.caught })) };
   }
+  canSee(viewer, subject) {
+    if (viewer.id === subject.id || this.mode !== 'hide' || !['ready', 'playing'].includes(this.phase)) return true;
+    const runner = this.players.get(subject.id);
+    if (viewer.id === this.seeker && this.phase === 'ready') return false;
+    if (!runner || runner.caught || subject.id === this.seeker) return true;
+    if (subject.state.hd) return false;
+    if (viewer.id !== this.seeker) return true;
+    return Math.hypot(subject.state.x - viewer.state.x, subject.state.y - viewer.state.y) <= R.sightRadius &&
+      R.clear(viewer.state, subject.state, 0);
+  }
   publish() {
     const s = this.snapshot();
     for (const c of this.room.members) this.send(c, s);
@@ -89,7 +99,7 @@ module.exports = class Playground {
       const candidates = [...this.players.values()].filter(p => p.client !== c && !p.caught)
         .filter(p => Math.hypot(p.client.state.x - c.state.x, p.client.state.y - c.state.y) <= R.catchRadius && R.clear(c.state, p.client.state, 2))
         .sort((a, b) => Math.hypot(a.client.state.x - c.state.x, a.client.state.y - c.state.y) - Math.hypot(b.client.state.x - c.state.x, b.client.state.y - c.state.y));
-      if (!candidates.length) return this.error(c, '조금 더 가까이 가서 잡아 보세요');
+      if (!candidates.length) return this.error(c, this.mode === 'hide' ? '아직 찾지 못했어요. 다른 곳도 살펴봐요' : '조금 더 가까이 가서 잡아 보세요');
       candidates[0].caught = true;
       candidates[0].client.state.hd = 0;
       this.room.changed.set(candidates[0].client.id, candidates[0].client.state);

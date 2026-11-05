@@ -135,7 +135,7 @@ function joinRoom(c, place) {
   }
   // 새로 온 사람에게는 방 안의 모두를 한 번에
   const all = {};
-  for (const m of room.members) if (m !== c && m.state) all[m.id] = m.state;
+  for (const m of room.members) if (m !== c && m.state && (!room.game || room.game.canSee(c, m))) all[m.id] = m.state;
   send(c, { t: 'd', j: all, l: [], full: 1 });
   room.changed.set(c.id, c.state);
   room.left.delete(c.id);
@@ -161,6 +161,19 @@ setInterval(() => {
   for (const list of rooms.values()) {
     for (const room of list) {
       if (room.game) room.game.tick(Date.now());
+      const privateView = room.game?.mode === 'hide' && ['ready', 'playing'].includes(room.game.phase);
+      // 숨는 위치는 화면에서만 지우지 않고 수신자별로 서버에서 제외한다.
+      // 정지한 멍이도 술래의 시야 진입·이탈과 함께 갱신하고, 종료 시 모두 복원한다.
+      if (privateView || room.privateView) {
+        for (const viewer of room.members) {
+          const visible = {};
+          for (const subject of room.members) if (subject !== viewer && subject.state && (!privateView || room.game.canSee(viewer, subject))) visible[subject.id] = subject.state;
+          send(viewer, { t: 'd', j: visible, l: [], full: 1 });
+        }
+        room.privateView = privateView;
+        room.changed.clear(); room.left.clear();
+        continue;
+      }
       if (!room.changed.size && !room.left.size) continue;
       const j = {};
       for (const [id, st] of room.changed) j[id] = st;

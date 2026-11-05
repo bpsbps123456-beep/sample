@@ -220,14 +220,14 @@
       else if (!me) status = `친구들이 노는 중 · ${sec}초 · 다음 판에 참가해요`;
       else if (me.caught) status = `잡혔어요! 친구들을 응원해요 · ${sec}초`;
       else if (game.phase === 'ready') status = `${seeker ? '나는 술래! 잠깐 눈을 감아요' : game.mode === 'hide' ? '나는 숨는 멍이 · 얼른 숨어요!' : '나는 도망가는 멍이 · 먼저 출발!'} · ${sec}초`;
-      else status = `${seeker ? '나는 술래 · 가까이 가서 잡기!' : this.hidden ? '덤불에 숨었어요 · 움직이면 보여요' : '술래를 피해 달려요!'} · ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+      else status = `${seeker ? game.mode === 'hide' ? '나는 술래 · 덤불 가까이에서 수색!' : '나는 술래 · 가까이 가서 잡기!' : this.hidden ? '위치를 감췄어요 · 움직이면 밖으로 나와요' : '술래를 피해 달려요!'} · ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
       const statusEl = this.panel.querySelector('.pg-status');
       if (statusEl.textContent !== status) statusEl.textContent = status;
       this.panel.classList.toggle('is-playing', !idle);
       this.panel.dataset.mode = game?.mode || 'tag';
       document.querySelector('#session').classList.toggle('is-volley', volley);
       document.querySelector('#session').classList.toggle('volley-waiting', volley && idle);
-      const instructions = volley ? '두 멍이가 한 편씩 맡아요. ← → 또는 A·D로 이동하고, ↑·W·Space로 점프해요. 휴대폰에서는 이동 버튼을 꾹 누르며 점프를 함께 누를 수 있어요. 몸에 닿은 공은 자동으로 튀어 올라요. 상대 코트 바닥에 공을 떨어뜨려 먼저 5점을 얻으면 이겨요.' : '방향키·WASD 또는 땅을 톡 눌러 이동해요. 처음 참가한 멍이가 놀이를 고르고 시작해요. 술래는 가까이 가서 ‘잡기’ 또는 Space! 숨바꼭질에서는 덤불 안의 ‘숨기’ 또는 Space로 숨어요. 걸으면 다시 보여요. 잡힌 멍이는 그 자리에서 친구들을 응원해요.';
+      const instructions = volley ? '두 멍이가 한 편씩 맡아요. ← → 또는 A·D로 이동하고, ↑·W·Space로 점프해요. 휴대폰에서는 이동 버튼을 꾹 누르며 점프를 함께 누를 수 있어요. 몸에 닿은 공은 자동으로 튀어 올라요. 상대 코트 바닥에 공을 떨어뜨려 먼저 5점을 얻으면 이겨요.' : '방향키·WASD 또는 땅을 톡 눌러 이동해요. 처음 참가한 멍이가 놀이를 고르고 시작해요. 술래잡기는 가까이 가서 ‘잡기’ 또는 Space! 숨바꼭질은 덤불 안에서 ‘숨기’ 또는 Space로 위치를 완전히 감춰요. 가까이 와도 저절로 보이지 않아요. 술래는 덤불 가까이에서 ‘수색’ 또는 Space로 찾아요. 시야 밖과 장애물 뒤의 멍이도 보이지 않아요. 걸으면 숨기에서 나와요.';
       const help = this.panel.querySelector('.pg-instructions'); if (help.textContent !== instructions) help.textContent = instructions;
       this.scoreboard.hidden = !volley;
       const score = game?.volley?.score || [0, 0], names = this.scoreboard.querySelectorAll('.pg-side-name');
@@ -256,7 +256,7 @@
       }
       const act = document.querySelector('#dockScene [data-act="play"]');
       if (act) {
-        act.querySelector('span').textContent = volley ? '점프' : seeker && !idle ? '잡기' : this.hidden ? '나오기' : '숨기';
+        act.querySelector('span').textContent = volley ? '점프' : seeker && !idle ? game.mode === 'hide' ? '수색' : '잡기' : this.hidden ? '나오기' : '숨기';
         act.disabled = !me || !!me.caught || idle || (volley ? game.phase !== 'playing' : seeker ? game.phase !== 'playing' : game.mode !== 'hide');
       }
     }
@@ -285,7 +285,7 @@
     action() {
       if (this.game?.mode === 'volley') { this.volley.jump(); return; }
       if (!this.me || !this.active || this.me.caught) return;
-      if (this.game.seeker === this.net.id) this.command('catch');
+      if (this.game.seeker === this.net.id) { this.searchAt = this.t; this.command('catch'); }
       else if (this.game.mode === 'hide') {
         if (!this.hidden && R.bush(this.player.x, this.player.y) < 0) {
           if (this.onToast) this.onToast('잎이 무성한 덤불 안으로 들어가서 숨기를 눌러요');
@@ -312,7 +312,9 @@
       // 참가하지 않은 산책 멍이는 진행 중인 놀이에 섞이지 않는다.
       if (this.me && this.active && !p) return false;
       if (this.game?.phase === 'ready' && this.game.seeker === this.net.id) return false;
-      if (this.active && this.game.seeker === this.net.id && v.st.hd && Math.hypot(v.st.x - this.player.x, v.st.y - this.player.y) > 66) return false;
+      if (this.active && this.game.mode === 'hide' && v.st.hd && !p?.caught) return false;
+      if (this.active && this.game.mode === 'hide' && this.game.seeker === this.net.id && p && !p.caught &&
+        (Math.hypot(v.st.x - this.player.x, v.st.y - this.player.y) > R.sightRadius || !R.clear(this.player, v.st, 0))) return false;
       return true;
     }
     update(dt) {
@@ -354,6 +356,9 @@
       g.fillStyle = meadow(g);
       g.fillRect(this.camX - this.w / 2 / this.z, this.camY - this.h * .58 / this.z, this.w / this.z, this.h / this.z);
       g.drawImage(this.background, 0, 0, R.width, R.height);
+      MC.PlaygroundArt.park(g);
+      g.fillStyle = '#4c6249'; g.font = '22px Jua, sans-serif'; g.textAlign = 'center';
+      g.fillText(this.game?.mode === 'hide' ? '멍이 숨바꼭질 정원' : '숲속 멍이 놀이터', 700, 77);
       for (const b of R.bushes) ell(g, b.x, b.y + 8, b.r + 6, b.r * .55, 'rgba(63,95,54,.18)');
       g.restore();
       const items = [];
@@ -371,6 +376,17 @@
       items.sort((a, b) => a.y - b.y); for (const item of items) item.draw();
       // 덤불 뒤 내 위치는 나에게만 흐릿하게 비친다.
       if (this.hidden) { g.save(); g.globalAlpha = .27; this.pup.draw(g, this.dpr || 1, true); g.restore(); }
+      if (this.game?.mode === 'hide' && this.game.seeker === this.net.id && this.game.phase === 'playing') {
+        const radius = R.sightRadius * this.z, x = this.pup.x, y = this.pup.y - 18 * this.z;
+        const fog = g.createRadialGradient(x, y, radius * .3, x, y, radius * 1.35);
+        fog.addColorStop(0, 'rgba(24,51,43,0)'); fog.addColorStop(.65, 'rgba(24,51,43,.14)'); fog.addColorStop(1, 'rgba(24,51,43,.53)');
+        g.fillStyle = fog; g.fillRect(0, 0, this.w, this.h);
+        const age = this.t - (this.searchAt ?? -10);
+        if (age >= 0 && age < .65) {
+          g.strokeStyle = `rgba(255,238,175,${.8 * (1 - age / .65)})`; g.lineWidth = 2;
+          g.beginPath(); g.ellipse(this.pup.x, this.pup.y, R.catchRadius * this.z * (.4 + age), R.catchRadius * this.z * (.3 + age * .7), 0, 0, Math.PI * 2); g.stroke();
+        }
+      }
       if (this.game?.phase === 'ready' && this.game.seeker === this.net.id) {
         g.fillStyle = '#354d40'; g.fillRect(0, 0, this.w, this.h);
         g.fillStyle = '#f6e7c9'; g.textAlign = 'center'; g.font = `${this.w < 500 ? 22 : 28}px Jua, sans-serif`;

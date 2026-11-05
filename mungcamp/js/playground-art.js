@@ -6,6 +6,9 @@
     tree: [260, 340, 130, 312], bush: [240, 170, 120, 132],
     crate: [230, 176, 115, 146], logs: [240, 156, 120, 125],
     gate: [480, 320, 240, 270],
+    arena: [960, 540, 0, 0], net: [64, 188, 32, 0],
+    ball: [64, 64, 32, 32], 'park-details': [1400, 900, 0, 0],
+    surround: [960, 1400, 0, 0],
   };
   const images = new Map(), rasters = new Map(), failed = [];
   const ready = Promise.all(Object.keys(shapes).map(name => new Promise(resolve => {
@@ -44,6 +47,14 @@
     },
     bush: (g, b) => draw(g, 'bush', b.x, b.y + 13, b.r / 85),
     gate: (g, x, y) => draw(g, 'gate', x, y, 2 / 3),
+    arena: g => draw(g, 'arena', 0, 0, 1),
+    surround(g, w, h) {
+      const img = images.get('surround');
+      if (img) g.drawImage(img, 0, 0, w, h);
+    },
+    net: (g, x, y) => draw(g, 'net', x, y, 1),
+    ball: (g, x, y, scale) => draw(g, 'ball', x, y, scale),
+    park: g => draw(g, 'park-details', 0, 0, 1),
   };
   MC.drawPlaygroundGate = (g, x, y) => {
     if (MC.PlaygroundArt.gate(g, x, y)) return;

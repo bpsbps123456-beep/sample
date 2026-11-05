@@ -5,6 +5,9 @@
     { x: 285, y: 235, r: 58 }, { x: 1080, y: 240, r: 64 },
     { x: 480, y: 610, r: 62 }, { x: 1170, y: 650, r: 58 },
     { x: 720, y: 300, r: 52 }, { x: 890, y: 700, r: 55 },
+    { x: 175, y: 420, r: 53 }, { x: 325, y: 720, r: 55 },
+    { x: 620, y: 490, r: 48 }, { x: 820, y: 190, r: 52 },
+    { x: 1220, y: 340, r: 58 }, { x: 1060, y: 780, r: 48 },
   ];
   const obstacles = [
     { x: 440, y: 290, w: 96, h: 64, kind: 'crate' },
@@ -17,7 +20,7 @@
     { x: 600, y: 410, w: 110, h: 55, kind: 'logs' },
   ];
   const R = {
-    width: 1400, height: 900, speed: 205, seekerSpeed: 218, catchRadius: 78,
+    width: 1400, height: 900, speed: 205, seekerSpeed: 218, catchRadius: 78, sightRadius: 360,
     bushes, obstacles,
     spawn(index) { return { x: 550 + index % 6 * 58, y: 770 + Math.floor(index / 6) * 48 }; },
     valid(x, y, pad = 16) {
