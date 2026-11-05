@@ -15,7 +15,7 @@ main(async ({ check, until, sleep, enter, person, presenceServer, staticServer, 
   await a.page.evaluate(() => navigator.serviceWorker.register('sw.js'));
   check(await until(a.page, async () => {
     if (!navigator.serviceWorker.controller) return false;
-    const cache = await caches.open('mungcamp-v67');
+    const cache = await caches.open('mungcamp-v68');
     return !!(await cache.match('assets/playground/arena.svg')) && !!(await cache.match('assets/playground/park-details.svg')) && !!(await cache.match('assets/playground/surround.svg'));
   }), '새 오프라인 캐시에 SVG 저장');
   check(await enter(b.page, server.url, 'playground'), '두 번째 친구 놀이터 입장');

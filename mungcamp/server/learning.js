@@ -8,6 +8,7 @@ module.exports = class Learning {
   constructor(send, clients) {
     this.send = send; this.clients = clients; this.question = null; this.phase = 'waiting'; this.sequence = 0;
     this.answers = new Map(); this.attempts = new Map();
+    this.messages = []; this.chatSequence = 0;
     this.memberPin = process.env.LEARN_PIN || '0000'; this.ownerPin = process.env.LEARN_OWNER_PIN || '8624';
   }
   authorized(c) { return c.learn && c.learn.until > Date.now(); }
@@ -32,6 +33,7 @@ module.exports = class Learning {
         c: m.state.c, h: m.state.h, ht: m.state.ht, ac: m.state.ac, gl: m.state.gl })) };
   }
   publish() { for (const c of this.members()) this.send(c, this.snapshot(c)); }
+  chatHistory(c) { if (this.authorized(c) && c.room?.place === 'learn') this.send(c, { t: 'learn-chat', history: true, messages: this.messages }); }
   error(c, message) { this.send(c, { t: 'learn-error', message }); }
   command(c, action, value) {
     if (action === 'enter') {
@@ -46,6 +48,17 @@ module.exports = class Learning {
       this.send(c, { t: 'learn-access', role }); return;
     }
     if (!this.authorized(c) || c.room?.place !== 'learn') return this.error(c, '배움터 비밀번호를 입력하고 들어와 주세요.');
+    if (action === 'chat') {
+      const message = text(value, 180), now = Date.now();
+      const fail = message => this.send(c, { t: 'learn-chat-error', message });
+      if (!message) return fail('친구들에게 전할 말을 적어 주세요.');
+      if (c.learn.chatAt && now - c.learn.chatAt < 1000) return fail('한 박자 쉬고 다시 보내 주세요.');
+      c.learn.chatAt = now;
+      const item = { id: ++this.chatSequence, from: c.id, name: c.state.n || '멍이', role: c.learn.role, text: message, at: now };
+      this.messages.push(item); if (this.messages.length > 50) this.messages.shift();
+      for (const member of this.members()) this.send(member, { t: 'learn-chat', messages: [item] });
+      return;
+    }
     if (action === 'answer') {
       if (c.learn.role !== 'member' || this.phase !== 'open' || value?.id !== this.question?.id) return this.error(c, '지금은 답을 제출할 수 없어요. 현재 질문을 확인해 주세요.');
       let answer;
@@ -60,7 +73,9 @@ module.exports = class Learning {
       this.answers.set(c.id, answer);
     } else {
       if (c.learn.role !== 'owner') return this.error(c, '운영자만 질문을 진행할 수 있어요.');
-      if (action === 'start') {
+      if (action === 'clear-chat') {
+        this.messages = []; for (const member of this.members()) this.send(member, { t: 'learn-chat-clear' }); return;
+      } else if (action === 'start') {
         const question = text(value?.text, 240), type = value?.type;
         const options = Array.isArray(value?.options) ? value.options.map(o => text(o, 80)) : [];
         if (!question || !['choice', 'text'].includes(type) || type === 'choice' && (options.length < 2 || options.length > 6 || options.some(o => !o) || new Set(options).size !== options.length)) return this.error(c, '질문을 적고, 객관식은 서로 다른 보기 2~6개를 넣어 주세요.');

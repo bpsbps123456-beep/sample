@@ -38,6 +38,7 @@
       this.root = el('section', 'learning-room'); this.root.setAttribute('aria-label', '숲속 배움터');
       this.root.innerHTML = '<header class="learn-board"><div class="learn-board-top"><span class="learn-eyebrow">숲속 배움터</span><span class="learn-progress" role="status"></span></div><h2>오늘은 어떤 생각을 나눌까요?</h2><p class="learn-question-options"></p></header><div class="learn-floor" role="group" aria-label="멍이와 답변 팻말"></div><div class="learn-response"><p class="learn-response-note" role="status">운영자가 질문을 준비하고 있어요.</p><form class="learn-answer-form" hidden><fieldset class="learn-answer-choices"><legend>보기 중 하나를 골라요</legend></fieldset><label class="learn-text-label">내 팻말에 올릴 답<textarea name="answer" maxlength="180" rows="2" placeholder="내 생각을 적어 주세요"></textarea></label><div class="learn-answer-actions"><span>공개 전에는 나만 보여요</span><button type="submit" class="learn-primary">팻말에 놓기</button></div></form><button type="button" class="learn-open-owner" hidden>운영 도구 열기</button><p class="learn-error" role="status"></p></div>';
       document.querySelector('#session').appendChild(this.root);
+      this.buildChat();
       this.floor = this.root.querySelector('.learn-floor'); this.form = this.root.querySelector('.learn-answer-form');
       this.form.onsubmit = e => {
         e.preventDefault(); const q = this.lesson?.question; if (!q) return;
@@ -49,6 +50,8 @@
       document.body.appendChild(this.owner);
       const reset = el('button', '', '칠판 비우기'); reset.type = 'button'; reset.dataset.command = 'reset';
       this.owner.querySelector('.learn-live-actions').appendChild(reset);
+      const clearChat = el('button', 'learn-clear-chat', '대화 기록 지우기'); clearChat.type = 'button';
+      clearChat.onclick = () => this.command('clear-chat'); this.owner.querySelector('.learn-results').after(clearChat);
       this.root.querySelector('.learn-open-owner').onclick = () => this.owner.showModal();
       this.owner.querySelector('[data-dismiss]').onclick = () => this.owner.close();
       this.owner.querySelectorAll('[data-command]').forEach(button => { button.onclick = () => this.command(button.dataset.command); });
@@ -66,6 +69,59 @@
       this.detail.innerHTML = '<h2></h2><p></p><button type="button">닫기</button>';
       this.detail.querySelector('button').onclick = () => this.detail.close(); document.body.appendChild(this.detail);
       this.accept(net.learning || { t: 'learn-state', role: net.learnAccess?.role, phase: 'waiting', roster: [], boards: {}, online: 0, answered: 0 });
+      this.acceptChat({ t: 'learn-chat', history: true, messages: net.learningChat || [] });
+    }
+    buildChat() {
+      this.chatItems = new Map(); this.chatUnread = 0;
+      this.chatToggle = el('button', 'learn-chat-toggle', '대화'); this.chatToggle.type = 'button';
+      this.chatToggle.setAttribute('aria-controls', 'learnChat'); this.chatToggle.setAttribute('aria-expanded', 'false');
+      this.chat = el('aside', 'learn-chat'); this.chat.id = 'learnChat'; this.chat.hidden = true; this.chat.setAttribute('aria-label', '배움터 대화');
+      this.chat.innerHTML = '<header class="learn-chat-head"><div><h3>도란도란 대화</h3><p>배움터에 함께 있는 친구들이 봐요</p></div><button type="button" aria-label="대화 닫기">×</button></header><div class="learn-chat-log" role="log" aria-label="친구들과 나누는 대화" aria-live="polite" aria-relevant="additions"></div><p class="learn-chat-empty">반가운 인사로 대화를 시작해 보세요.</p><form class="learn-chat-form"><label class="learn-chat-label" for="learnChatInput">친구에게 전할 말</label><div><input id="learnChatInput" type="text" maxlength="180" autocomplete="off" enterkeyhint="send" placeholder="함께 이야기해요" required><button type="submit" class="learn-primary">보내기</button></div><p class="learn-chat-error" role="status"></p></form>';
+      this.root.append(this.chatToggle, this.chat);
+      this.chatLog = this.chat.querySelector('.learn-chat-log'); this.chatForm = this.chat.querySelector('form');
+      this.chatToggle.onclick = () => this.toggleChat(this.chat.hidden);
+      this.chat.querySelector('header button').onclick = () => this.toggleChat(false);
+      this.chat.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); this.toggleChat(false); this.chatToggle.focus(); } });
+      this.chatForm.onsubmit = e => {
+        e.preventDefault(); if (this.pendingChat || this.disconnected) return;
+        const input = this.chatForm.querySelector('input'), message = input.value;
+        if (!message.trim()) return;
+        this.chatError(''); this.pendingChat = message; this.chatForm.querySelector('button').disabled = true;
+        if (!this.net.link?.learn?.('chat', message)) { this.finishChat(); this.chatError('연결을 확인하고 다시 보내 주세요.'); return; }
+        this.chatPendingTimer = setTimeout(() => { this.finishChat(); this.chatError('전송을 확인하지 못했어요. 연결 후 다시 확인해 주세요.'); }, 7000);
+      };
+    }
+    toggleChat(open) {
+      this.chat.hidden = !open; this.root.dataset.chatOpen = open;
+      this.chatToggle.setAttribute('aria-expanded', String(open));
+      if (open) { this.chatUnread = 0; requestAnimationFrame(() => { this.chatLog.scrollTop = this.chatLog.scrollHeight; }); }
+      this.updateChatToggle(); this.resizeFloor();
+    }
+    updateChatToggle() { this.chatToggle.textContent = this.chat.hidden ? `대화${this.chatUnread ? ' · ' + Math.min(99, this.chatUnread) : ''}` : '대화 접기'; }
+    chatError(message) { this.chat.querySelector('.learn-chat-error').textContent = message; }
+    finishChat() { clearTimeout(this.chatPendingTimer); this.pendingChat = null; this.chatForm.querySelector('button').disabled = !!this.disconnected; }
+    acceptChat(m) {
+      if (m.t === 'learn-chat-error') { this.finishChat(); this.chatError(m.message); return; }
+      if (m.t === 'learn-chat-clear') {
+        this.chatItems.clear(); this.chatLog.replaceChildren(); this.chatUnread = 0; this.updateChatToggle();
+        this.chat.querySelector('.learn-chat-empty').hidden = false; return;
+      }
+      const follow = this.chatLog.scrollHeight - this.chatLog.scrollTop - this.chatLog.clientHeight < 48;
+      let mine = false;
+      for (const message of m.messages || []) {
+        if (this.chatItems.has(message.id)) continue;
+        const own = message.from === this.net.id, row = el('article', 'learn-chat-message'); row.classList.toggle('is-me', own);
+        const meta = el('div', 'learn-chat-meta'), name = el('strong', '', message.name + (own ? ' · 나' : '') + (message.role === 'owner' ? ' · 운영자' : ''));
+        const stamp = el('time', '', new Date(message.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })); stamp.dateTime = new Date(message.at).toISOString();
+        meta.append(name, stamp); row.append(meta, el('p', '', message.text)); this.chatLog.appendChild(row); this.chatItems.set(message.id, row);
+        if (!m.history && own) {
+          mine = true; const input = this.chatForm.querySelector('input');
+          if (this.pendingChat === input.value) input.value = ''; this.finishChat();
+        } else if (!m.history && this.chat.hidden) this.chatUnread++;
+      }
+      while (this.chatItems.size > 50) { const key = this.chatItems.keys().next().value; this.chatItems.get(key).remove(); this.chatItems.delete(key); }
+      this.chat.querySelector('.learn-chat-empty').hidden = !!this.chatItems.size; this.updateChatToggle();
+      if (follow || mine || m.history) requestAnimationFrame(() => { this.chatLog.scrollTop = this.chatLog.scrollHeight; });
     }
     command(action, value) {
       this.root.querySelector('.learn-error').textContent = ''; this.owner.querySelector('.learn-error').textContent = '';
@@ -73,11 +129,13 @@
     }
     error(message) { this.root.querySelector('.learn-error').textContent = message; this.owner.querySelector('.learn-error').textContent = message; }
     accept(m) {
+      if (['learn-chat', 'learn-chat-error', 'learn-chat-clear'].includes(m.t)) { this.acceptChat(m); return; }
       if (m.t === 'learn-error') { this.starting = false; this.error(m.message); return; }
       if (m.t === 'learn-offline' || m.t === 'learn-denied') {
         this.disconnected = true; this.error('연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.');
         this.owner.close(); for (const input of this.owner.querySelectorAll('input,textarea,select,button')) input.disabled = true;
-        this.form.querySelector('[type="submit"]').disabled = true; return;
+        this.form.querySelector('[type="submit"]').disabled = true;
+        this.finishChat(); this.chatForm.querySelector('input').disabled = true; this.chatError('연결이 끊겼어요. 마을에서 다시 들어와 주세요.'); return;
       }
       if (m.t !== 'learn-state') return;
       const previous = this.lesson?.question?.id, previousAnswer = this.lesson?.own?.text;
@@ -149,6 +207,8 @@
     resizeFloor() {
       this.floor.style.top = (this.root.querySelector('header').offsetTop + this.root.querySelector('header').offsetHeight + 16) + 'px';
       this.floor.style.bottom = (this.root.querySelector('.learn-response').offsetHeight + 34) + 'px';
+      this.root.style.setProperty('--learn-floor-top', this.floor.style.top);
+      this.root.style.setProperty('--learn-floor-bottom', this.floor.style.bottom);
     }
     resize(w, h, dpr) { this.w = w; this.h = h; this.dpr = dpr; this.resizeFloor(); }
     update(dt) {
@@ -169,7 +229,7 @@
       }
     }
     pointerDown() { return false; }
-    destroy() { this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.net.learning = null; }
+    destroy() { clearTimeout(this.chatPendingTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.net.learning = null; this.net.learningChat = []; }
   }
   MC.LearnGate = LearnGate; MC.LearnScene = LearnScene;
 })(window.MC = window.MC || {});

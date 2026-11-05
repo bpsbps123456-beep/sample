@@ -136,6 +136,8 @@
         else if (typeof m.t === 'string' && m.t.startsWith('learn-')) {
           if (m.t === 'learn-access') net.learnAccess = m;
           if (m.t === 'learn-state') net.learning = m;
+          if (m.t === 'learn-chat') net.learningChat = m.history ? m.messages : [...(net.learningChat || []), ...m.messages].slice(-50);
+          if (m.t === 'learn-chat-clear') net.learningChat = [];
           if (net.onLearning) net.onLearning(m);
         }
         else if (m.t === 'pg' || m.t === 'pg-position' || m.t === 'pg-error') {
@@ -155,7 +157,7 @@
       };
       ws.onclose = () => {
         net.online = false;
-        net.learnAccess = null; net.learning = null;
+        net.learnAccess = null; net.learning = null; net.learningChat = [];
         if (net.onLearning) net.onLearning({ t: 'learn-offline' });
         net.playground = null;
         if (net.onPlayground) net.onPlayground({ t: 'pg-offline' });

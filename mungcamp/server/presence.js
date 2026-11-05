@@ -141,7 +141,7 @@ function joinRoom(c, place) {
   send(c, { t: 'd', j: all, l: [], full: 1 });
   room.changed.set(c.id, c.state);
   room.left.delete(c.id);
-  if (place === 'learn') learning.publish();
+  if (place === 'learn') { learning.publish(); learning.chatHistory(c); }
 }
 
 function leaveRoom(c) {
