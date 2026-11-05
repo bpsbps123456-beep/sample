@@ -25,6 +25,8 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const suggest = require('./suggest');
+const Playground = require('./playground');
+const playgroundRules = require('../js/playground-rules');
 
 const PORT = +(process.env.PORT || 8787);
 // 붐비는 정도는 이용자가 보고 머물거나 이동한다. 정원은 서버 보호용 상한이다.
@@ -33,7 +35,7 @@ const MAP_CAP = +(process.env.MAP_CAP || 200);
 const TENT_CAP = +(process.env.TENT_CAP || 40);
 const MAX_CLIENTS = +(process.env.MAX_CLIENTS || 20000);
 const TICK_HZ = 8;
-const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge'];
+const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge', 'playground'];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const MAX_FRAME = 2048;
 
@@ -104,6 +106,7 @@ function clean(raw) {
     ba: p === 'map' ? Math.round(num(raw.ba, -180, 180) || 0) : 0,
     fs: p === 'map' && !raw.w ? num(raw.fs, 0, 2) | 0 : 0,
     dv: p === 'water' && raw.dv ? 1 : 0,
+    hd: p === 'playground' && raw.hd ? 1 : 0,
   };
 }
 
@@ -126,6 +129,10 @@ function joinRoom(c, place) {
   }
   room.members.add(c);
   c.room = room;
+  if (place === 'playground') {
+    if (!room.game) room.game = new Playground(room, send);
+    send(c, room.game.snapshot());
+  }
   // 새로 온 사람에게는 방 안의 모두를 한 번에
   const all = {};
   for (const m of room.members) if (m !== c && m.state) all[m.id] = m.state;
@@ -138,6 +145,7 @@ function leaveRoom(c) {
   const room = c.room;
   if (!room) return;
   room.members.delete(c);
+  if (room.game) room.game.leave(c);
   room.changed.delete(c.id);
   room.left.add(c.id);
   c.room = null;
@@ -152,6 +160,7 @@ function leaveRoom(c) {
 setInterval(() => {
   for (const list of rooms.values()) {
     for (const room of list) {
+      if (room.game) room.game.tick(Date.now());
       if (!room.changed.size && !room.left.size) continue;
       const j = {};
       for (const [id, st] of room.changed) j[id] = st;
@@ -245,9 +254,19 @@ function onMessage(c, text) {
   } catch (e) {
     return;
   }
-  if (!m || m.t !== 's') return;
+  if (!m) return;
+  if (m.t === 'pg') {
+    if (c.room && c.room.game) c.room.game.command(c, m.action, m.value);
+    return;
+  }
+  if (m.t !== 's') return;
   const st = clean(m.s);
   if (!st) return;
+  if (st.p === 'playground') {
+    // 새 장소 입장 후부터는 지형과 이동 속도를 서버에서도 확인한다.
+    if (c.room && c.room.game) c.room.game.move(c, st, now);
+    else if (!playgroundRules.valid(st.x, st.y)) Object.assign(st, playgroundRules.spawn(0));
+  }
   c.state = st;
   if (!c.room || c.room.place !== st.p) {
     leaveRoom(c);

@@ -890,3 +890,50 @@ body.is-reading { overflow: hidden; }
   .ui, .toast, .guidance { transition: none; }
   .modal, .pup-face, .spot-act, .together, .scene-act { animation: none; }
 }
+/* 글램핑 옆 놀이터 */
+.playground-panel {
+  position: absolute; z-index: 8; top: 80px; left: 24px; width: min(350px, calc(100% - 48px));
+  padding: 18px 20px 14px; color: #344d3e; background: rgba(250, 245, 225, .94);
+  border: 1px solid rgba(247, 239, 209, .8); border-radius: 22px;
+  box-shadow: 0 8px 30px rgba(31, 58, 38, .13); backdrop-filter: blur(12px);
+  font-family: 'Jua', sans-serif; max-height: calc(100dvh - 220px); overflow-y: auto;
+}
+.pg-heading > span { color: #6c7e5c; font-size: 12px; letter-spacing: .08em; }
+.pg-heading h2 { margin: 4px 0 13px; font-size: 27px; font-weight: normal; }
+.pg-heading h2 span { color: #bd8059; }
+.pg-modes, .pg-buttons { display: flex; gap: 8px; }
+.playground-panel button { min-height: 40px; border-radius: 12px; border: 1px solid #b5bea0; padding: 9px 14px; font: inherit; font-size: 14px; color: #4c624b; background: #eeeedb; cursor: pointer; }
+.playground-panel button:disabled { opacity: .55; cursor: default; }
+.playground-panel button:focus-visible { outline: 3px solid #a67347; outline-offset: 3px; }
+.playground-panel button[aria-pressed='true'], .playground-panel [data-pg='join'], .playground-panel [data-pg='start'] { background: #54765b; color: #fff4da; border-color: #54765b; }
+.pg-modes button { flex: 1; }
+.pg-status { margin: 12px 0 8px; font-size: 14px; line-height: 1.55; min-height: 22px; }
+.pg-friends { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: #6c775b; max-height: 70px; overflow-y: auto; margin-bottom: 10px; }
+.pg-friends:empty { display: none; }
+.pg-buttons [data-pg='leave'] { margin-left: auto; background: transparent; border: 0; padding-right: 0; font-size: 12px; }
+.playground-panel details { font: 12px/1.65 'Jua', sans-serif; color: #6b785f; margin-top: 11px; }
+.playground-panel summary { cursor: pointer; }
+.playground-panel details p { margin-bottom: 0; }
+.playground-panel.is-playing .pg-heading, .playground-panel.is-playing .pg-modes, .playground-panel.is-playing .pg-friends { display: none; }
+.playground-panel.is-playing .pg-status { margin-top: 0; }
+.session[data-scene='playground'] #guidance, .session[data-scene='playground'] [data-panel='breath'], .session[data-scene='playground'] #hideBtn { display: none; }
+.session[data-scene='playground'] .dock-btn:disabled { opacity: .45; }
+.session[data-scene='playground'] .panel { z-index: 9; }
+@media (max-width: 600px) {
+  .playground-panel { top: 70px; left: 14px; width: calc(100% - 28px); padding: 12px 15px; border-radius: 17px; }
+  .pg-heading { display: flex; align-items: center; justify-content: space-between; }
+  .pg-heading h2 { font-size: 22px; margin: 0 0 8px; }
+  .pg-heading > span { font-size: 10px; }
+  .playground-panel.is-playing { padding: 10px 15px; }
+  .playground-panel.is-playing .pg-status { margin-bottom: 0; }
+  .playground-panel.is-playing .pg-buttons { position: absolute; right: 13px; bottom: 4px; }
+  .playground-panel.is-playing details { margin-top: 4px; }
+}
+@media (max-height: 500px) and (min-width: 601px) {
+  .playground-panel { top: 64px; left: 16px; width: 280px; max-height: calc(100dvh - 84px); padding: 12px 15px; border-radius: 17px; }
+  .pg-heading > span { display: none; }
+  .pg-heading h2 { font-size: 22px; margin: 0 0 8px; }
+  .playground-panel button { min-height: 34px; padding: 6px 12px; }
+  .pg-status { margin-top: 8px; }
+  .pg-friends { max-height: 40px; margin-bottom: 7px; }
+}

@@ -30,6 +30,7 @@
     { x: 1550, y: 1742, s: 0.8 },
   ];
   const BRAZIER = { x: 1290, y: 1838 };
+  const PLAYGROUND = { x: 1870, y: 1845 };
   const POSTS = [[900, 1700], [970, 1905], [1610, 1910], [1690, 1712]];
   // 숙소: 마을 남서쪽(7시 방향) 구석에 쏙 들어앉은 작은 나무집. 창에 불이 켜져 있고 굴뚝에서 연기가 오른다.
   // 이 둘레만 조금 더 춥다: 눈이 소복이 쌓이고 하늘하늘 내리며, 입김이 하얗게 난다. 곁에는 눈 얹힌 작은 전나무
@@ -59,6 +60,7 @@
     { id: 'water', label: '달빛 바다', tone: 'sea', x: shoreX(DOCK_Y) + 160, y: DOCK_Y, r: 120, act: '들어가기', ax: shoreX(DOCK_Y) + 170, ay: DOCK_Y - 70 },
     { id: 'forest', label: '편백 숲', tone: 'moss', x: STUMP.x + 20, y: STUMP.y + 30, r: 140, act: '들어가기', ax: STUMP.x, ay: STUMP.y - 110 },
     { id: 'tent', label: '글램핑', tone: 'glamp', x: GLAMP.x, y: GLAMP.y + 46, r: 135, act: '들어가기', ax: GLAMP.x, ay: GLAMP.y - 152 },
+    { id: 'playground', label: '놀이터', tone: 'moss', x: PLAYGROUND.x, y: PLAYGROUND.y + 38, r: 110, act: '들어가기', ax: PLAYGROUND.x, ay: PLAYGROUND.y - 146 },
     { id: 'lodge', label: '숙소', tone: 'lodge', x: LODGE.x, y: LODGE.y + 64, r: 125, act: '들어가기', ax: LODGE.x, ay: LODGE.y - 220 },
     { id: 'moktak', label: '정자', tone: 'paper', x: PAVILION.x, y: PAVILION.y + 40, r: 175, act: '똑', ax: PAVILION.x + 175, ay: PAVILION.y + 65 },
   ];
@@ -79,6 +81,8 @@
     [[FIRE.x, FIRE.y + 70], [1150, 1300], [1160, 1560], [1185, 1790], [GLAMP.x, GLAMP.y + 70]],
     // 장작탑 앞을 지나 해안 둘레길에 다시 합류하는 작은 산책 고리.
     [[1420, 1090], [1515, 1190], [1535, 1300], [1600, 1405], [1750, 1452], [1950, 1450]],
+    // 글램핑 앞 둘레길에서 바로 옆 놀이터로 이어진다.
+    [[1640, 1860], [1730, 1920], [1840, 1920], [PLAYGROUND.x, PLAYGROUND.y + 38]],
     // 남서쪽 둘레길에서 부드럽게 갈라져, 가장 안쪽 숙소의 툇마루 앞에 닿는다
     [[780, 1700], [680, 1774], [580, 1862], [470, 1940], [395, 1940], [LODGE.x, LODGE.y + 16]],
   ];
@@ -103,12 +107,13 @@
     return out;
   }
   const PATHS = [catmull(RING, 12, true), ...PATH_KEYS.map((k) => catmull(k))];
-  const PATH_WIDTHS = [51, 46, 57, 41, 46, 39, 36];
+  const PATH_WIDTHS = [51, 46, 57, 41, 46, 39, 39, 36];
   const CLEARINGS = [
     { x: FIRE.x, y: FIRE.y + 33, rx: 158, ry: 105, seed: 2 },
     { x: TOWER.x, y: TOWER.y + 40, rx: 123, ry: 94, seed: 7 },
     { x: STUMP.x + 16, y: STUMP.y + 35, rx: 93, ry: 66, seed: 12 },
     { x: PAVILION.x, y: PAVILION.y + 20, rx: 198, ry: 87, seed: 16 },
+    { x: PLAYGROUND.x, y: PLAYGROUND.y + 25, rx: 177, ry: 110, seed: 21 },
   ];
   const beachWidth = y => 133 + 20 * Math.sin(y * .004 + .6) + 28 * Math.exp(-(((y - DOCK_Y) / 340) ** 2));
 
@@ -290,6 +295,7 @@
       }
       // 글램핑장 마당과 텐트
       if (((x - 1290) / 470) ** 2 + ((y - 1790) / 220) ** 2 < 1) return false;
+      if (((x - PLAYGROUND.x) / 205) ** 2 + ((y - PLAYGROUND.y) / 150) ** 2 < 1) return false;
       if (LODGE_BORDER.some(([bx, by]) => Math.hypot(x - bx, y - by) < 42)) return false;
       // 숙소와 전나무 둘레, 숙소 앞마당 (앞에 선 나무가 집을 가리지 않게)
       if (((x - LODGE.x) / 200) ** 2 + ((y - (LODGE.y - 6)) / 125) ** 2 < 1) return false;
@@ -405,6 +411,7 @@
       for (const p of LODGE_GARDEN.shrubs) this.blockers.push({ ...p, r: 22, sy: 1.6 });
       for (const p of LODGE_GARDEN.lamps) this.blockers.push({ ...p, r: 7, sy: 1.6 });
       for (const tn of TENTS) this.blockers.push({ x: tn.x, y: tn.y - 14 * tn.s, r: 62 * tn.s, sy: 1.6 });
+      for (const dx of [-106, 106]) this.blockers.push({ x: PLAYGROUND.x + dx, y: PLAYGROUND.y, r: 11, sy: 1.6 });
       for (const [x, y] of POSTS) this.blockers.push({ x, y, r: 8, sy: 1.6 });
       for (const tr of this.trees) {
         const r = tr.kind === 'cypress' ? 15 : tr.kind === 'round' ? 17 : 22;
@@ -2232,6 +2239,7 @@
         items.push({ y: tn.y, d: () => g.drawImage(tsp.c, tn.x - tsp.ax * tn.s, tn.y - tsp.ay * tn.s, tsp.w * tn.s, tsp.h * tn.s) });
       });
       for (const [x, y] of POSTS) put(sp.post, x, y);
+      items.push({ y: PLAYGROUND.y, d: () => MC.drawPlaygroundGate(g, PLAYGROUND.x, PLAYGROUND.y) });
       put(sp.brazier, BRAZIER.x, BRAZIER.y);
       put(sp.pit, FIRE.x, FIRE.y);
       put(sp.tower, TOWER.x, TOWER.y);

@@ -78,6 +78,14 @@
       ],
       space: 'mandarin',
     },
+    playground: {
+      place: '놀이터',
+      make: () => new MC.PlaygroundScene({ net }),
+      scape: MC.ForestScape,
+      guidance: '친구들과 참가를 누르고 함께 놀아요',
+      actions: [{ id: 'play', icon: 'i-wind', label: '숨기', primary: true }],
+      space: 'play',
+    },
   };
 
   // 따로 고르지 않아도 20분쯤 머물면 종이 한 번 울린다
@@ -647,7 +655,7 @@
     try {
       const data = await ownerRequest('/presence');
       $('#ownerOnline').textContent = String(data.total);
-      const names = { map: '마을', fire: '모닥불', firetower: '탑불멍', water: '바다', forest: '숲', tent: '글램핑', lodge: '숙소' };
+      const names = { map: '마을', fire: '모닥불', firetower: '탑불멍', water: '바다', forest: '숲', tent: '글램핑', lodge: '숙소', playground: '놀이터' };
       $('#ownerPlaces').textContent = Object.entries(names).map(([id, name]) => `${name} ${data.places[id] || 0}`).join(' · ');
       $('#ownerPresenceNote').textContent = '더미 제외 · 열린 화면 기준 · 5초마다 갱신';
     } catch (error) {
@@ -1206,6 +1214,7 @@
       scene.onWorryBurned = () => toast('불티가 되어 날아갔어요');
     }
     if (state.scene === 'water' || state.scene === 'forest') scene.onToast = (msg) => toast(msg);
+    if (state.scene === 'playground') scene.onToast = (msg) => toast(msg);
     if (state.scene === 'tent') {
       // 문으로 걸어 나가면 마을의 글램핑장 앞으로
       scene.onExit = () => leave();
@@ -1276,6 +1285,7 @@
     hideName();
     held.clear();
     if (state.runner) state.runner.stop();
+    if (state.sceneObj?.destroy) state.sceneObj.destroy();
     if (state.scape) state.scape.end();
     state.runner = null;
     state.scape = null;
@@ -1355,7 +1365,7 @@
     if (sc.crowd) {
       sc.crowd.selfId = net.id;
       net.set(sc.crowd.state());
-      sc.crowd.sync(residents.merge(state.scene, net.list(state.scene), sc));
+      sc.crowd.sync(state.scene === 'playground' ? net.list(state.scene) : residents.merge(state.scene, net.list(state.scene), sc));
       net.tick();
       updateTogether();
     }
@@ -1386,7 +1396,7 @@
   }
 
   function checkTime() {
-    if (state.started && !state.timerDone && !reading.isOpen && elapsedSec() >= SESSION_MIN * 60) finishTimer();
+    if (state.scene !== 'playground' && state.started && !state.timerDone && !reading.isOpen && elapsedSec() >= SESSION_MIN * 60) finishTimer();
   }
 
   // 20분쯤 지나면 종이 한 번 울리고, 소리와 빛이 서서히 잦아든다
@@ -1453,7 +1463,8 @@
   function doAction(id) {
     const sc = state.sceneObj;
     if (!sc || !state.started) return;
-    if (id === 'log') {
+    if (id === 'play') sc.action();
+    else if (id === 'log') {
       if (!sc.addLog()) toast(sc.flying.length ? (state.scene === 'firetower' ? '장작이 올라가고 있어요' : '장작이 불로 날아가고 있어요') : state.scene === 'firetower' ? '탑이 높이 쌓였어요. 잠시 불멍해요' : '장작이 넉넉해요');
     } else if (id === 'worry') {
       if (!sc.worry) togglePanel('worry');
@@ -1473,7 +1484,7 @@
     }
     else if (id === 'breeze') sc.breeze();
     else if (id === 'chair') {
-      const on = sc.crowd ? sc.crowd.toggleChair() : null;
+      const on = sc.crowd?.toggleChair ? sc.crowd.toggleChair() : null;
       if (on === null) toast('여기서는 의자를 펼 수 없어요');
       setPressed('chair', !!on);
     }
@@ -1639,7 +1650,7 @@
   }
   function armIdle() {
     clearTimeout(state.idleTimer);
-    if (!state.started) return;
+    if (!state.started || state.scene === 'playground') return;
     state.idleTimer = setTimeout(() => {
       const sc = state.sceneObj;
       if (reading.isOpen || anyPanelOpen() || modalOpen() || (sc && sc.worry) || document.activeElement === $('#worryInput')) {
@@ -1700,7 +1711,7 @@
       return;
     }
     const [x, y] = stagePoint(e);
-    if (sc.pup && sc.crowd && sc.pup.hit(x, y)) {
+    if (state.scene !== 'playground' && sc.pup && sc.crowd && sc.pup.hit(x, y)) {
       // 다른 멍이가 내 멍이 앞에 겹쳐 앉아 있으면 앞의 멍이를 누른 것으로
       const v = sc.crowd.hitVisitor(x, y);
       if (v && v.pup.y > sc.pup.y) {

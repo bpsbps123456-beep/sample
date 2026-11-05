@@ -50,8 +50,8 @@ main(async ({ check, staticServer, person, until, sleep, cleanup }) => {
 
   // 넓어진 마을: 네 곳에 '들어가기', 정자는 '똑'. 바다는 늘 가장 오른쪽
   const spots = await P.evaluate(() => MC.CAMP_SPOTS.map((s) => [s.id, s.label, s.act]));
-  const want = [['fire', '모닥불', '들어가기'], ['firetower', '탑불멍', '들어가기'], ['water', '달빛 바다', '들어가기'], ['forest', '편백 숲', '들어가기'], ['tent', '글램핑', '들어가기'], ['lodge', '숙소', '들어가기'], ['moktak', '정자', '똑']];
-  check(JSON.stringify(spots) === JSON.stringify(want), "모닥불·탑불멍·바다·숲·글램핑·숙소에 '들어가기', 정자는 '똑'", spots);
+  const want = [['fire', '모닥불', '들어가기'], ['firetower', '탑불멍', '들어가기'], ['water', '달빛 바다', '들어가기'], ['forest', '편백 숲', '들어가기'], ['tent', '글램핑', '들어가기'], ['playground', '놀이터', '들어가기'], ['lodge', '숙소', '들어가기'], ['moktak', '정자', '똑']];
+  check(JSON.stringify(spots) === JSON.stringify(want), "모닥불·탑불멍·바다·숲·글램핑·놀이터·숙소에 '들어가기', 정자는 '똑'", spots);
   check(await P.evaluate(() => { const w = MC.CAMP_SPOTS.find((q) => q.id === 'water'); return MC.CAMP_SPOTS.every((q) => q.x <= w.x); }), '바다는 가장 오른쪽');
   check(await P.evaluate(() => { const t = MC.CAMP_SPOTS.find((q) => q.id === 'tent'); const f = MC.CAMP_SPOTS.find((q) => q.id === 'fire'); return t.y > f.y + 400; }), '글램핑장은 모닥불에서 더 아래(남쪽)');
   // 한 바퀴 도는 둘레길: 닫혀 있고, 길 위에 막힌 곳이 없고, 숲·바다·글램핑장 곁을 지난다

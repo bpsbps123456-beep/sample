@@ -12,8 +12,8 @@
   const SEND_GAP = 0.12; // 움직이는 동안 1초에 8번쯤 알린다
   const BEAT = 2.5; // 탭끼리는 가만히 있어도 가끔 '여기 있어요'
   const STALE = 9; // 이만큼 소식이 없으면 떠난 것으로 본다 (탭끼리)
-  const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge'];
-  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, ep: 0, ek: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0, sg: '', bt: 0, ba: 0, fs: 0, dv: 0 };
+  const PLACES = ['map', 'fire', 'firetower', 'water', 'forest', 'tent', 'lodge', 'playground'];
+  const KEYS = { p: '', x: 0, y: 0, w: 0, b: 0, t: 0, f: 1, s: 0, q: 0, z: 0, hp: 0, ep: 0, ek: 0, g: null, l: 0, ch: 0, k: 0, m: 0, rl: 0, sg: '', bt: 0, ba: 0, fs: 0, dv: 0, hd: 0 };
 
   // 처음 온 날 털빛과 모자를 하나 골라 두고 계속 입는다
   function myLook() {
@@ -98,6 +98,7 @@
       ba: p === 'map' ? num(raw.ba, -180, 180) || 0 : 0,
       fs: p === 'map' && !raw.w ? num(raw.fs, 0, 2) | 0 : 0,
       dv: p === 'water' && raw.dv ? 1 : 0,
+      hd: p === 'playground' && raw.hd ? 1 : 0,
     };
   }
 
@@ -132,6 +133,10 @@
           // 서버에 올라간 사이트의 버전 (다시 배포되면 바뀐다)
           if (typeof m.v === 'string' && m.v.length <= 64 && net.onVersion) net.onVersion(m.v);
         }
+        else if (m.t === 'pg' || m.t === 'pg-position' || m.t === 'pg-error') {
+          if (m.t === 'pg') { net.playground = m; net.playgroundAt = Date.now(); }
+          if (net.onPlayground) net.onPlayground(m);
+        }
         else if (m.t === 'd') {
           // 새 방에 들어가면 방 안의 모두를 한 번에 받는다: 예전 방 사람들은 지운다
           if (m.full) net.clear();
@@ -145,6 +150,8 @@
       };
       ws.onclose = () => {
         net.online = false;
+        net.playground = null;
+        if (net.onPlayground) net.onPlayground({ t: 'pg-offline' });
         net.clear();
         if (!closed) retry();
       };
@@ -157,6 +164,11 @@
     open();
     return {
       kind: 'socket',
+      game(action, value) {
+        if (!ws || ws.readyState !== 1) return false;
+        ws.send(JSON.stringify({ t: 'pg', action, value }));
+        return true;
+      },
       send(st) {
         if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 's', s: st }));
       },

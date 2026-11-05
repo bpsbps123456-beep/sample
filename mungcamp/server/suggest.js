@@ -25,7 +25,7 @@ const GH_REPO = process.env.SUGGEST_GITHUB_REPO || '';
 const WEBHOOK = process.env.SUGGEST_WEBHOOK || '';
 const MAX_TEXT = 1000;
 const KEEP = 500;
-const PLACE_NAMES = { home: '마을', map: '마을', fire: '모닥불', firetower: '탑불멍', water: '달빛 바다', forest: '편백 숲', tent: '글램핑', lodge: '숙소' };
+const PLACE_NAMES = { home: '마을', map: '마을', fire: '모닥불', firetower: '탑불멍', water: '달빛 바다', forest: '편백 숲', tent: '글램핑', lodge: '숙소', playground: '놀이터' };
 
 const list = [];
 const recent = new Map(); // 보낸 곳(IP) → 보낸 때들
