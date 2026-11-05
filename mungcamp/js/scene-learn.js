@@ -8,6 +8,9 @@
       this.dialog = el('dialog', 'learn-gate');
       this.dialog.setAttribute('aria-label', '배움터 입장');
       this.dialog.innerHTML = '<form><p class="learn-eyebrow">MUNG CAMP · LEARNING GARDEN</p><h2>숲속 배움터에 가요</h2><p>친구들과 생각을 나누는 작은 교실이에요.<br>안내받은 비밀번호를 입력해 주세요.</p><label for="learnPin">배움터 비밀번호</label><input id="learnPin" type="password" inputmode="numeric" autocomplete="off" maxlength="32" required><p class="learn-error" role="status"></p><div class="learn-gate-actions"><button type="button" data-cancel>돌아가기</button><button type="submit" class="learn-primary">들어가기</button></div></form>';
+      const emblem = el('div', 'learn-emblem'); emblem.setAttribute('aria-hidden', 'true');
+      emblem.innerHTML = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8C12 5 6 5 3 7v18c4-2 9-2 13 1 4-3 9-3 13-1V7c-3-2-9-2-13 1Zm0 0v18M7 11c2-.6 4-.4 6 .5M7 15c2-.6 4-.4 6 .5M20 11h5M20 15h5"/><path d="m24 1 .8 2.2L27 4l-2.2.8L24 7l-.8-2.2L21 4l2.2-.8Z" fill="currentColor" stroke="none"/></svg>';
+      this.dialog.querySelector('form').prepend(emblem);
       document.body.appendChild(this.dialog);
       this.dialog.querySelector('[data-cancel]').onclick = () => this.close();
       this.dialog.addEventListener('cancel', () => { clearTimeout(this.pending); this.busy(false); });
@@ -77,6 +80,9 @@
       this.chatToggle.setAttribute('aria-controls', 'learnChat'); this.chatToggle.setAttribute('aria-expanded', 'false');
       this.chat = el('aside', 'learn-chat'); this.chat.id = 'learnChat'; this.chat.hidden = true; this.chat.setAttribute('aria-label', '배움터 대화');
       this.chat.innerHTML = '<header class="learn-chat-head"><div><h3>도란도란 대화</h3><p>배움터에 함께 있는 친구들이 봐요</p></div><button type="button" aria-label="대화 닫기">×</button></header><div class="learn-chat-log" role="log" aria-label="친구들과 나누는 대화" aria-live="polite" aria-relevant="additions"></div><p class="learn-chat-empty">반가운 인사로 대화를 시작해 보세요.</p><form class="learn-chat-form"><label class="learn-chat-label" for="learnChatInput">친구에게 전할 말</label><div><input id="learnChatInput" type="text" maxlength="180" autocomplete="off" enterkeyhint="send" placeholder="함께 이야기해요" required><button type="submit" class="learn-primary">보내기</button></div><p class="learn-chat-error" role="status"></p></form>';
+      const chatBody = el('div', 'learn-chat-body');
+      this.chat.querySelector('header').after(chatBody);
+      chatBody.append(this.chat.querySelector('.learn-chat-log'), this.chat.querySelector('.learn-chat-empty'));
       this.root.append(this.chatToggle, this.chat);
       this.chatLog = this.chat.querySelector('.learn-chat-log'); this.chatForm = this.chat.querySelector('form');
       this.chatToggle.onclick = () => this.toggleChat(this.chat.hidden);
@@ -223,7 +229,7 @@
       }
     }
     draw(g) {
-      g.fillStyle = '#d6c5a1'; g.fillRect(0, 0, this.w, this.h);
+      g.fillStyle = '#344944'; g.fillRect(0, 0, this.w, this.h);
       if (this.background.complete && this.background.naturalWidth) {
         const z = Math.max(this.w / 1400, this.h / 1000); g.drawImage(this.background, (this.w - 1400 * z) / 2, 0, 1400 * z, 1000 * z);
       }

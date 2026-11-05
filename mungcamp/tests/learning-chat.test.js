@@ -23,13 +23,15 @@ main(async ({ check, until, person, presenceServer, cleanup, shot }) => {
   await b.page.click('.learn-chat-toggle'); await b.page.fill('#learnChatInput', '<b>안녕</b> 멍!'); await b.page.press('#learnChatInput', 'Enter');
   check(await until(a.page, () => [...document.querySelectorAll('.learn-chat-message p')].some(n => n.textContent === '<b>안녕</b> 멍!')), '모바일에서 보낸 메시지를 PC로 전달');
   check(await a.page.evaluate(() => !document.querySelector('.learn-chat-message p b')), '대화의 HTML을 글자로 표시');
-  await owner.page.click('.learn-open-owner'); await owner.page.fill('[name="question"]', '오늘 하고 싶은 일은?'); await owner.page.fill('[name="options"]', '산책\n배구'); await owner.page.click('.learn-question-form [type="submit"]');
+  await owner.page.click('.learn-open-owner'); await owner.page.fill('[name="question"]', '오늘 하고 싶은 일은?'); await owner.page.fill('[name="options"]', '산책\n배구\n독서\n이야기\n휴식\n낚시'); await owner.page.click('.learn-question-form [type="submit"]');
   await until(b.page, () => MC.app.state.sceneObj.lesson.question);
   await b.page.check('.learn-answer-form input[value="1"]'); await b.page.click('.learn-answer-form [type="submit"]');
   check(await until(owner.page, () => MC.app.state.sceneObj.lesson.answered === 1 && !Object.values(MC.app.state.sceneObj.lesson.boards).some(v => v.text)), '대화 중 답 제출과 답 비공개 유지');
   check(await a.page.evaluate(() => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(); return h.right < c.left && r.right < c.left && c.bottom <= innerHeight; }), 'PC에서 대화·칠판·답안 조작부를 나란히 배치');
   check(await b.page.evaluate(() => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(); return c.top >= h.bottom && c.bottom <= r.top && c.height > 150 && getComputedStyle(document.querySelector('.learn-floor')).visibility === 'hidden' && document.documentElement.scrollWidth === innerWidth; }), '휴대폰에서 칠판·대화·답 입력부 겹침 방지');
   await shot(a.page, 'learning-chat-desktop'); await shot(b.page, 'learning-chat-phone');
+  await b.page.setViewportSize({ width: 320, height: 568 });
+  check(await until(b.page, () => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(); return c.top >= h.bottom && c.bottom <= r.top && c.height > 140 && r.bottom <= innerHeight && document.documentElement.scrollWidth === innerWidth; }), '작은 휴대폰에서도 여섯 보기와 대화 공간 확보');
   for (const width of [844, 1280]) {
     await b.page.setViewportSize({ width, height: 390 });
     check(await until(b.page, () => { const c = document.querySelector('.learn-chat').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(), send = document.querySelector('.learn-chat-form button').getBoundingClientRect(); return c.right < r.left && c.height > 120 && send.bottom <= innerHeight; }), `가로 ${width}px 화면에서 대화와 답 입력부 분리`);
