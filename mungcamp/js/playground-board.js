@@ -26,7 +26,8 @@
         cell.style.gridColumn = Math.floor(p.x / (100 / 6)) + 1;
         cell.style.gridRow = Math.floor(p.y / 20) + 1;
         cell.setAttribute('aria-label', `${n}칸${trail ? `, ${trail > n ? '지름길' : '미끄럼'} ${trail}칸으로 이동` : n === 30 ? ', 보물섬 도착' : ''}`);
-        cell.innerHTML = `<b>${n}</b><span class="race-cell-art" aria-hidden="true">${n === 30 ? '♛' : trail ? trail > n ? '↗' : '↙' : [3, 11, 20, 26].includes(n) ? '✿' : [7, 16, 25].includes(n) ? '♧' : ''}</span><small>${trail ? `${trail > n ? '지름길' : '미끄럼'} → ${trail}` : n === 30 ? '보물섬' : n % 6 === 0 ? '↑' : Math.floor((n - 1) / 6) % 2 ? '←' : '→'}</small>`;
+        const short = trail ? `${trail > n ? '↗' : '↙'} ${trail}` : n === 30 ? '도착' : n % 6 === 0 ? '↑' : Math.floor((n - 1) / 6) % 2 ? '←' : '→';
+        cell.innerHTML = `<b>${n}</b><span class="race-cell-art" aria-hidden="true">${n === 30 ? '♛' : trail ? trail > n ? '↗' : '↙' : [3, 11, 20, 26].includes(n) ? '✿' : [7, 16, 25].includes(n) ? '♧' : ''}</span><small data-short="${short}">${trail ? `${trail > n ? '지름길' : '미끄럼'} → ${trail}` : n === 30 ? '보물섬' : short}</small>`;
         track.appendChild(cell);
       }
       this.rollButton = el.querySelector('.race-roll');

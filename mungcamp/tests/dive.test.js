@@ -23,7 +23,10 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
   const before = await A.evaluate(() => MC.app.state.sceneObj.crowd.me.X);
   await A.keyboard.down('ArrowRight'); await sleep(650); await A.keyboard.up('ArrowRight');
   check(await A.evaluate(x => MC.app.state.sceneObj.crowd.me.X > x + 20, before), '방향키로 물속을 헤엄친다');
-  const clam = await A.evaluate(() => { const q = MC.app.state.sceneObj.dive.clam; return [q.x, q.y - 8]; });
+  const clam = await A.evaluate(() => {
+    const s = MC.app.state.sceneObj; s.crowd.me.X = 720; s.dive.follow(720); s.crowd.layout();
+    const q = s.dive.clam; return [q.x, q.y - 8];
+  });
   await A.mouse.click(...clam);
   check(await A.evaluate(() => MC.app.state.sceneObj.dive.open > 0), '조개를 누르면 진주와 공기 방울을 보여 준다');
   await A.click('[data-act=ripple]');
@@ -40,10 +43,10 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
   check(await P.evaluate(() => { const b = document.querySelector('[data-act=dive]').getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth; }), '휴대폰에서 잠수 버튼이 잘리지 않는다');
   await P.click('[data-act=dive]');
   await P.mouse.click(275, 350);
-  check(await until(P, () => MC.app.state.sceneObj.crowd.me.X > 550, null, 5000), '휴대폰에서 누른 곳으로 헤엄친다');
+  check(await until(P, () => MC.app.state.sceneObj.crowd.me.X > 175, null, 5000), '휴대폰에서 누른 곳으로 헤엄친다');
   await shot(P, 'dive-mobile');
   await P.setViewportSize({ width: 844, height: 390 });
-  check(await until(P, () => { const s = MC.app.state.sceneObj; return s.w === 844 && s.underwater && s.pup.x >= 0 && s.pup.x <= s.w && s.dive.clam.y < s.h; }), '잠수 중 화면을 돌려도 강아지와 조개가 화면 안에 있다');
+  check(await until(P, () => { const s = MC.app.state.sceneObj; return s.w === 844 && s.underwater && s.pup.x >= 0 && s.pup.x <= s.w && s.dive.clam.y < s.h; }), '잠수 중 화면을 돌려도 수영 위치와 바다의 높이가 맞는다');
   await shot(P, 'dive-landscape');
   await A.evaluate(() => { const d = MC.app.state.sceneObj; d.ripples = []; for (let i = 0; i < 400; i++) d.update(1/60); });
   check(a.errors.length === 0 && b.errors.length === 0 && phone.errors.length === 0, '그리기·이동·복귀 중 오류 없음', [...a.errors, ...b.errors, ...phone.errors]);

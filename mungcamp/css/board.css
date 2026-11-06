@@ -144,3 +144,37 @@
   .race-start { left: 17%; text-align: left; }
   .race-cell-art { display: none; }
 }
+/* Keep the essential game text readable at every screen size. */
+.race-cell b { display: inline-block; vertical-align: top; font-size: 20px; }
+.race-cell small, .race-eyebrow, .race-start, .race-legend, .race-footer, .race-back, .race-timer { font-size: 12px; }
+.race-goal, .race-event, .race-roster li, .race-roster strong { font-size: 14px; }
+.board-open .playground-panel .pg-status, .board-open .playground-panel button { font-size: 14px; }
+.race-roll { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 18px; }
+@media (max-width: 600px) {
+  .race-cell b { font-size: 18px; }
+  .race-cell small { font-size: 0; }
+  .race-cell small::after { content: attr(data-short); font-size: 12px; }
+  .race-cell-art { opacity: .5; }
+  .race-event, .race-roster li, .race-roster strong { font-size: 13px; }
+  .race-roll { font-size: 16px; }
+  .race-goal { font-size: 12px; }
+  .board-open .playground-panel .pg-status { font-size: 12px; }
+}
+@media (max-height: 600px) and (min-width: 601px) {
+  .race-cell b { font-size: 18px; }
+  .race-cell { padding: 1px 5px; }
+  .race-cell small { font-size: 0; }
+  .race-cell small { top: 4px; bottom: auto; left: auto; right: 5px; }
+  .race-cell small::after { content: attr(data-short); font-size: 12px; }
+  .race-event, .race-roster li, .race-roster strong { font-size: 12px; }
+  .race-roll { font-size: 16px; }
+  .race-legend { display: none; }
+  .race-footer > span { display: none; }
+  .race-footer:has(.race-back[hidden]) { display: none; }
+}
+@media (max-width: 600px) and (max-height: 640px) {
+  .race-legend, .race-cell small { display: none; }
+  .race-event { font-size: 12px; line-height: 1.4; }
+  .race-roster li { font-size: 12px; padding: 1px 2px; }
+  .race-game { padding: 8px; }
+}

@@ -285,12 +285,13 @@
           toScreen: (X, Z) => this.toScreen(X, Z),
           toCanon: (x, y) => this.toCanon(x, y),
           bounds: () => {
-            const m = Math.min(200, ((44 * this.s) / this.w) * 1000);
+            const m = Math.min(200, ((44 * this.s) / (this.underwater ? this.dive.w : this.w)) * 1000);
             return { x0: m, x1: 1000 - m, z0: -ZFAR, z1: 1000 };
           },
           blockers: () => [],
           floor: (x, y) => this.underwater || y > this.hy + 4,
-          speed: () => (this.underwater ? 110 : this.crowd && this.crowd.me.Z < SEA_Z ? 72 : 140) * this.s,
+          speed: () => (this.underwater ? 220 : this.crowd && this.crowd.me.Z < SEA_Z ? 72 : 140) * this.s,
+          walkTimeout: () => this.underwater ? 35 : 9,
           pose: (X, Z) => ({ view: this.underwater || Z < SEA_Z ? 'front' : 'back', turn: 0, flip: 1, stick: false }),
           seats: () => WATER_SEATS,
           env: () => ({
@@ -320,7 +321,7 @@
     }
 
     toScreen(X, Z) {
-      if (this.underwater) return { x: X / 1000 * this.w, y: this.h * (.27 + (Z + 1000) / 2000 * .55), k: this.s * .85 };
+      if (this.underwater) return { x: X / 1000 * this.dive.w - this.dive.camX, y: this.h * (.27 + (Z + 1000) / 2000 * .55), k: this.s * .85 };
       const b = this.band();
       const x = (X / 1000) * this.w;
       if (Z >= 0) return { x, y: b.top + (Z / 1000) * (b.bot - b.top), k: this.s * 0.95 * (0.9 + (0.22 * Z) / 1000) };
@@ -331,7 +332,7 @@
     }
 
     toCanon(x, y) {
-      if (this.underwater) return { X: x / this.w * 1000, Z: (y / this.h - .27) / .55 * 2000 - 1000 };
+      if (this.underwater) return { X: (x + this.dive.camX) / this.dive.w * 1000, Z: (y / this.h - .27) / .55 * 2000 - 1000 };
       const b = this.band();
       const X = (x / this.w) * 1000;
       if (y >= b.top) return { X, Z: ((y - b.top) / (b.bot - b.top)) * 1000 };
@@ -368,6 +369,7 @@
       this.buildBackground();
       this.buildRows();
       this.dive.resize(w, h, this.s, dpr);
+      if (this.underwater && this.crowd) this.dive.follow(this.crowd.me.X);
       const pup = this.pup;
       pup.k = this.s * 0.95;
       pup.x = w * (portrait ? 0.27 : 0.3);
@@ -743,12 +745,14 @@
       if (!c) return false;
       const on = !this.underwater;
       if (on) this.surfacePos = { X: c.me.X, Z: c.me.Z };
+      else this.divePos = { X: c.me.X, Z: c.me.Z };
       this.underwater = on;
       this.dive.pending = null;
       c.target = c.path = c.portal = null;
       c.moving = false; c.setKeys(0, 0); c.roomMade = true; c.posed = false;
-      c.me.X = on ? MC.clamp(c.me.X, 180, 820) : this.surfacePos.X;
-      c.me.Z = on ? 0 : this.surfacePos.Z;
+      c.me.X = on ? this.divePos?.X ?? 150 : this.surfacePos.X;
+      c.me.Z = on ? this.divePos?.Z ?? 0 : this.surfacePos.Z;
+      if (on) this.dive.follow(c.me.X);
       this.floating = !on && this.inSea(c.me.Z);
       const p = this.pup;
       p.setChair(false); p.chair = 0; p.setLie(false); p.lie = 0; p.paddle = 0;
@@ -931,6 +935,10 @@
       this.t += dt;
       if (this.underwater) {
         if (this.crowd) this.crowd.update(dt);
+        if (this.crowd) {
+          this.dive.follow(this.crowd.me.X);
+          this.crowd.layout();
+        }
         this.pup.rest = 'dive'; this.pup.setLie(false);
         this.pup.view = this.pup.restView = 'front';
         this.pup.update(dt, { wind: .12, walking: false, noSleep: true });

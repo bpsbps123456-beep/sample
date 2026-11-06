@@ -431,6 +431,17 @@
     const sc = state.sceneObj;
     if (state.scene === 'water' && sc.underwater) sc.dive.findTreasure(sc.crowd);
   });
+  $('#diveHud').addEventListener('click', e => {
+    const button = e.target.closest('[data-dive-region]'), sc = state.sceneObj;
+    if (!button || state.scene !== 'water' || !sc.underwater) return;
+    const chest = sc.dive.chests()[Number(button.dataset.diveRegion)];
+    if (!MC.Wardrobe.remaining(chest.id)) sc.dive.seek(chest, sc.crowd);
+    else {
+      sc.dive.pending = null;
+      sc.crowd.walkTo(chest.x, Math.min(chest.y, sc.h * .81));
+      toast(button.textContent + '으로 헤엄쳐 가요');
+    }
+  });
   dressCard.addEventListener('click', (e) => { if (e.target === dressCard) closeDress(); });
   dressCard.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -1401,6 +1412,15 @@
     if (diving) {
       const text = MC.Wardrobe.balance() + ' 코인';
       if ($('#diveBalance').textContent !== text) $('#diveBalance').textContent = text;
+      const X = state.sceneObj.crowd.me.X, region = X < 340 ? 0 : X < 660 ? 1 : 2;
+      $('#diveProgress').style.left = MC.clamp(X / 10, 0, 100) + '%';
+      for (const button of document.querySelectorAll('[data-dive-region]')) {
+        const active = Number(button.dataset.diveRegion) === region;
+        if (button.hasAttribute('aria-current') !== active) {
+          if (active) button.setAttribute('aria-current', 'location');
+          else button.removeAttribute('aria-current');
+        }
+      }
     }
     const sc = state.sceneObj;
     if (!sc) return;
@@ -1520,7 +1540,7 @@
       $('#dockScene [data-act="dive"] span').textContent = on ? '물 위로' : '잠수';
       $('#dockScene [data-act="ripple"] span').textContent = on ? '공기 방울' : '물수제비';
       for (const id of ['bottle', 'chair']) $('#dockScene [data-act="' + id + '"]').hidden = on;
-      showGuidance(on ? '보물상자를 톡! 헤엄쳐 가서 코인을 모아요' : state.def.guidance);
+      showGuidance(on ? '옆으로 쭉 헤엄쳐요! 지도를 눌러 보물을 찾아요' : state.def.guidance);
     }
     else if (id === 'bottle') {
       if (sc.bottle) toast('병이 아직 떠가고 있어요');

@@ -30,6 +30,10 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
   check(await A.evaluate(() => MC.app.state.sceneObj.pup.hatStyle === 5), '구매한 모자가 실제 멍이에 적용된다');
   await A.click('#findTreasure');
   check(await until(A, () => MC.Wardrobe.balance() === 40, null, 12000), '보물 찾기 버튼이 다음 미개봉 상자로 안내한다');
+  check(await A.evaluate(() => {
+    const s = MC.app.state.sceneObj;
+    return s.dive.w > s.w * 2 && s.dive.camX > s.w && s.pup.x > 0 && s.pup.x < s.w;
+  }), '화면 두 장보다 넓은 바다에서 헤엄치는 멍이를 카메라가 따라간다');
   await shot(A, 'ocean-desktop');
   await A.click('#seaShop'); await A.click('[data-item=sailor-shirt]');
   await A.click('#dressForm button[type=submit]'); await until(A, () => document.querySelector('#dressCard').hidden);
@@ -60,8 +64,12 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
     await until(A, () => MC.app.state.sceneObj?.crowd && MC.app.state.started); await sleep(2600);
     await A.keyboard.press('Shift'); await A.click('[data-act=dive]');
     check(await until(A, () => { const r = document.querySelector('#diveHud').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 50 && r.bottom < innerHeight - 80; }), `${viewport.width}×${viewport.height}에서 코인·보물·상점 버튼을 볼 수 있다`);
+    check(await A.evaluate(() => [...document.querySelectorAll('#diveHud button')].every(b => {
+      const r = b.getBoundingClientRect(); return parseFloat(getComputedStyle(b).fontSize) >= 16 && r.right <= innerWidth && r.left >= 0;
+    })), `${viewport.width}×${viewport.height}에서 지도·조작 글씨가 16px 이상이다`);
     await A.click('#findTreasure');
-    check(await until(A, () => MC.Wardrobe.balance() === 80, null, 16000), `${viewport.width}×${viewport.height}에서 수영으로 보물에 도달한다`);
+    check(await until(A, () => MC.Wardrobe.balance() === 80, null, 23000), `${viewport.width}×${viewport.height}에서 수영으로 보물에 도달한다`);
+    check(await A.evaluate(() => document.querySelector('[data-dive-region="2"]').getAttribute('aria-current') === 'location' && parseFloat(document.querySelector('#diveProgress').style.left) > 75), '심해 도착이 지도와 현재 위치에 반영된다');
     await shot(A, `ocean-${viewport.width}`);
     await A.click('#seaShop'); await A.click('[data-item=whale-shirt]');
     await shot(A, `ocean-shop-${viewport.width}`);

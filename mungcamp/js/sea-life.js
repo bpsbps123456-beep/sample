@@ -303,7 +303,9 @@
   class DiveWorld {
     constructor() { this.t = 0; this.open = 0; this.lid = 0; this.bubbles = []; this.nextBubble = 0; this.coins = []; this.pending = null; this.onToast = null; }
 
-    chests() { return MC.Wardrobe.chests.map(c => ({ ...c, x: this.w * c.u, y: this.floorAt(c.u) - 7 * this.s })); }
+    chests() { return MC.Wardrobe.chests.map(c => ({ ...c, x: this.w * c.u - this.camX, y: this.floorAt(c.u) - 7 * this.s })); }
+    get clam() { return { x: this.w * .72 - this.camX, y: this.floorAt(.72) - 3 * this.s, r: 43 * this.s }; }
+    follow(X) { this.camX = MC.clamp(X / 1000 * this.w - this.viewW * .44, 0, this.w - this.viewW); }
     giants() {
       return ['whale', 'shark', 'whale-shark'].map((kind, i) => {
         const a = this.t * (.065 + i * .013) + i * 2.1;
@@ -330,8 +332,10 @@
     floorAt(u) { return this.h * (.835 + .026 * Math.sin(u * 7.4 + .3) - .012 * Math.sin(u * 15)); }
 
     resize(w, h, s, dpr) {
-      Object.assign(this, { w, h, s });
-      this.clam = { x: w * .72, y: this.floorAt(.72) - 3 * s, r: 43 * s };
+      this.viewW = w;
+      w = Math.max(w * 2.4, 4200 * s);
+      Object.assign(this, { w, h, s, camX: 0 });
+      dpr = Math.min(dpr || 1, 1.5);
       const c = this.bg = MC.canvas(w * dpr, h * dpr), g = c.getContext('2d'); g.scale(dpr, dpr);
       const water = g.createLinearGradient(0, 0, w * .2, h);
       water.addColorStop(0, '#57baa9'); water.addColorStop(.24, '#2b8990'); water.addColorStop(.65, '#195d75'); water.addColorStop(1, '#143f5b');
@@ -416,18 +420,21 @@
     }
 
     burst(x, y, n) {
-      for (let i = 0; i < n; i++) this.bubbles.push({ x: x + MC.rand(-8, 8), y, r: MC.rand(1.5, 4) * this.s, age: 0, ph: Math.random() * TAU });
+      for (let i = 0; i < n; i++) this.bubbles.push({ x: x + this.camX + MC.rand(-8, 8), y, r: MC.rand(1.5, 4) * this.s, age: 0, ph: Math.random() * TAU });
       if (this.bubbles.length > 70) this.bubbles.splice(0, this.bubbles.length - 70);
     }
 
     poke(x, y, crowd) {
       for (const chest of this.chests()) {
-        if (Math.abs(x - chest.x) < Math.max(25, 32 * this.s) && Math.abs(y - chest.y + 15 * this.s) < Math.max(25, 30 * this.s)) {
+        const k = Math.max(.9, this.s), labelX = MC.clamp(chest.x, 96, this.viewW - 96);
+        const labelY = chest.y - (MC.Wardrobe.remaining(chest.id) ? 111 : 100) * k;
+        if ((Math.abs(x - chest.x) < 65 * k && Math.abs(y - chest.y + 28 * k) < 45 * k) ||
+            (chest.x > -60 && chest.x < this.viewW + 60 && Math.abs(x - labelX) < 88 && Math.abs(y - labelY) < 20)) {
           if (crowd) this.seek(chest, crowd);
           return true;
         }
       }
-      for (const q of this.giants()) if (Math.hypot((x - q.x) / (100 * q.k), (y - q.y) / (38 * q.k)) < 1) {
+      for (const q of this.giants()) if (Math.hypot((x + this.camX - q.x) / (100 * q.k), (y - q.y) / (38 * q.k)) < 1) {
         this.onToast?.(`${q.name}가 유유히 헤엄치고 있어요`); this.burst(x, y, 3); return false;
       }
       const c = this.clam;
@@ -437,6 +444,7 @@
 
     draw(g) {
       const { w, h, s, t } = this;
+      g.save(); g.translate(-this.camX, 0);
       g.drawImage(this.bg, 0, 0, w, h);
       // 물을 통과하는 빛줄기와 물결의 흔들림.
       g.save(); g.globalCompositeOperation = 'screen';
@@ -475,37 +483,105 @@
         const x = w * MC.hash(i * 3.71), y = h * (.89 + MC.hash(i * 6.3) * .1);
         g.beginPath(); g.ellipse(x + Math.sin(t * .5 + i) * 6 * s, y, (18 + i % 4 * 7) * s, 4 * s, .15 * Math.sin(t * .4 + i), .2, 2.7); g.stroke();
       }
-      this.drawClam(g);
-      this.drawTreasure(g);
       for (let i = 0; i < 26; i++) {
         const x = MC.hash(i * 5.3) * w + Math.sin(t * .3 + i) * 7 * s, y = (MC.hash(i * 7.9) * h - t * (2 + i % 3) % h + h) % h;
         g.fillStyle = `rgba(206,251,231,${.1 + .12 * Math.sin(t + i) ** 2})`; oval(g, x, y, s, s); g.fill();
       }
+      g.restore();
+      this.drawClam(g);
+      this.drawTreasure(g);
     }
 
     drawTreasure(g) {
-      const k = this.s;
+      const k = Math.max(.9, this.s);
       for (const c of this.chests()) {
+        if (c.x < -140 || c.x > this.viewW + 140) continue;
         const wait = MC.Wardrobe.remaining(c.id);
         g.save(); g.translate(c.x, c.y); g.scale(k, k);
+        g.lineJoin = 'round'; g.lineCap = 'round';
+        g.fillStyle = 'rgba(8,43,50,.3)'; oval(g, 5, 7, 67, 12); g.fill();
         if (!wait) {
-          const glow = g.createRadialGradient(0, -12, 3, 0, -12, 60); glow.addColorStop(0, 'rgba(255,221,118,.32)'); glow.addColorStop(1, 'rgba(255,221,118,0)');
-          g.fillStyle = glow; g.fillRect(-60, -72, 120, 120);
+          const glow = g.createRadialGradient(0, -30, 8, 0, -30, 102);
+          glow.addColorStop(0, 'rgba(255,223,135,.28)'); glow.addColorStop(1, 'rgba(255,223,135,0)');
+          g.fillStyle = glow; g.fillRect(-102, -132, 204, 204);
         }
-        g.fillStyle = '#744b37'; g.strokeStyle = '#453b38'; g.lineWidth = 2;
-        MC.roundRect(g, -28, -23, 56, 29, 4); g.fill(); g.stroke();
-        g.fillStyle = '#b77b45'; MC.roundRect(g, -29, wait ? -43 : -39, 58, wait ? 15 : 24, 7); g.fill(); g.stroke();
-        g.strokeStyle = '#efc574'; g.lineWidth = 5;
-        for (const x of [-19, 19]) { g.beginPath(); g.moveTo(x, wait ? -41 : -36); g.lineTo(x, wait ? -29 : 3); g.stroke(); }
-        if (wait) { g.fillStyle = '#f7d879'; oval(g, 0, -21, 21, 5); g.fill(); }
-        g.fillStyle = '#f4d28a'; MC.roundRect(g, -5, -21, 10, 12, 2); g.fill();
-        g.fillStyle = '#675138'; oval(g, 0, -16, 1.8, 2.5); g.fill();
-        g.fillStyle = wait ? '#d2e5db' : '#fff0b7'; g.font = '12px system-ui'; g.textAlign = 'center';
-        g.fillText(wait ? `${Math.ceil(wait / 1000)}초` : `+${c.coins} 코인`, 0, -51);
+        // A rounded oak lid, inset planks and riveted brass bands share the sea's painted palette.
+        const wood = g.createLinearGradient(0, -42, 0, 5);
+        wood.addColorStop(0, '#bf8650'); wood.addColorStop(.45, '#97633d'); wood.addColorStop(1, '#704b36');
+        g.fillStyle = '#624936'; g.strokeStyle = '#423d30'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(48, -39); g.lineTo(63, -49); g.lineTo(63, -7); g.lineTo(48, 5); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = wood; MC.roundRect(g, -49, -41, 98, 47, 5); g.fill(); g.stroke();
+        g.save(); MC.roundRect(g, -46, -38, 92, 40, 3); g.clip();
+        for (let j = 0; j < 4; j++) {
+          const y = -33 + j * 11;
+          g.strokeStyle = '#633f2d'; g.lineWidth = 1.1; g.beginPath(); g.moveTo(-48, y); g.lineTo(49, y); g.stroke();
+          g.strokeStyle = 'rgba(243,199,134,.3)'; g.beginPath(); g.moveTo(-48, y + 1.5); g.lineTo(49, y + 1.5); g.stroke();
+          for (let n = 0; n < 3; n++) {
+            const x = -39 + n * 30 + j * 2;
+            g.strokeStyle = 'rgba(74,47,33,.24)'; g.lineWidth = .8;
+            g.beginPath(); g.moveTo(x, y + 5); g.bezierCurveTo(x + 7, y + 2, x + 12, y + 8, x + 22, y + 4); g.stroke();
+          }
+        }
+        g.restore();
+        const brass = g.createLinearGradient(-50, -30, 58, 4);
+        brass.addColorStop(0, '#c29a51'); brass.addColorStop(.3, '#f0d28c'); brass.addColorStop(.65, '#b88b43'); brass.addColorStop(1, '#dfbd72');
+        g.fillStyle = brass; g.fillRect(-49, -42, 98, 6); g.fillRect(-49, 0, 98, 6);
+        for (const x of [-34, 27]) {
+          g.fillStyle = brass; g.fillRect(x, -40, 8, 44);
+          g.strokeStyle = '#8a683a'; g.lineWidth = .8; g.strokeRect(x, -40, 8, 44);
+          for (const y of [-32, -5]) { g.fillStyle = '#fff0b5'; oval(g, x + 3, y - 1, 1.5, 1.5); g.fill(); g.fillStyle = '#86663b'; oval(g, x + 5, y + 1, 1.2, 1.2); g.fill(); }
+        }
+        // The raised lid stays visibly open during the refill countdown.
+        g.save(); g.translate(0, wait ? -36 : 0); if (wait) g.scale(1, .74);
+        const lid = g.createLinearGradient(0, -75, 0, -36);
+        lid.addColorStop(0, '#d8ad70'); lid.addColorStop(.4, '#b88048'); lid.addColorStop(1, '#805236');
+        const dome = () => { g.beginPath(); g.moveTo(-50, -37); g.lineTo(-50, -48); g.bezierCurveTo(-50, -82, 50, -82, 50, -48); g.lineTo(50, -37); g.closePath(); };
+        dome(); g.fillStyle = lid; g.fill(); g.strokeStyle = '#51412f'; g.lineWidth = 2; g.stroke();
+        g.save(); dome(); g.clip();
+        for (const y of [-64, -52, -40]) {
+          g.strokeStyle = 'rgba(99,62,33,.6)'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(-53, y); g.quadraticCurveTo(0, y - 7, 53, y); g.stroke();
+          g.strokeStyle = 'rgba(255,221,163,.4)'; g.beginPath(); g.moveTo(-53, y + 2); g.quadraticCurveTo(0, y - 5, 53, y + 2); g.stroke();
+        }
+        for (const x of [-34, 27]) {
+          g.fillStyle = brass; g.fillRect(x, -80, 8, 44);
+          g.strokeStyle = '#876337'; g.lineWidth = 1; g.strokeRect(x, -80, 8, 44);
+        }
+        g.restore(); g.fillStyle = brass; MC.roundRect(g, -51, -42, 102, 6, 2); g.fill(); g.restore();
+        if (wait) {
+          g.fillStyle = '#433c2b'; oval(g, 0, -40, 47, 10); g.fill();
+          for (let i = 0; i < 11; i++) {
+            const x = (i - 5) * 7, y = -39 - Math.sin(i * 2.1) * 3;
+            g.fillStyle = i % 2 ? '#e8bf60' : '#f5d88a'; g.strokeStyle = '#9a783e'; g.lineWidth = .7; oval(g, x, y, 6, 3); g.fill(); g.stroke();
+          }
+        }
+        // Side handle and a small keyhole give the chest a clear silhouette.
+        g.strokeStyle = '#d8b871'; g.lineWidth = 3;
+        g.beginPath(); g.ellipse(56, -22, 3, 7, .22, -.5, 3.6); g.stroke();
+        g.fillStyle = brass; g.strokeStyle = '#856638'; g.lineWidth = 1.2;
+        MC.roundRect(g, -10, -41, 20, 25, 5); g.fill(); g.stroke();
+        g.fillStyle = '#58492e'; oval(g, 0, -31, 3, 3); g.fill(); g.beginPath(); g.moveTo(-1.5, -30); g.lineTo(-2.5, -24); g.lineTo(2.5, -24); g.lineTo(1.5, -30); g.closePath(); g.fill();
+        if (!wait) {
+          for (let i = 0; i < 3; i++) {
+            const x = [-58, 59, 26][i], y = [-58, -70, -88][i];
+            g.globalAlpha = .35 + .65 * Math.sin(this.t * 1.5 + i) ** 4;
+            g.fillStyle = '#ffe6a0'; g.beginPath(); g.moveTo(x, y - 5); g.quadraticCurveTo(x + 1, y - 1, x + 5, y); g.quadraticCurveTo(x + 1, y + 1, x, y + 5); g.quadraticCurveTo(x - 1, y + 1, x - 5, y); g.quadraticCurveTo(x - 1, y - 1, x, y - 5); g.fill();
+          }
+        }
+        g.restore();
+        // Labels use CSS pixels, so mobile scene scaling never shrinks the text.
+        if (c.x < -30 || c.x > this.viewW + 30) continue;
+        g.save(); g.font = '600 18px "Malgun Gothic", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const label = wait ? `${Math.ceil(wait / 1000)}초 후 다시 열기` : `열기 · ${c.coins} 코인`;
+        const width = g.measureText(label).width + 28, y = c.y - (wait ? 111 : 100) * k;
+        const x = MC.clamp(c.x, width / 2 + 8, this.viewW - width / 2 - 8);
+        g.fillStyle = wait ? 'rgba(17,61,72,.94)' : '#fff0c6'; g.strokeStyle = wait ? '#97bdb8' : '#d7b567'; g.lineWidth = 1;
+        MC.roundRect(g, x - width / 2, y - 19, width, 38, 19); g.fill(); g.stroke();
+        g.fillStyle = wait ? '#e5f2e7' : '#65502c'; g.fillText(label, x, y);
         g.restore();
       }
       for (const coin of this.coins) {
-        const x = this.w * coin.u + Math.sin(coin.phase) * coin.age * 23 * k, y = this.floorAt(coin.u) - (28 + coin.age * 75) * k;
+        const x = this.w * coin.u - this.camX + Math.sin(coin.phase) * coin.age * 23 * k, y = this.floorAt(coin.u) - (28 + coin.age * 75) * k;
         g.save(); g.globalAlpha = Math.min(1, (1.8 - coin.age) * 2); g.fillStyle = '#ffda68'; g.strokeStyle = '#b68339'; g.lineWidth = k;
         oval(g, x, y, Math.max(1, Math.abs(Math.cos(coin.age * 7 + coin.phase)) * 5) * k, 6 * k); g.fill(); g.stroke(); g.restore();
       }
@@ -562,6 +638,7 @@
 
     drawFront(g) {
       const { w, h, s, t } = this;
+      g.save(); g.translate(-this.camX, 0);
       kelp(g, -4 * s, h + 6 * s, s * 1.8, t + 1, '#286e64');
       kelp(g, w + 5 * s, h + 8 * s, s * 1.6, t, '#338472');
       for (const b of this.bubbles) {
@@ -571,6 +648,7 @@
         g.strokeStyle = `rgba(232,204,232,${.4 * a})`; g.beginPath(); g.arc(b.x, b.y, b.r * .85, .3, 1.6); g.stroke();
         g.fillStyle = 'rgba(255,255,255,.45)'; oval(g, b.x - b.r * .3, b.y - b.r * .35, Math.max(.3, b.r * .19), Math.max(.3, b.r * .19)); g.fill();
       }
+      g.restore();
     }
 
     gear(g, p, front) {

@@ -25,7 +25,7 @@
     { id: 'whale-shirt', slot: 'cl', value: 3, name: '고래 티셔츠', icon: '🐳', price: 60 },
     { id: 'star-vest', slot: 'cl', value: 4, name: '별빛 조끼', icon: '✨', price: 80 },
   ];
-  const chests = [{ id: 'reef', coins: 30, u: .33 }, { id: 'pearl-cove', coins: 40, u: .56 }, { id: 'deep-blue', coins: 50, u: .84 }];
+  const chests = [{ id: 'reef', coins: 30, u: .18 }, { id: 'pearl-cove', coins: 40, u: .5 }, { id: 'deep-blue', coins: 50, u: .82 }];
   const cooldown = 120000;
   let memory = null;
   function wallet() {

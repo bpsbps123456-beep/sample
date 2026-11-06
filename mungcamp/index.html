@@ -103,9 +103,17 @@
 
       <p class="guidance" id="guidance"></p>
       <div class="dive-hud" id="diveHud" role="group" aria-label="바닷속 탐험" hidden>
-        <span class="sea-balance">🪙 <span id="diveBalance">0 코인</span></span>
-        <button class="chip" type="button" id="findTreasure">보물 찾기</button>
-        <button class="chip" type="button" id="seaShop">바다 상점</button>
+        <div class="dive-actions">
+          <span class="sea-balance">🪙 <span id="diveBalance">0 코인</span></span>
+          <button class="chip" type="button" id="findTreasure">보물 찾기</button>
+          <button class="chip" type="button" id="seaShop">바다 상점</button>
+        </div>
+        <nav class="dive-route" aria-label="바닷속 탐험 지도">
+          <div class="dive-route-line" aria-hidden="true"><span id="diveProgress"></span></div>
+          <button type="button" data-dive-region="0">산호 정원</button>
+          <button type="button" data-dive-region="1">진주 만</button>
+          <button type="button" data-dive-region="2">푸른 심해</button>
+        </nav>
       </div>
 
       <div class="breath" id="breath" hidden aria-live="polite">

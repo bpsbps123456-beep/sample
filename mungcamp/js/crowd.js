@@ -643,7 +643,7 @@
         if (this.target && !keyed) {
           this.stuck = moved ? 0 : this.stuck + dt;
           this.walkT += dt;
-          if (this.stuck > 0.35 || this.walkT > 9) {
+          if (this.stuck > 0.35 || this.walkT > (cfg.walkTimeout ? cfg.walkTimeout() : 9)) {
             this.target = null;
             this.path = null;
             this.toPerch = false;
