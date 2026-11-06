@@ -23,7 +23,7 @@
       look = { c: bodies[(Math.random() * bodies.length) | 0].i, h: (Math.random() * MC.Pup.HATS) | 0 };
       MC.store.set('look', look);
     }
-    for (const slot of ['ht', 'ac', 'gl']) {
+    for (const slot of ['ht', 'ac', 'gl', 'cl']) {
       look[slot] = MC.Wardrobe.clean(slot, look[slot]);
       if (!MC.Wardrobe.has(slot, look[slot])) look[slot] = 0;
     }
@@ -82,6 +82,7 @@
       ht: MC.Wardrobe.clean('ht', raw.ht),
       ac: MC.Wardrobe.clean('ac', raw.ac),
       gl: MC.Wardrobe.clean('gl', raw.gl),
+      cl: MC.Wardrobe.clean('cl', raw.cl),
       hp: num(raw.hp, 0, 1e9) | 0, // 하트가 몇 번 났는지
       ep: num(raw.ep, 0, 1e9) | 0,
       ek: MC.Emotes.valid(raw.ek),
@@ -317,6 +318,7 @@
       next.ht = this.look.ht;
       next.ac = this.look.ac;
       next.gl = this.look.gl;
+      next.cl = this.look.cl;
       next.n = this.name || '';
       next.bp = this.bp || null;
       let changed = false;
@@ -380,9 +382,9 @@
 
     // 닉네임을 정한다 (처음 들어올 때). 다듬은 이름을 돌려준다
     // 꾸미기에서 고른 털빛과 모자. 저장하고, 다음 알림부터 함께 있는 사람들에게도 보인다
-    setLook(c, h, ht = 0, ac = 0, gl = 0) {
+    setLook(c, h, ht = 0, ac = 0, gl = 0, cl = 0) {
       this.look = { c: Math.max(0, Math.min(99, c | 0)), h: Math.max(0, Math.min(MC.Pup.HATS - 1, h | 0)) };
-      for (const [slot, value] of Object.entries({ ht, ac, gl })) {
+      for (const [slot, value] of Object.entries({ ht, ac, gl, cl })) {
         const clean = MC.Wardrobe.clean(slot, value);
         this.look[slot] = MC.Wardrobe.has(slot, clean) ? clean : 0;
       }

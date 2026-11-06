@@ -49,7 +49,7 @@
         this.fromSpot = this.st.q ? this.st.l || 1 : 0;
         this.jumpVia = undefined; // 디딤 가지는 장면이 정한다 (placeVisitor)
       }
-      if (st.c !== p.coatId || st.h !== p.hatId || (st.ht || 0) !== p.hatStyle || (st.ac || 0) !== p.accessory || (st.gl || 0) !== p.gloves) p.setLook(st.c, st.h, st.ht, st.ac, st.gl);
+      if (st.c !== p.coatId || st.h !== p.hatId || (st.ht || 0) !== p.hatStyle || (st.ac || 0) !== p.accessory || (st.gl || 0) !== p.gloves || (st.cl || 0) !== p.clothing) p.setLook(st.c, st.h, st.ht, st.ac, st.gl, st.cl);
       if (st.hp > this.hp) {
         p.addHearts(2);
         p.hopV = -40;

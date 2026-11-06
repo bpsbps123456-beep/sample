@@ -656,8 +656,7 @@
 
     pointerDown(x, y) {
       if (this.underwater) {
-        if (this.dive.poke(x, y)) {
-          if (this.onToast) this.onToast('조개가 작은 진주를 보여 줬어요');
+        if (this.dive.poke(x, y, this.crowd)) {
           if (this.onRipple) this.onRipple(.3, x / this.w * 2 - 1);
           return true;
         }
@@ -745,6 +744,7 @@
       const on = !this.underwater;
       if (on) this.surfacePos = { X: c.me.X, Z: c.me.Z };
       this.underwater = on;
+      this.dive.pending = null;
       c.target = c.path = c.portal = null;
       c.moving = false; c.setKeys(0, 0); c.roomMade = true; c.posed = false;
       c.me.X = on ? MC.clamp(c.me.X, 180, 820) : this.surfacePos.X;
@@ -934,6 +934,7 @@
         this.pup.rest = 'dive'; this.pup.setLie(false);
         this.pup.view = this.pup.restView = 'front';
         this.pup.update(dt, { wind: .12, walking: false, noSleep: true });
+        this.dive.onToast = msg => this.onToast?.(msg);
         this.dive.update(dt, this.pup);
         return;
       }

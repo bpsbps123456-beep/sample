@@ -61,7 +61,7 @@
       this.pups.forEach((p, i) => {
         const id = sc.game?.players[i]?.id, look = id === sc.net.id ? sc.pup : sc.visitors.get(id)?.pup;
         if (look) {
-          const ids = [look.coatId, look.hatId, look.hatStyle, look.accessory, look.gloves], signature = ids.join(':');
+          const ids = [look.coatId, look.hatId, look.hatStyle, look.accessory, look.gloves, look.clothing], signature = ids.join(':');
           if (p.lookSignature !== signature) { p.setLook(...ids); p.lookSignature = signature; }
         }
         p.flip = i ? -1 : 1; p.update(dt, { walking: Math.abs(this.sim.dogs[i].axis) > 0, noSleep: true });

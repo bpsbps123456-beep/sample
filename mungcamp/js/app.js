@@ -33,7 +33,7 @@
       place: '달빛 바다',
       make: () => new MC.WaterScene({}),
       scape: MC.WaterScape,
-      guidance: '파도에 숨을 맞춰요',
+      guidance: '잠수를 눌러 바닷속 친구와 보물을 만나 보세요',
       actions: [
         { id: 'ripple', icon: 'i-drop', label: '물수제비', primary: true },
         { id: 'dive', icon: 'i-drop', label: '잠수', toggle: true },
@@ -280,7 +280,7 @@
   const dressName = $('#dressName');
   const dressFine = $('#dressFine');
   const dressCanvas = $('#dressPreview');
-  const dress = { body: 0, ear: 0, hat: 0, ht: 0, ac: 0, gl: 0, raf: 0, pup: null, back: null };
+  const dress = { body: 0, ear: 0, hat: 0, ht: 0, ac: 0, gl: 0, cl: 0, raf: 0, pup: null, back: null };
   const dressOpen = () => !dressCard.hidden;
   function swatch(row, value, color, name, onPick, cls) {
     const b = document.createElement('button');
@@ -298,22 +298,25 @@
     return b;
   }
   function markSwatches() {
-    for (const [id, v] of [['#swBody', dress.body], ['#swEar', dress.ear], ['#swHat', dress.hat], ['#swStyle', dress.ht], ['#swAccessory', dress.ac], ['#swGloves', dress.gl]]) {
+    for (const [id, v] of [['#swBody', dress.body], ['#swEar', dress.ear], ['#swHat', dress.hat], ['#swStyle', dress.ht], ['#swAccessory', dress.ac], ['#swGloves', dress.gl], ['#swClothes', dress.cl]]) {
       for (const b of $(id).children) b.setAttribute('aria-checked', String(b.dataset.v === String(v)));
     }
     // '기본' 귀는 고른 몸에 어울리는 빛깔로
     const de = MC.Pup.defaultEar(dress.body);
     const first = $('#swEar').firstChild;
     if (first) first.firstChild.style.setProperty('--sw', `radial-gradient(circle at 35% 30%, ${de.hi}, ${de.lo})`);
-    if (dress.pup) dress.pup.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat, dress.ht, dress.ac, dress.gl);
+    if (dress.pup) dress.pup.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat, dress.ht, dress.ac, dress.gl, dress.cl);
   }
   function refreshCloset() {
+    $('#seaBalance').textContent = MC.Wardrobe.balance() + ' 코인';
     const owned = MC.Wardrobe.owned();
     $('#closetCount').textContent = `${owned.length} / ${MC.Wardrobe.items.length}`;
     for (const b of dressCard.querySelectorAll('[data-item]')) {
       const unlocked = owned.includes(b.dataset.item);
-      b.disabled = !unlocked;
-      b.querySelector('.closet-state').textContent = unlocked ? '보유' : '낚시로 얻어요';
+      const item = MC.Wardrobe.items.find(i => i.id === b.dataset.item);
+      b.disabled = !unlocked && !item.price;
+      b.classList.toggle('is-shop', !unlocked && !!item.price);
+      b.querySelector('.closet-state').textContent = unlocked ? '보유 · 눌러 입기' : item.price ? item.price + ' 코인 · 구매' : '낚시로 얻어요';
     }
   }
   function buildSwatches() {
@@ -323,7 +326,7 @@
     for (const e of MC.Pup.EARS) swatch($('#swEar'), e.i, `radial-gradient(circle at 35% 30%, ${e.hi}, ${e.lo})`, e.name, (v) => { dress.ear = v; markSwatches(); });
     const HAT_NAMES = ['빨강', '파랑', '초록', '노랑', '보라', '분홍'];
     for (const h of MC.Pup.HATS_LIST) swatch($('#swHat'), h.i, `linear-gradient(${h.top}, ${h.bot})`, HAT_NAMES[h.i] || '모자', (v) => { dress.hat = v; markSwatches(); });
-    for (const [id, slot, defaultName] of [['#swStyle', 'ht', '기본 비니'], ['#swAccessory', 'ac', '벗기'], ['#swGloves', 'gl', '벗기']]) {
+    for (const [id, slot, defaultName] of [['#swStyle', 'ht', '기본 비니'], ['#swAccessory', 'ac', '벗기'], ['#swGloves', 'gl', '벗기'], ['#swClothes', 'cl', '벗기']]) {
       const choices = [{ value: 0, name: defaultName, icon: slot === 'ht' ? '🧢' : '—' }, ...MC.Wardrobe.items.filter(item => item.slot === slot)];
       for (const item of choices) {
         const b = document.createElement('button');
@@ -335,12 +338,23 @@
         const name = document.createElement('span'); name.textContent = item.name;
         const status = document.createElement('small'); status.className = 'closet-state'; status.textContent = item.id ? '낚시로 얻어요' : '기본';
         b.append(icon, name, status);
-        b.addEventListener('click', () => { dress[slot] = item.value; markSwatches(); });
+        b.addEventListener('click', () => {
+          if (item.price && !MC.Wardrobe.has(slot, item.value)) {
+            const result = MC.Wardrobe.buy(item.id);
+            if (!result.ok) {
+              $('#shopStatus').textContent = '코인이 부족해요. 바다에서 잠수해 보물상자를 찾아보세요!';
+              return;
+            }
+            $('#shopStatus').textContent = item.name + ' 구매 완료! 다 됐어요를 누르면 입혀요.';
+            refreshCloset();
+          }
+          dress[slot] = item.value; markSwatches();
+        });
         $(id).appendChild(b);
       }
     }
     // 방향키로 고르기 (radiogroup)
-    for (const row of [$('#swBody'), $('#swEar'), $('#swHat'), $('#swStyle'), $('#swAccessory'), $('#swGloves')]) {
+    for (const row of [$('#swBody'), $('#swEar'), $('#swHat'), $('#swStyle'), $('#swAccessory'), $('#swGloves'), $('#swClothes')]) {
       row.addEventListener('keydown', (e) => {
         const items = [...row.children].filter(item => !item.disabled);
         const i = items.indexOf(document.activeElement);
@@ -350,7 +364,7 @@
         e.preventDefault();
         const n = items[(i + d + items.length) % items.length];
         n.focus();
-        n.click();
+        if (!n.dataset.item || MC.Wardrobe.owned().includes(n.dataset.item)) n.click();
       });
     }
   }
@@ -387,9 +401,11 @@
     dress.raf = requestAnimationFrame(drawDress);
   }
   function openDress() {
+    held.clear(); applyKeys();
+    $('#shopStatus').textContent = '';
     buildSwatches();
     const sp = MC.Pup.splitCoat(net.look.c);
-    Object.assign(dress, { body: sp.body, ear: sp.ear, hat: net.look.h, ht: net.look.ht, ac: net.look.ac, gl: net.look.gl, back: document.activeElement, last: 0 });
+    Object.assign(dress, { body: sp.body, ear: sp.ear, hat: net.look.h, ht: net.look.ht, ac: net.look.ac, gl: net.look.gl, cl: net.look.cl, back: document.activeElement, last: 0 });
     if (!dress.pup) dress.pup = new MC.Pup({ outfit: 'beanie' });
     dressName.value = net.name || '';
     dressName.placeholder = pick(MOODS);
@@ -399,6 +415,7 @@
     refreshCloset();
     markSwatches();
     dressCard.hidden = false;
+    $('#dressCancel').focus({ preventScroll: true });
     cancelAnimationFrame(dress.raf);
     dress.raf = requestAnimationFrame(drawDress);
   }
@@ -409,10 +426,16 @@
   }
   $('#dressBtn').addEventListener('click', openDress);
   $('#dressCancel').addEventListener('click', closeDress);
+  $('#seaShop').addEventListener('click', () => { openDress(); $('#closet-title').scrollIntoView({ block: 'start' }); });
+  $('#findTreasure').addEventListener('click', () => {
+    const sc = state.sceneObj;
+    if (state.scene === 'water' && sc.underwater) sc.dive.findTreasure(sc.crowd);
+  });
   dressCard.addEventListener('click', (e) => { if (e.target === dressCard) closeDress(); });
   dressCard.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       closeDress();
     }
   });
@@ -430,9 +453,9 @@
       const name = MC.cleanName(raw) || net.name || MC.cleanName(dressName.placeholder) || '멍이';
       MC.store.set('nick', name);
       net.setName(name);
-      const look = net.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat, dress.ht, dress.ac, dress.gl);
-      camp.pup.setLook(look.c, look.h, look.ht, look.ac, look.gl);
-      if (state.sceneObj && state.sceneObj.pup) state.sceneObj.pup.setLook(look.c, look.h, look.ht, look.ac, look.gl);
+      const look = net.setLook(MC.Pup.joinCoat(dress.body, dress.ear), dress.hat, dress.ht, dress.ac, dress.gl, dress.cl);
+      camp.pup.setLook(look.c, look.h, look.ht, look.ac, look.gl, look.cl);
+      if (state.sceneObj && state.sceneObj.pup) state.sceneObj.pup.setLook(look.c, look.h, look.ht, look.ac, look.gl, look.cl);
       setMyNameVisible($('#dressShowName').checked);
       closeDress();
       camp.pup.poke();
@@ -894,7 +917,7 @@
   }
 
   // 내 멍이도 내 털빛과 모자를 입는다
-  camp.pup.setLook(net.look.c, net.look.h, net.look.ht, net.look.ac, net.look.gl);
+  camp.pup.setLook(net.look.c, net.look.h, net.look.ht, net.look.ac, net.look.gl, net.look.cl);
   const together = { camp: $('#campTogether'), session: $('#sessionTogether'), at: 0 };
   function showTogether(el, n) {
     const on = n >= 2;
@@ -1248,7 +1271,7 @@
         if (v) showName(sceneName, v.pup, v.st.n, false, () => crowd.visitors.get(id) === v && !v.leaving);
       };
     }
-    if (scene.pup) scene.pup.setLook(net.look.c, net.look.h, net.look.ht, net.look.ac, net.look.gl);
+    if (scene.pup) scene.pup.setLook(net.look.c, net.look.h, net.look.ht, net.look.ac, net.look.gl, net.look.cl);
     state.started = true;
     state.startAt = Date.now();
     state.timerDone = false;
@@ -1373,6 +1396,12 @@
 
   // ── 진행 중 ───────────────────────────────────────────
   function onFrame() {
+    const diving = state.scene === 'water' && state.sceneObj?.underwater;
+    $('#diveHud').hidden = !diving;
+    if (diving) {
+      const text = MC.Wardrobe.balance() + ' 코인';
+      if ($('#diveBalance').textContent !== text) $('#diveBalance').textContent = text;
+    }
     const sc = state.sceneObj;
     if (!sc) return;
     if (sc.crowd) {
@@ -1485,11 +1514,13 @@
     else if (id === 'dive') {
       held.clear(); applyKeys();
       const on = sc.toggleDive();
+      $('#diveHud').hidden = !on;
+      wake();
       setPressed('dive', on); setPressed('chair', false);
       $('#dockScene [data-act="dive"] span').textContent = on ? '물 위로' : '잠수';
       $('#dockScene [data-act="ripple"] span').textContent = on ? '공기 방울' : '물수제비';
       for (const id of ['bottle', 'chair']) $('#dockScene [data-act="' + id + '"]').hidden = on;
-      showGuidance(on ? '바닷속을 톡, 천천히 헤엄쳐요' : state.def.guidance);
+      showGuidance(on ? '보물상자를 톡! 헤엄쳐 가서 코인을 모아요' : state.def.guidance);
     }
     else if (id === 'bottle') {
       if (sc.bottle) toast('병이 아직 떠가고 있어요');
@@ -1663,7 +1694,7 @@
   }
   function armIdle() {
     clearTimeout(state.idleTimer);
-    if (!state.started || ['playground', 'learn'].includes(state.scene)) return;
+    if (!state.started || ['playground', 'learn'].includes(state.scene) || (state.scene === 'water' && state.sceneObj?.underwater)) return;
     state.idleTimer = setTimeout(() => {
       const sc = state.sceneObj;
       if (reading.isOpen || anyPanelOpen() || modalOpen() || (sc && sc.worry) || document.activeElement === $('#worryInput')) {

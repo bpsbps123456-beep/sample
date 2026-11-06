@@ -773,6 +773,7 @@ body.is-reading { overflow: hidden; }
 /* 내 멍이 꾸미기 */
 .dress-card { width: min(440px, 100%); padding-top: 20px; background: rgba(12, 14, 28, 0.96); }
 .dress-card h2 { margin-bottom: 0; font-size: var(--step-2); }
+#dressCard { z-index: 60; animation: none; }
 .dress-preview { display: block; width: 150px; height: 132px; margin: 0 auto 2px; }
 .dress-label { margin: 10px 0 5px; font-size: var(--step--1); color: var(--ink-dim); text-align: left; }
 .dress-name { margin-top: 0; }
@@ -816,6 +817,17 @@ body.is-reading { overflow: hidden; }
 .closet-item:disabled { opacity: .5; cursor: default; }
 .closet-item[aria-checked="true"] { border-color: #f0bc9b; background: rgba(255, 205, 173, .12); box-shadow: 0 0 0 1px #f0bc9b; }
 .closet-item:focus-visible { outline: 2px solid var(--ember-hi); outline-offset: 2px; }
+.sea-balance { color: #ffe3a0; font-size: 14px; font-weight: 600; margin: 8px 0; }
+.shop-status { font-size: 13px; line-height: 1.5; color: #ffe3a0; }
+.shop-status:empty { display: none; }
+.closet-item.is-shop { border-color: rgba(238, 198, 119, .4); background: rgba(238, 198, 119, .08); }
+.closet-item.is-shop .closet-state { color: #f4d28b; }
+.dive-hud { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 68px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); padding: 6px 10px; border: 1px solid rgba(192, 238, 225, .25); border-radius: 18px; background: rgba(10, 48, 66, .83); pointer-events: auto; }
+.dive-hud .sea-balance { white-space: nowrap; margin: 0; }
+.dive-hud .chip { white-space: nowrap; min-height: 36px; padding: 6px 10px; font-size: 13px; }
+.session[data-scene="water"] .guidance { font-size: clamp(18px, 2.2vw, 26px); }
+.session[data-scene="water"] #toast { width: max-content; max-width: calc(100% - 32px); border-radius: 18px; padding: 10px 16px; font-size: 15px; line-height: 1.5; }
+@media (max-width: 380px) { .dive-hud { gap: 4px; padding: 5px 7px; } .dive-hud .chip { padding: 6px; font-size: 12px; } .dive-hud .sea-balance { font-size: 12px; } }
 .dress-card .modal-buttons { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--glass-line); }
 
 /* 건의하기 */

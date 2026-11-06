@@ -156,7 +156,7 @@
         if (m.t === 'pg') {
           if (m.round !== this.round) { this.round = m.round; this.hidden = false; this.target = null; }
           if (m.mode !== this.game?.mode) {
-            this.keys = { x: 0, y: 0 };
+            this.keys = { x: 0, y: 0 }; this.target = null; this.moving = false;
             if (m.mode === 'volley' && !m.volley) this.volley.accept(MC.VolleyRules.create());
           }
           this.game = m; this.volley.accept(m.volley); this.offset = m.now - Date.now(); this.renderPanel(true);
@@ -173,6 +173,7 @@
         hitVisitor: () => null, boopAt: () => false,
       };
       this.volley = new MC.PlaygroundVolley(this);
+      this.board = new MC.PlaygroundBoard(this);
       this.buildPanel();
     }
     command(action, value) {
@@ -186,7 +187,7 @@
       const panel = this.panel = document.createElement('section');
       panel.className = 'playground-panel'; panel.setAttribute('aria-label', '놀이터 놀이');
       panel.innerHTML = '<div class="pg-heading"><span>글램핑 옆 작은 운동장</span><h2>멍이 놀이터 <span aria-hidden="true">⚑</span></h2></div>' +
-        '<div class="pg-modes" role="group" aria-label="놀이 고르기"><button type="button" data-mode="tag">술래잡기</button><button type="button" data-mode="hide">숨바꼭질</button><button type="button" data-mode="volley">멍이 배구</button></div>' +
+        '<div class="pg-modes" role="group" aria-label="놀이 고르기"><button type="button" data-mode="tag">술래잡기</button><button type="button" data-mode="hide">숨바꼭질</button><button type="button" data-mode="volley">멍이 배구</button><button type="button" data-mode="board">보물 레이스</button></div>' +
         '<p class="pg-status" role="status" aria-live="polite"></p><div class="pg-friends"></div>' +
         '<div class="pg-buttons"><button type="button" data-pg="join">참가</button><button type="button" data-pg="start">함께 시작</button><button type="button" data-pg="leave">참가 취소</button></div>' +
         '<details><summary>놀이 방법</summary><p class="pg-instructions"></p></details>';
@@ -212,10 +213,15 @@
       const sec = game ? Math.max(0, Math.ceil((game.until - Date.now() - (this.offset || 0)) / 1000)) : 0;
       const seeker = game?.seeker === this.net.id;
       const volley = game?.mode === 'volley';
+      const board = game?.mode === 'board';
+      this.board.render();
+      document.querySelector('#session').classList.toggle('is-board', board);
+      document.querySelector('#session').classList.toggle('board-open', this.board.open);
       let status;
       if (!game || !this.net.online) status = this.net.kind === 'socket' ? '친구들과 연결하고 있어요…' : '지금은 혼자 산책 중 · 함께 모이기 서버에서 친구와 놀 수 있어요';
       else if (game.phase === 'ended') status = game.result;
-      else if (idle) status = volley ? `참가 ${game.players.length}/2 · 두 멍이가 모이면 배구를 시작해요` : `참가 ${game.players.length}/12 · 두 멍이 이상 모이면 시작해요`;
+      else if (idle) status = board ? `참가 ${game.players.length}/4 · 혼자면 산책봇과, 친구와는 함께 달려요` : volley ? `참가 ${game.players.length}/2 · 두 멍이가 모이면 배구를 시작해요` : `참가 ${game.players.length}/12 · 두 멍이 이상 모이면 시작해요`;
+      else if (board) status = me ? '주사위를 굴려 보물섬까지! · 30칸에 먼저 도착하면 승리' : '친구들의 보물 레이스를 구경해요 · 다음 판에 참가할 수 있어요';
       else if (volley) status = game.phase === 'ready' ? `${sec}초 뒤 서브! · 먼저 5점을 얻으면 이겨요` : !me ? '친구들의 배구를 구경하고 있어요 · 다음 판에 만나요' : game.volley?.pause > 0 ? '득점! 잠시 뒤 다음 서브를 시작해요' : `${this.volley.side === 0 ? '왼쪽' : '오른쪽'} 코트가 내 자리 · 점프해서 공을 받아요!`;
       else if (!me) status = `친구들이 노는 중 · ${sec}초 · 다음 판에 참가해요`;
       else if (me.caught) status = `잡혔어요! 친구들을 응원해요 · ${sec}초`;
@@ -228,7 +234,10 @@
       document.querySelector('#session').classList.toggle('is-volley', volley);
       document.querySelector('#session').classList.toggle('volley-waiting', volley && idle);
       const instructions = volley ? '두 멍이가 한 편씩 맡아요. ← → 또는 A·D로 이동하고, ↑·W·Space로 점프해요. 휴대폰에서는 이동 버튼을 꾹 누르며 점프를 함께 누를 수 있어요. 몸에 닿은 공은 자동으로 튀어 올라요. 상대 코트 바닥에 공을 떨어뜨려 먼저 5점을 얻으면 이겨요.' : '방향키·WASD 또는 땅을 톡 눌러 이동해요. 처음 참가한 멍이가 놀이를 고르고 시작해요. 술래잡기는 가까이 가서 ‘잡기’ 또는 Space! 숨바꼭질은 덤불 안에서 ‘숨기’ 또는 Space로 위치를 완전히 감춰요. 가까이 와도 저절로 보이지 않아요. 술래는 덤불 가까이에서 ‘수색’ 또는 Space로 찾아요. 시야 밖과 장애물 뒤의 멍이도 보이지 않아요. 걸으면 숨기에서 나와요.';
-      const help = this.panel.querySelector('.pg-instructions'); if (help.textContent !== instructions) help.textContent = instructions;
+      const help = this.panel.querySelector('.pg-instructions');
+      const text = board ? '1~4명이 참가해요. 혼자 시작하면 산책봇과 대결해요. 내 차례에 주사위 버튼 또는 Space를 누르면 나온 수만큼 자동으로 이동해요. 지름길 ↗은 앞으로, 미끄럼 ↙은 뒤로! 30칸 보물섬에 먼저 닿으면 이겨요. 넘치는 수는 신경 쓰지 않아도 돼요. 22초 동안 누르지 않으면 자동으로 굴려요. 처음 참가한 멍이가 놀이를 고르고 시작해요.' : instructions;
+      if (help.textContent !== text) help.textContent = text;
+      if (board && idle && !this.board.open) this.panel.querySelector('details').open = true;
       this.scoreboard.hidden = !volley;
       const score = game?.volley?.score || [0, 0], names = this.scoreboard.querySelectorAll('.pg-side-name');
       names.forEach((el, i) => { const name = game?.players[i]?.n || (i ? '오른쪽 멍이' : '왼쪽 멍이'); if (el.textContent !== name) el.textContent = name; });
@@ -236,13 +245,13 @@
       if (scoreEl.textContent !== scoreText) scoreEl.textContent = scoreText;
       for (const b of this.panel.querySelectorAll('[data-mode]')) {
         b.setAttribute('aria-pressed', String((game?.mode || 'tag') === b.dataset.mode));
-        b.disabled = !host || !idle || b.dataset.mode === 'volley' && game.players.length > 2;
+        b.disabled = !host || !idle || b.dataset.mode === 'volley' && game.players.length > 2 || b.dataset.mode === 'board' && game.players.length > 4;
       }
       const join = this.panel.querySelector('[data-pg="join"]');
-      join.hidden = !!me || !idle; join.disabled = !game || !this.net.online || game.players.length >= (volley ? 2 : 12);
+      join.hidden = !!me || !idle; join.disabled = !game || !this.net.online || game.players.length >= (volley ? 2 : board ? 4 : 12);
       const start = this.panel.querySelector('[data-pg="start"]');
-      start.hidden = !host || !idle; start.disabled = !game || game.players.length < 2;
-      start.textContent = game?.phase === 'ended' ? '한 판 더' : '함께 시작';
+      start.hidden = !host || !idle; start.disabled = !game || game.players.length < (board ? 1 : 2);
+      start.textContent = game?.phase === 'ended' ? '한 판 더' : board && game?.players.length === 1 ? '산책봇과 시작' : '함께 시작';
       this.panel.querySelector('[data-pg="leave"]').hidden = !me;
       const friends = this.panel.querySelector('.pg-friends');
       const signature = JSON.stringify([game?.phase, game?.seeker, game?.host, game?.players]);
@@ -257,7 +266,7 @@
       const act = document.querySelector('#dockScene [data-act="play"]');
       if (act) {
         act.querySelector('span').textContent = volley ? '점프' : seeker && !idle ? game.mode === 'hide' ? '수색' : '잡기' : this.hidden ? '나오기' : '숨기';
-        act.disabled = !me || !!me.caught || idle || (volley ? game.phase !== 'playing' : seeker ? game.phase !== 'playing' : game.mode !== 'hide');
+        act.disabled = board || !me || !!me.caught || idle || (volley ? game.phase !== 'playing' : seeker ? game.phase !== 'playing' : game.mode !== 'hide');
       }
     }
     resize(w, h, dpr) {
@@ -275,14 +284,15 @@
         let v = this.visitors.get(person.id);
         if (!v) { v = { pup: new MC.Pup({ outfit: 'beanie' }), pos: { x: person.s.x, y: person.s.y } }; this.visitors.set(person.id, v); }
         v.st = person.s;
-        v.pup.setLook(v.st.c, v.st.h, v.st.ht, v.st.ac, v.st.gl);
+        v.pup.setLook(v.st.c, v.st.h, v.st.ht, v.st.ac, v.st.gl, v.st.cl);
       }
       for (const id of this.visitors.keys()) if (!seen.has(id)) this.visitors.delete(id);
     }
     get me() { return this.game?.players.find(p => p.id === this.net.id); }
     get active() { return this.game?.phase === 'ready' || this.game?.phase === 'playing'; }
-    get frozen() { return !!(this.me && this.active && (this.me.caught || this.game.phase === 'ready' && this.game.seeker === this.net.id)); }
+    get frozen() { return !!(this.me && this.active && (this.game.mode === 'board' || this.me.caught || this.game.phase === 'ready' && this.game.seeker === this.net.id)); }
     action() {
+      if (this.game?.mode === 'board') { this.board.roll(); return; }
       if (this.game?.mode === 'volley') { this.volley.jump(); return; }
       if (!this.me || !this.active || this.me.caught) return;
       if (this.game.seeker === this.net.id) { this.searchAt = this.t; this.command('catch'); }
@@ -295,7 +305,7 @@
       }
     }
     pointerDown(x, y) {
-      if (this.game?.mode === 'volley') return false;
+      if (this.game?.mode === 'volley' || this.board.open) return false;
       if (this.frozen) return false;
       const pos = this.toWorld(x, y);
       // 술래는 친구를 톡 눌러서도 잡을 수 있다. 거리는 서버가 확인한다.
@@ -321,6 +331,7 @@
       this.t += dt;
       if (this.game?.mode === 'volley') { this.volley.update(dt); this.renderPanel(); return; }
       this.volley.controls.hidden = true;
+      if (this.board.open) { this.moving = false; this.crowd.moving = false; this.keys = { x: 0, y: 0 }; this.target = null; this.board.update(); this.renderPanel(); return; }
       if (!this.active || !this.me || this.me.caught) this.hidden = false;
       let dx = this.keys.x, dy = this.keys.y;
       if (!dx && !dy && this.target) { dx = this.target.x - this.player.x; dy = this.target.y - this.player.y; }
@@ -351,6 +362,7 @@
     }
     draw(g) {
       if (this.game?.mode === 'volley') { this.volley.draw(g); return; }
+      if (this.board.open) { g.fillStyle = '#66816c'; g.fillRect(0, 0, this.w, this.h); return; }
       g.fillStyle = '#7b946a'; g.fillRect(0, 0, this.w, this.h);
       g.save(); g.translate(this.w / 2 - this.camX * this.z, this.h * .58 - this.camY * this.z); g.scale(this.z, this.z);
       g.fillStyle = meadow(g);
@@ -398,7 +410,7 @@
       g.fillText('글램핑 옆 · 멍이 놀이터', this.w - 20, this.h - 118);
     }
     destroy() {
-      this.volley.destroy(); this.scoreboard.remove(); document.querySelector('#session').classList.remove('is-volley', 'volley-waiting');
+      this.volley.destroy(); this.board.destroy(); this.scoreboard.remove(); document.querySelector('#session').classList.remove('is-volley', 'volley-waiting', 'is-board', 'board-open');
       this.panel.remove(); this.net.onPlayground = null; this.net.playground = null;
     }
   }

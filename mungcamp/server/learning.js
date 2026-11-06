@@ -30,7 +30,7 @@ module.exports = class Learning {
       answered: this.answers.size, online: members.filter(m => m.learn.role === 'member').length,
       own: this.answers.get(c.id) || null, boards, summary: this.summary(),
       roster: members.map(m => ({ id: m.id, name: m.state.n || '멍이', role: m.learn.role,
-        c: m.state.c, h: m.state.h, ht: m.state.ht, ac: m.state.ac, gl: m.state.gl })) };
+        c: m.state.c, h: m.state.h, ht: m.state.ht, ac: m.state.ac, gl: m.state.gl, cl: m.state.cl })) };
   }
   publish() { for (const c of this.members()) this.send(c, this.snapshot(c)); }
   chatHistory(c) { if (this.authorized(c) && c.room?.place === 'learn') this.send(c, { t: 'learn-chat', history: true, messages: this.messages }); }

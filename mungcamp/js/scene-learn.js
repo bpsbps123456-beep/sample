@@ -219,8 +219,8 @@
             this.detail.querySelector('h2').textContent = member.name + '의 팻말'; this.detail.querySelector('p').textContent = answer; this.detail.showModal();
           };
         }
-        const signature = [member.c, member.h, member.ht, member.ac, member.gl].join(':');
-        if (card.signature !== signature) { card.pup.setLook(member.c, member.h, member.ht, member.ac, member.gl); card.signature = signature; }
+        const signature = [member.c, member.h, member.ht, member.ac, member.gl, member.cl].join(':');
+        if (card.signature !== signature) { card.pup.setLook(member.c, member.h, member.ht, member.ac, member.gl, member.cl); card.signature = signature; }
         card.name.textContent = member.name + (member.id === this.net.id ? ' · 나' : '') + (member.role === 'owner' ? ' · 운영자' : '');
         const answer = m.boards[member.id]; card.sign.textContent = answer?.text || (member.role === 'owner' ? '함께 생각해 봐요' : answer?.submitted ? m.phase === 'revealed' ? '답변 완료' : '답변 완료 · 공개 대기' : '생각하고 있어요');
         card.sign.disabled = !answer?.text; card.sign.dataset.answered = !!answer; card.sign.title = answer?.text || '';

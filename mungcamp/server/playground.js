@@ -1,6 +1,8 @@
 'use strict';
 const R = require('../js/playground-rules');
 const V = require('../js/volley-rules');
+const B = require('../js/board-rules');
+const { randomInt } = require('crypto');
 
 // 라운드, 술래, 참가자, 시간, 잡기 판정은 서버 한 곳에서 결정한다.
 module.exports = class Playground {
@@ -16,6 +18,7 @@ module.exports = class Playground {
     this.result = '';
     this.lastCatch = 0;
     this.volley = null;
+    this.board = null;
     this.inputAt = [0, 0];
   }
   snapshot() {
@@ -23,6 +26,7 @@ module.exports = class Playground {
       round: this.round, seeker: this.seeker, result: this.result,
       host: this.players.keys().next().value || '',
       volley: this.mode === 'volley' ? this.volley : null,
+      board: this.mode === 'board' ? this.board : null,
       players: [...this.players.values()].map(p => ({ id: p.client.id, n: p.client.state.n || '멍이', caught: p.caught })) };
   }
   canSee(viewer, subject) {
@@ -44,6 +48,12 @@ module.exports = class Playground {
     const now = Date.now();
     this.tick(now);
     if (action === 'leave') return this.leave(c);
+    if (action === 'roll') {
+      const s = this.board;
+      if (this.mode !== 'board' || this.phase !== 'playing' || !s ||
+        s.order[s.turn] !== c.id || value !== `${this.round}:${s.seq}` || now < s.readyAt) return;
+      this.rollBoard(now); return;
+    }
     if (action === 'input' || action === 'jump') {
       const side = [...this.players.keys()].indexOf(c.id);
       if (this.mode !== 'volley' || this.phase !== 'playing' || side < 0 || side > 1) return;
@@ -57,19 +67,33 @@ module.exports = class Playground {
     if (action === 'join') {
       if (!idle) return this.error(c, '놀이가 끝나면 다음 판에 참가할 수 있어요');
       if (this.players.has(c.id)) return;
-      if (this.players.size >= (this.mode === 'volley' ? 2 : 12)) return this.error(c, this.mode === 'volley' ? '배구는 두 멍이가 함께해요. 다음 판에 만나요!' : '이번 판은 열두 멍이가 모두 모였어요');
+      if (this.players.size >= (this.mode === 'volley' ? 2 : this.mode === 'board' ? 4 : 12)) return this.error(c, this.mode === 'volley' ? '배구는 두 멍이가 함께해요. 다음 판에 만나요!' : this.mode === 'board' ? '보물 레이스는 네 멍이까지 함께해요' : '이번 판은 열두 멍이가 모두 모였어요');
       this.players.set(c.id, { client: c, caught: false });
     } else if (action === 'mode' || action === 'start') {
       if (c.id !== this.players.keys().next().value || !idle) return;
       if (action === 'mode') {
-        if (!['tag', 'hide', 'volley'].includes(value)) return;
+        if (!['tag', 'hide', 'volley', 'board'].includes(value)) return;
         if (value === 'volley' && this.players.size > 2) return this.error(c, '배구는 두 멍이가 참가할 때 고를 수 있어요');
+        if (value === 'board' && this.players.size > 4) return this.error(c, '보물 레이스는 네 멍이 이하일 때 고를 수 있어요');
         this.mode = value;
         this.volley = null;
+        this.board = null;
+        this.phase = 'lobby'; this.until = 0; this.result = '';
       } else {
-        if (this.players.size < 2) return this.error(c, '두 멍이 이상 참가하면 시작할 수 있어요');
+        if (this.players.size < (this.mode === 'board' ? 1 : 2)) return this.error(c, '두 멍이 이상 참가하면 시작할 수 있어요');
         this.round++;
         this.result = '';
+        if (this.mode === 'board') {
+          this.seeker = '';
+          this.board = B.create([...this.players.keys()], now);
+          this.board.names = Object.fromEntries([...this.players].map(([id, p]) => [id, p.client.state.n || '멍이']));
+          this.phase = 'playing'; this.until = this.board.deadline;
+          for (const p of this.players.values()) {
+            p.caught = false; p.client.state.hd = 0; p.client.state.w = 0;
+            this.room.changed.set(p.client.id, p.client.state);
+          }
+          this.publish(); return;
+        }
         if (this.mode === 'volley') {
           this.seeker = '';
           this.volley = V.create(); this.volley.lastAt = now;
@@ -94,7 +118,7 @@ module.exports = class Playground {
         }
       }
     } else if (action === 'catch') {
-      if (this.phase !== 'playing' || c.id !== this.seeker || now - this.lastCatch < 450) return;
+      if (!['tag', 'hide'].includes(this.mode) || this.phase !== 'playing' || c.id !== this.seeker || now - this.lastCatch < 450) return;
       this.lastCatch = now;
       const candidates = [...this.players.values()].filter(p => p.client !== c && !p.caught)
         .filter(p => Math.hypot(p.client.state.x - c.state.x, p.client.state.y - c.state.y) <= R.catchRadius && R.clear(c.state, p.client.state, 2))
@@ -111,7 +135,7 @@ module.exports = class Playground {
     const old = c.state;
     const p = this.players.get(c.id);
     const active = this.phase === 'ready' || this.phase === 'playing';
-    const frozen = p && active && (this.mode === 'volley' || p.caught || this.phase === 'ready' && c.id === this.seeker);
+    const frozen = p && active && (['volley', 'board'].includes(this.mode) || p.caught || this.phase === 'ready' && c.id === this.seeker);
     const elapsed = Math.min(.5, Math.max(0, (now - (c.pgMoveAt || now)) / 1000));
     c.pgMoveAt = now;
     const speed = c.id === this.seeker ? R.seekerSpeed : R.speed;
@@ -127,16 +151,37 @@ module.exports = class Playground {
   leave(c) {
     if (!this.players.delete(c.id)) return;
     if (this.phase === 'ready' || this.phase === 'playing') {
-      if (this.mode === 'volley') this.end('친구가 나가서 배구를 마쳤어요');
+      if (this.mode === 'board') {
+        B.remove(this.board, c.id, Date.now());
+        this.until = this.board.deadline;
+        if (this.players.size === 1 && !this.board.order.includes(B.bot)) {
+          this.board.winner = [...this.players.keys()][0];
+          this.end(`${this.players.get(this.board.winner).client.state.n || '멍이'} 승리! 친구가 나가서 레이스를 마쳤어요`);
+        }
+      }
+      else if (this.mode === 'volley') this.end('친구가 나가서 배구를 마쳤어요');
       else if (c.id === this.seeker) this.end('술래가 나가서 놀이를 마쳤어요');
       else if (this.players.size < 2) this.end('친구가 나가서 놀이를 마쳤어요');
       else if (![...this.players.values()].some(p => p.client.id !== this.seeker && !p.caught)) this.end('모두 찾았어요! 술래의 승리');
     }
-    if (!this.players.size) { this.phase = 'lobby'; this.result = ''; this.seeker = ''; this.volley = null; }
+    if (!this.players.size) { this.phase = 'lobby'; this.until = 0; this.result = ''; this.seeker = ''; this.volley = null; this.board = null; }
     this.publish();
   }
   end(result) { this.phase = 'ended'; this.until = 0; this.result = result; }
+  rollBoard(now, auto = false) {
+    if (!B.roll(this.board, randomInt(1, 7), now, auto)) return;
+    this.until = this.board.deadline;
+    if (this.board.winner) {
+      const name = this.board.winner === B.bot ? '산책봇' : this.players.get(this.board.winner)?.client.state.n || '멍이';
+      this.end(`${name} 승리! 보물섬에 가장 먼저 도착했어요`);
+    }
+    this.publish();
+  }
   tick(now) {
+    if (this.mode === 'board') {
+      if (this.phase === 'playing' && this.board && now >= this.board.deadline) this.rollBoard(now, true);
+      return;
+    }
     if (this.mode === 'volley') {
       if (this.phase === 'ready' && now >= this.until) {
         this.phase = 'playing'; this.until = now + 300000; this.volley.lastAt = now;

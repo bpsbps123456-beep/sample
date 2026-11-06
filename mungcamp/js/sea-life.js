@@ -267,8 +267,65 @@
     g.restore(); g.restore();
   }
 
+  // 큰 바다 친구들: 고래의 둥근 머리와 배 주름, 상어의 등지느러미·아가미를 구분한다.
+  function seaGiant(g, q, t) {
+    const whale = q.kind === 'whale', spotted = q.kind === 'whale-shark';
+    g.save(); g.translate(q.x, q.y); g.scale(q.k * q.dir, q.k);
+    g.lineJoin = 'round'; g.strokeStyle = '#254b65'; g.lineWidth = 1.8;
+    const fill = path => { g.beginPath(); path(); g.closePath(); g.fill(); g.stroke(); };
+    g.fillStyle = whale ? '#6f9fc0' : '#729aab';
+    const wag = Math.sin(t * 1.8) * 6;
+    fill(() => { g.moveTo(-67, 0); g.lineTo(-106, -28 + wag); g.quadraticCurveTo(-93, -5, -99, 25 + wag); g.lineTo(-65, 7); });
+    fill(() => { g.moveTo(-24, -18); g.quadraticCurveTo(-23, -39, -5, -45); g.lineTo(9, -19); });
+    const skin = g.createLinearGradient(0, -32, 0, 32);
+    skin.addColorStop(0, whale ? '#6296b5' : '#638ca2'); skin.addColorStop(.6, whale ? '#8bbecb' : '#8eb1bb'); skin.addColorStop(1, '#d0e4dc');
+    g.fillStyle = skin;
+    fill(() => { g.moveTo(-74, 0); g.bezierCurveTo(-40, -31, 37, -39, 70, -17); g.quadraticCurveTo(whale ? 94 : 108, 2, 71, 17); g.bezierCurveTo(25, 39, -42, 24, -74, 0); });
+    g.fillStyle = '#bedbd7';
+    fill(() => { g.moveTo(-1, 12); g.quadraticCurveTo(-13, 47, 17, 40); g.lineTo(29, 14); });
+    g.strokeStyle = '#557c93'; g.lineWidth = 1;
+    for (let i = 0; i < (whale ? 5 : 4); i++) {
+      g.beginPath();
+      if (whale) { g.moveTo(19 + i * 9, 13); g.quadraticCurveTo(17 + i * 8, 22, -8 + i * 12, 24); }
+      else { g.moveTo(29 - i * 5, -9); g.quadraticCurveTo(24 - i * 5, 0, 29 - i * 5, 9); }
+      g.stroke();
+    }
+    if (spotted) {
+      g.fillStyle = '#d8ebe0';
+      for (let j = 0; j < 24; j++) { oval(g, -48 + j % 8 * 12, -14 + Math.floor(j / 8) * 10, 1.8, 1.4); g.fill(); }
+    }
+    g.fillStyle = '#183d53'; oval(g, 60, -4, 3, 3.6); g.fill();
+    g.fillStyle = '#f2fff1'; oval(g, 61, -5, 1, 1); g.fill();
+    g.strokeStyle = '#365b71'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(67, 9); g.quadraticCurveTo(78, 13, 83, 6); g.stroke();
+    g.restore();
+  }
+
   class DiveWorld {
-    constructor() { this.t = 0; this.open = 0; this.lid = 0; this.bubbles = []; this.nextBubble = 0; }
+    constructor() { this.t = 0; this.open = 0; this.lid = 0; this.bubbles = []; this.nextBubble = 0; this.coins = []; this.pending = null; this.onToast = null; }
+
+    chests() { return MC.Wardrobe.chests.map(c => ({ ...c, x: this.w * c.u, y: this.floorAt(c.u) - 7 * this.s })); }
+    giants() {
+      return ['whale', 'shark', 'whale-shark'].map((kind, i) => {
+        const a = this.t * (.065 + i * .013) + i * 2.1;
+        return { kind, name: ['혹등고래', '산호초 상어', '고래상어'][i], x: this.w * (.5 + .25 * Math.sin(a)),
+          y: this.h * (.26 + i * .17) + Math.sin(this.t * .5 + i) * 6 * this.s,
+          k: Math.min(this.s * (i ? .8 : 1.2), this.w / (i ? 390 : 300)), dir: Math.cos(a) < 0 ? -1 : 1 };
+      });
+    }
+    seek(chest, crowd) {
+      if (MC.Wardrobe.remaining(chest.id)) {
+        this.onToast?.(`보물이 다시 차오르는 중 · ${Math.ceil(MC.Wardrobe.remaining(chest.id) / 1000)}초 뒤에 열어요`); return;
+      }
+      this.pending = chest.id;
+      crowd.walkTo(chest.x, Math.min(chest.y - 4 * this.s, this.h * .81));
+      this.onToast?.('보물상자로 헤엄쳐 가요! 가까이 가면 열려요');
+    }
+    findTreasure(crowd) {
+      const ready = this.chests().filter(c => !MC.Wardrobe.remaining(c.id));
+      ready.sort((a, b) => Math.hypot(a.x - crowd.pup.x, a.y - crowd.pup.y) - Math.hypot(b.x - crowd.pup.x, b.y - crowd.pup.y));
+      if (ready[0]) this.seek(ready[0], crowd);
+      else this.onToast?.('상자를 모두 열었어요. 상자마다 2분 뒤에 보물이 다시 생겨요');
+    }
 
     floorAt(u) { return this.h * (.835 + .026 * Math.sin(u * 7.4 + .3) - .012 * Math.sin(u * 15)); }
 
@@ -344,6 +401,18 @@
       }
       for (const b of this.bubbles) { b.age += dt; b.y -= dt * (18 + b.r * 4); b.x += Math.sin(this.t * 1.5 + b.ph) * dt * 5; }
       this.bubbles = this.bubbles.filter(b => b.age < 7 && b.y > -10);
+      const chest = this.chests().find(c => c.id === this.pending);
+      if (chest && Math.hypot(chest.x - pup.x, Math.min(chest.y, this.h * .81) - pup.y) < 38 * this.s) {
+        this.pending = null;
+        const amount = MC.Wardrobe.claim(chest.id);
+        if (amount) {
+          this.burst(chest.x, chest.y - 20 * this.s, 12);
+          for (let i = 0; i < 9; i++) this.coins.push({ u: chest.u, age: 0, phase: i * TAU / 9 });
+          this.onToast?.(`🪙 +${amount} 코인! 바다 상점에서 사용해요`);
+        }
+      }
+      for (const coin of this.coins) coin.age += dt;
+      this.coins = this.coins.filter(c => c.age < 1.8).slice(-27);
     }
 
     burst(x, y, n) {
@@ -351,10 +420,19 @@
       if (this.bubbles.length > 70) this.bubbles.splice(0, this.bubbles.length - 70);
     }
 
-    poke(x, y) {
+    poke(x, y, crowd) {
+      for (const chest of this.chests()) {
+        if (Math.abs(x - chest.x) < Math.max(25, 32 * this.s) && Math.abs(y - chest.y + 15 * this.s) < Math.max(25, 30 * this.s)) {
+          if (crowd) this.seek(chest, crowd);
+          return true;
+        }
+      }
+      for (const q of this.giants()) if (Math.hypot((x - q.x) / (100 * q.k), (y - q.y) / (38 * q.k)) < 1) {
+        this.onToast?.(`${q.name}가 유유히 헤엄치고 있어요`); this.burst(x, y, 3); return false;
+      }
       const c = this.clam;
       if (Math.hypot(x - c.x, (y - c.y + 10 * this.s) * 1.3) > c.r + 12 * this.s) return false;
-      this.open = 5; this.burst(c.x, c.y - 22 * this.s, 9); return true;
+      this.open = 5; this.burst(c.x, c.y - 22 * this.s, 9); this.onToast?.('조개가 작은 진주를 보여 줬어요'); return true;
     }
 
     draw(g) {
@@ -370,6 +448,7 @@
         g.fillStyle = ray; g.fillRect(0, 0, width, h * 1.3); g.restore();
       }
       g.restore();
+      for (const q of this.giants()) { g.save(); g.globalAlpha = q.kind === 'whale' ? .75 : .9; seaGiant(g, q, t); g.restore(); }
       for (let i = 0; i < 3; i++) {
         const dir = i % 2 ? -1 : 1, span = w + 200;
         const u = ((t * (13 + i * 4) + span * (.22 + i * .31)) % span) - 100;
@@ -397,9 +476,38 @@
         g.beginPath(); g.ellipse(x + Math.sin(t * .5 + i) * 6 * s, y, (18 + i % 4 * 7) * s, 4 * s, .15 * Math.sin(t * .4 + i), .2, 2.7); g.stroke();
       }
       this.drawClam(g);
+      this.drawTreasure(g);
       for (let i = 0; i < 26; i++) {
         const x = MC.hash(i * 5.3) * w + Math.sin(t * .3 + i) * 7 * s, y = (MC.hash(i * 7.9) * h - t * (2 + i % 3) % h + h) % h;
         g.fillStyle = `rgba(206,251,231,${.1 + .12 * Math.sin(t + i) ** 2})`; oval(g, x, y, s, s); g.fill();
+      }
+    }
+
+    drawTreasure(g) {
+      const k = this.s;
+      for (const c of this.chests()) {
+        const wait = MC.Wardrobe.remaining(c.id);
+        g.save(); g.translate(c.x, c.y); g.scale(k, k);
+        if (!wait) {
+          const glow = g.createRadialGradient(0, -12, 3, 0, -12, 60); glow.addColorStop(0, 'rgba(255,221,118,.32)'); glow.addColorStop(1, 'rgba(255,221,118,0)');
+          g.fillStyle = glow; g.fillRect(-60, -72, 120, 120);
+        }
+        g.fillStyle = '#744b37'; g.strokeStyle = '#453b38'; g.lineWidth = 2;
+        MC.roundRect(g, -28, -23, 56, 29, 4); g.fill(); g.stroke();
+        g.fillStyle = '#b77b45'; MC.roundRect(g, -29, wait ? -43 : -39, 58, wait ? 15 : 24, 7); g.fill(); g.stroke();
+        g.strokeStyle = '#efc574'; g.lineWidth = 5;
+        for (const x of [-19, 19]) { g.beginPath(); g.moveTo(x, wait ? -41 : -36); g.lineTo(x, wait ? -29 : 3); g.stroke(); }
+        if (wait) { g.fillStyle = '#f7d879'; oval(g, 0, -21, 21, 5); g.fill(); }
+        g.fillStyle = '#f4d28a'; MC.roundRect(g, -5, -21, 10, 12, 2); g.fill();
+        g.fillStyle = '#675138'; oval(g, 0, -16, 1.8, 2.5); g.fill();
+        g.fillStyle = wait ? '#d2e5db' : '#fff0b7'; g.font = '12px system-ui'; g.textAlign = 'center';
+        g.fillText(wait ? `${Math.ceil(wait / 1000)}초` : `+${c.coins} 코인`, 0, -51);
+        g.restore();
+      }
+      for (const coin of this.coins) {
+        const x = this.w * coin.u + Math.sin(coin.phase) * coin.age * 23 * k, y = this.floorAt(coin.u) - (28 + coin.age * 75) * k;
+        g.save(); g.globalAlpha = Math.min(1, (1.8 - coin.age) * 2); g.fillStyle = '#ffda68'; g.strokeStyle = '#b68339'; g.lineWidth = k;
+        oval(g, x, y, Math.max(1, Math.abs(Math.cos(coin.age * 7 + coin.phase)) * 5) * k, 6 * k); g.fill(); g.stroke(); g.restore();
       }
     }
 

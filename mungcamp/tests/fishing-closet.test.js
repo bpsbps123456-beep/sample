@@ -31,7 +31,7 @@ main(async ({ check, presenceServer, person, until, sleep, cleanup, shot }) => {
   check(new Set(result.rewards).size === 10 && result.owned.length === 10, '낚시 성공마다 중복 없이 하나씩 모은다', result.rewards);
   check(result.complete, '모두 모은 뒤에도 정상적으로 낚시한다');
   await A.click('#dressBtn');
-  check(await A.evaluate(() => document.querySelectorAll('.closet-item:disabled').length === 0 && document.querySelector('#closetCount').textContent === '10 / 10'), '모은 선물이 꾸미기 창에 열린다');
+  check(await A.evaluate(() => document.querySelectorAll('.closet-item:disabled').length === 0 && document.querySelector('#closetCount').textContent === `10 / ${MC.Wardrobe.items.length}`), '모은 선물이 꾸미기 창에 열린다');
   await A.click('#swStyle [data-v="1"]');
   await A.click('#swAccessory [data-v="1"]');
   await A.click('#swGloves [data-v="1"]');

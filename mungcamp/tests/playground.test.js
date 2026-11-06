@@ -1,5 +1,6 @@
 'use strict';
 const { main } = require('./lib');
+const cacheName = require('fs').readFileSync(require('path').join(__dirname, '../sw.js'), 'utf8').match(/const CACHE = '([^']+)'/)[1];
 main(async ({ check, until, sleep, enter, person, presenceServer, staticServer, shot, cleanup }) => {
   const server = await presenceServer(); cleanup(server.close);
   const a = await person({ nick: '산책멍' }), b = await person({ nick: '숨는멍' });
@@ -13,11 +14,11 @@ main(async ({ check, until, sleep, enter, person, presenceServer, staticServer, 
   }), '경기장·네트·공·정원·배경을 포함한 SVG 열 종류 실제 디코딩');
   // 운영 사이트는 HTTPS에서 자동 등록한다. 로컬 시험 서버는 직접 등록한다.
   await a.page.evaluate(() => navigator.serviceWorker.register('sw.js'));
-  check(await until(a.page, async () => {
+  check(await until(a.page, async name => {
     if (!navigator.serviceWorker.controller) return false;
-    const cache = await caches.open('mungcamp-v71');
+    const cache = await caches.open(name);
     return !!(await cache.match('assets/playground/arena.svg')) && !!(await cache.match('assets/playground/park-details.svg')) && !!(await cache.match('assets/playground/surround.svg'));
-  }), '새 오프라인 캐시에 SVG 저장');
+  }, cacheName), '새 오프라인 캐시에 SVG 저장');
   check(await enter(b.page, server.url, 'playground'), '두 번째 친구 놀이터 입장');
   check(await until(a.page, () => MC.app.state.sceneObj.game && MC.app.net.list('playground').length === 1), '서버로 친구 연결');
   await a.page.click('[data-pg="join"]');

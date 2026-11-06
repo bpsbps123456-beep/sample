@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Gamja+Flower&display=swap">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/learning.css">
+  <link rel="stylesheet" href="css/board.css">
 </head>
 <body>
   <svg class="sprite" aria-hidden="true" focusable="false">
@@ -101,6 +102,11 @@
       </div>
 
       <p class="guidance" id="guidance"></p>
+      <div class="dive-hud" id="diveHud" role="group" aria-label="바닷속 탐험" hidden>
+        <span class="sea-balance">🪙 <span id="diveBalance">0 코인</span></span>
+        <button class="chip" type="button" id="findTreasure">보물 찾기</button>
+        <button class="chip" type="button" id="seaShop">바다 상점</button>
+      </div>
 
       <div class="breath" id="breath" hidden aria-live="polite">
         <div class="breath-ring" data-breath-ring></div>
@@ -205,8 +211,11 @@
       <div class="swatches"><p class="dress-label" id="swEarLabel">귀</p><div class="swatch-row" id="swEar" role="radiogroup" aria-labelledby="swEarLabel"></div></div>
       <div class="swatches"><p class="dress-label" id="swHatLabel">기본 비니 색</p><div class="swatch-row" id="swHat" role="radiogroup" aria-labelledby="swHatLabel"></div></div>
       <section class="fishing-closet" aria-labelledby="closet-title">
-        <h3 id="closet-title">바다가 선물한 옷장 <span id="closetCount">0 / 10</span></h3>
-        <p class="closet-hint">낚시에 성공할 때마다 새 선물 하나! 모은 선물을 눌러 입혀요.</p>
+        <h3 id="closet-title">바다 상점 &amp; 옷장 <span id="closetCount">0 / 22</span></h3>
+        <p class="sea-balance">🪙 <span id="seaBalance">0 코인</span></p>
+        <p class="closet-hint">잠수해서 보물 코인을 모아요! 가격이 적힌 아이템을 누르면 구매하고 미리 입어봐요. 낚시 선물 10종도 모을 수 있어요. 코인과 구매품은 이 브라우저에 저장돼요.</p>
+        <p class="shop-status" id="shopStatus" role="status" aria-live="polite"></p>
+        <p class="dress-label" id="swClothesLabel">옷</p><div class="closet-row" id="swClothes" role="radiogroup" aria-labelledby="swClothesLabel"></div>
         <p class="dress-label" id="swStyleLabel">모자 모양</p><div class="closet-row" id="swStyle" role="radiogroup" aria-labelledby="swStyleLabel"></div>
         <p class="dress-label" id="swAccessoryLabel">액세서리</p><div class="closet-row" id="swAccessory" role="radiogroup" aria-labelledby="swAccessoryLabel"></div>
         <p class="dress-label" id="swGlovesLabel">장갑</p><div class="closet-row" id="swGloves" role="radiogroup" aria-labelledby="swGlovesLabel"></div>
@@ -317,8 +326,10 @@
   <script src="js/scene-lodge.js" defer></script>
   <script src="js/playground-rules.js" defer></script>
   <script src="js/volley-rules.js" defer></script>
+  <script src="js/board-rules.js" defer></script>
   <script src="js/playground-art.js" defer></script>
   <script src="js/playground-volley.js" defer></script>
+  <script src="js/playground-board.js" defer></script>
   <script src="js/scene-playground.js" defer></script>
   <script src="js/scene-learn.js" defer></script>
   <script src="js/camp-sea.js" defer></script>
