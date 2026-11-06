@@ -42,6 +42,19 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
   await A.reload(); await until(A, () => !!MC.app?.camp?.ground);
   check(await A.evaluate(() => MC.Wardrobe.balance() === 0 && MC.Wardrobe.has('cl', 1) && MC.Wardrobe.has('ht', 5) && MC.Wardrobe.remaining('reef') > 0 && MC.app.camp.pup.clothing === 1), '새로고침 후 구매품·잔액·착용·상자 대기시간이 유지된다');
   check(await A.evaluate(() => {
+    const w = MC.Wardrobe, realNow = Date.now, original = MC.store.get('seaWallet'), start = realNow() - 3600000;
+    try {
+      const value = MC.store.get('seaWallet'); value.claimed.reef = start; MC.store.set('seaWallet', value);
+      for (const elapsed of [120000, 3599999]) {
+        Date.now = () => start + elapsed;
+        if (w.claim('reef') !== 0 || w.balance() !== original.coins) return false;
+      }
+      if (w.remaining('reef') !== 1) return false;
+      Date.now = () => start + 3600000;
+      return w.remaining('reef') === 0 && w.claim('reef') === 30 && w.claim('reef') === 0 && w.remaining('reef') === 3600000;
+    } finally { Date.now = realNow; MC.store.set('seaWallet', original); }
+  }), '2분·59분 59.999초에는 열 수 없고 정확히 1시간 뒤에 한 번 다시 열린다');
+  check(await A.evaluate(() => {
     const w = MC.Wardrobe; const before = w.balance();
     const invalid = !w.claim('made-up') && !w.buy('made-up').ok;
     const value = MC.store.get('seaWallet'); value.claimed.reef = Date.now() - w.cooldown - 1; MC.store.set('seaWallet', value);
@@ -70,6 +83,10 @@ main(async ({ check, presenceServer, person, until, sleep, shot, cleanup, enter 
     await A.click('#findTreasure');
     check(await until(A, () => MC.Wardrobe.balance() === 80, null, 23000), `${viewport.width}×${viewport.height}에서 수영으로 보물에 도달한다`);
     check(await A.evaluate(() => document.querySelector('[data-dive-region="2"]').getAttribute('aria-current') === 'location' && parseFloat(document.querySelector('#diveProgress').style.left) > 75), '심해 도착이 지도와 현재 위치에 반영된다');
+    check(await A.evaluate(() => {
+      const d = MC.app.state.sceneObj.dive;
+      return d.chestLabels.some(l => l.id === 'deep-blue' && l.left >= 0 && l.left + l.width <= innerWidth) && d.waitText(3599000) === '59분 59초';
+    }), '한 시간 대기 문구를 작은 화면에서도 글씨 축소 없이 표시한다');
     await shot(A, `ocean-${viewport.width}`);
     await A.click('#seaShop'); await A.click('[data-item=whale-shirt]');
     await shot(A, `ocean-shop-${viewport.width}`);

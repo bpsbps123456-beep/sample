@@ -26,7 +26,7 @@
     { id: 'star-vest', slot: 'cl', value: 4, name: '별빛 조끼', icon: '✨', price: 80 },
   ];
   const chests = [{ id: 'reef', coins: 30, u: .18 }, { id: 'pearl-cove', coins: 40, u: .5 }, { id: 'deep-blue', coins: 50, u: .82 }];
-  const cooldown = 120000;
+  const cooldown = 60 * 60 * 1000;
   let memory = null;
   function wallet() {
     const raw = MC.store.get('seaWallet', memory) || {};

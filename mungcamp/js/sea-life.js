@@ -306,6 +306,11 @@
     chests() { return MC.Wardrobe.chests.map(c => ({ ...c, x: this.w * c.u - this.camX, y: this.floorAt(c.u) - 7 * this.s })); }
     get clam() { return { x: this.w * .72 - this.camX, y: this.floorAt(.72) - 3 * this.s, r: 43 * this.s }; }
     follow(X) { this.camX = MC.clamp(X / 1000 * this.w - this.viewW * .44, 0, this.w - this.viewW); }
+    waitText(ms) {
+      const seconds = Math.ceil(ms / 1000), minutes = Math.floor(seconds / 60);
+      if (seconds >= 3600) return '1시간';
+      return minutes ? `${minutes}분${seconds % 60 ? ` ${seconds % 60}초` : ''}` : `${seconds}초`;
+    }
     giants() {
       return ['whale', 'shark', 'whale-shark'].map((kind, i) => {
         const a = this.t * (.065 + i * .013) + i * 2.1;
@@ -316,7 +321,7 @@
     }
     seek(chest, crowd) {
       if (MC.Wardrobe.remaining(chest.id)) {
-        this.onToast?.(`보물이 다시 차오르는 중 · ${Math.ceil(MC.Wardrobe.remaining(chest.id) / 1000)}초 뒤에 열어요`); return;
+        this.onToast?.(`보물이 다시 차오르는 중 · ${this.waitText(MC.Wardrobe.remaining(chest.id))} 뒤에 열어요`); return;
       }
       this.pending = chest.id;
       crowd.walkTo(chest.x, Math.min(chest.y - 4 * this.s, this.h * .81));
@@ -326,7 +331,7 @@
       const ready = this.chests().filter(c => !MC.Wardrobe.remaining(c.id));
       ready.sort((a, b) => Math.hypot(a.x - crowd.pup.x, a.y - crowd.pup.y) - Math.hypot(b.x - crowd.pup.x, b.y - crowd.pup.y));
       if (ready[0]) this.seek(ready[0], crowd);
-      else this.onToast?.('상자를 모두 열었어요. 상자마다 2분 뒤에 보물이 다시 생겨요');
+      else this.onToast?.('상자는 한 번 열면 1시간 뒤에 다시 열 수 있어요');
     }
 
     floorAt(u) { return this.h * (.835 + .026 * Math.sin(u * 7.4 + .3) - .012 * Math.sin(u * 15)); }
@@ -426,10 +431,9 @@
 
     poke(x, y, crowd) {
       for (const chest of this.chests()) {
-        const k = Math.max(.9, this.s), labelX = MC.clamp(chest.x, 96, this.viewW - 96);
-        const labelY = chest.y - (MC.Wardrobe.remaining(chest.id) ? 111 : 100) * k;
+        const k = Math.max(.9, this.s), label = this.chestLabels?.find(l => l.id === chest.id);
         if ((Math.abs(x - chest.x) < 65 * k && Math.abs(y - chest.y + 28 * k) < 45 * k) ||
-            (chest.x > -60 && chest.x < this.viewW + 60 && Math.abs(x - labelX) < 88 && Math.abs(y - labelY) < 20)) {
+            (label && x >= label.left && x <= label.left + label.width && Math.abs(y - label.y) < 19)) {
           if (crowd) this.seek(chest, crowd);
           return true;
         }
@@ -494,6 +498,7 @@
 
     drawTreasure(g) {
       const k = Math.max(.9, this.s);
+      this.chestLabels = [];
       for (const c of this.chests()) {
         if (c.x < -140 || c.x > this.viewW + 140) continue;
         const wait = MC.Wardrobe.remaining(c.id);
@@ -572,9 +577,10 @@
         // Labels use CSS pixels, so mobile scene scaling never shrinks the text.
         if (c.x < -30 || c.x > this.viewW + 30) continue;
         g.save(); g.font = '600 18px "Malgun Gothic", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-        const label = wait ? `${Math.ceil(wait / 1000)}초 후 다시 열기` : `열기 · ${c.coins} 코인`;
+        const label = wait ? `${this.waitText(wait)} 후 열기` : `열기 · ${c.coins} 코인`;
         const width = g.measureText(label).width + 28, y = c.y - (wait ? 111 : 100) * k;
         const x = MC.clamp(c.x, width / 2 + 8, this.viewW - width / 2 - 8);
+        this.chestLabels.push({ id: c.id, left: x - width / 2, width, y });
         g.fillStyle = wait ? 'rgba(17,61,72,.94)' : '#fff0c6'; g.strokeStyle = wait ? '#97bdb8' : '#d7b567'; g.lineWidth = 1;
         MC.roundRect(g, x - width / 2, y - 19, width, 38, 19); g.fill(); g.stroke();
         g.fillStyle = wait ? '#e5f2e7' : '#65502c'; g.fillText(label, x, y);
