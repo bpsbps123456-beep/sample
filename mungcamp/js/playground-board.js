@@ -1,5 +1,6 @@
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const B = MC.BoardRules;
   const colors = ['#bd623f', '#447e7a', '#8b68a0', '#ac842e'];
   const faces = [[], [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]];
@@ -76,7 +77,7 @@
       const current = s.order[s.turn], mine = current === this.scene.net.id;
       const turn = this.el.querySelector('.race-turn');
       const label = ended ? `♛ ${this.name(s.winner)} 승리!` : mine ? '내 차례예요!' : `${this.name(current)} 차례`;
-      if (turn.textContent !== label) turn.textContent = label;
+      if (turn.textContent !== uiText(label)) turn.textContent = uiText(label);
       this.el.classList.toggle('my-turn', mine && !ended); this.el.classList.toggle('race-ended', ended);
       const now = Date.now() + (this.scene.offset || 0), waiting = now < s.readyAt;
       this.rollButton.disabled = ended || !mine || waiting || !this.scene.net.online || this.pending === key;

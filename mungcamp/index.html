@@ -19,8 +19,15 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/learning.css">
   <link rel="stylesheet" href="css/board.css">
+  <link rel="stylesheet" href="css/language.css?v=20261109-i18n-3">
 </head>
 <body>
+  <label class="language-picker" data-language-picker>
+    <select data-language-select aria-label="Language / Idioma / 언어">
+      <option value="ko">한국어</option>
+      <option value="pt-BR">Português (Brasil)</option>
+    </select>
+  </label>
   <svg class="sprite" aria-hidden="true" focusable="false">
     <symbol id="i-log" viewBox="0 0 24 24"><rect x="2.5" y="9" width="15" height="7" rx="3.5"/><ellipse cx="17.6" cy="12.5" rx="2.6" ry="3.5"/><path d="M6 11.6h5M8 14h4"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
@@ -318,6 +325,8 @@
   </div>
 
   <script src="js/util.js" defer></script>
+  <script src="js/locale-pt-BR.js?v=20261109-i18n-3" defer></script>
+  <script src="js/i18n.js?v=20261109-i18n-3" defer></script>
   <script src="js/audio.js" defer></script>
   <script src="js/fire-gl.js" defer></script>
   <script src="js/wardrobe.js" defer></script>

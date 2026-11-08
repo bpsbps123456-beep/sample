@@ -1,6 +1,7 @@
 /* 멍캠프 — 화면 흐름: 캠프 마을을 걷다가 → 마음에 드는 자리에 앉아 멍 → 다시 마을로 */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -439,7 +440,8 @@
     else {
       sc.dive.pending = null;
       sc.crowd.walkTo(chest.x, Math.min(chest.y, sc.h * .81));
-      toast(button.textContent + '으로 헤엄쳐 가요');
+      const region = ['산호 정원', '진주 만', '푸른 심해'][Number(button.dataset.diveRegion)];
+      toast(uiText(region + '으로 헤엄쳐 가요'));
     }
   });
   dressCard.addEventListener('click', (e) => { if (e.target === dressCard) closeDress(); });
@@ -1049,11 +1051,11 @@
     $('#camp').classList.toggle('has-sea-controls', !!sea);
     chairBtn.disabled = camp.sea.boating || !!camp.sea.fishing;
     if (sea) {
-      if (seaAction.textContent !== sea.label) seaAction.textContent = sea.label;
-      if (seaStatus.textContent !== sea.detail) seaStatus.textContent = sea.detail;
+      if (seaAction.textContent !== uiText(sea.label)) seaAction.textContent = uiText(sea.label);
+      if (seaStatus.textContent !== uiText(sea.detail)) seaStatus.textContent = uiText(sea.detail);
       seaStop.hidden = !sea.stop;
       seaTravel.hidden = !sea.travel;
-      if (sea.travel && seaTravel.textContent !== sea.travel) seaTravel.textContent = sea.travel;
+      if (sea.travel && seaTravel.textContent !== uiText(sea.travel)) seaTravel.textContent = uiText(sea.travel);
       seaAction.disabled = !!sea.waiting;
       seaControls.classList.toggle('is-biting', !!sea.bite);
       const layoutKey = sea.label + sea.detail + sea.travel + camp.w;
@@ -1410,7 +1412,7 @@
     const diving = state.scene === 'water' && state.sceneObj?.underwater;
     $('#diveHud').hidden = !diving;
     if (diving) {
-      const text = MC.Wardrobe.balance() + ' 코인';
+      const text = uiText(MC.Wardrobe.balance() + ' 코인');
       if ($('#diveBalance').textContent !== text) $('#diveBalance').textContent = text;
       const X = state.sceneObj.crowd.me.X, region = X < 340 ? 0 : X < 660 ? 1 : 2;
       $('#diveProgress').style.left = MC.clamp(X / 10, 0, 100) + '%';
@@ -1582,7 +1584,7 @@
       hideSceneAct();
       return;
     }
-    if (sceneAct.textContent !== hint.label) sceneAct.textContent = hint.label;
+    if (sceneAct.textContent !== uiText(hint.label)) sceneAct.textContent = uiText(hint.label);
     sceneActWrap.style.transform = `translate(${hint.x.toFixed(1)}px, ${hint.y.toFixed(1)}px) translate(-50%, -100%)`;
     if (sceneActWrap.hidden) sceneActWrap.hidden = false;
   }
@@ -1669,7 +1671,7 @@
       b.textContent = text;
       b.setAttribute('aria-pressed', 'false');
       b.addEventListener('click', () => {
-        input.value = text;
+        input.value = uiText(text);
         for (const o of box.children) o.setAttribute('aria-pressed', String(o === b));
         // 고르면 자판을 띄우지 않고 바로 '장작에 적기'·'띄우기' 단추로
         const submit = input.form && input.form.querySelector('button[type="submit"]');

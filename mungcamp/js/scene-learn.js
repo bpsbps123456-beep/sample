@@ -1,6 +1,7 @@
 /* 숲속 배움터: 질문은 칠판에, 각자의 답은 멍이 앞 팻말에. */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const el = (tag, cls, content) => { const node = document.createElement(tag); if (cls) node.className = cls; if (content != null) node.textContent = content; return node; };
   class LearnGate {
     constructor(net, enter) {
@@ -74,6 +75,8 @@
       this.detail = el('dialog', 'learn-detail'); this.detail.setAttribute('aria-label', '팻말 답변 자세히 보기');
       this.detail.innerHTML = '<h2></h2><p></p><button type="button">닫기</button>';
       this.detail.querySelector('button').onclick = () => this.detail.close(); document.body.appendChild(this.detail);
+      this.onLanguageChange = () => { if (this.lesson) this.accept(this.lesson); this.updateChatToggle(); this.resizeFloor(); };
+      window.addEventListener('mungcamp:languagechange', this.onLanguageChange);
       this.accept(net.learning || { t: 'learn-state', role: net.learnAccess?.role, phase: 'waiting', roster: [], boards: {}, online: 0, answered: 0 });
       this.acceptChat({ t: 'learn-chat', history: true, messages: net.learningChat || [] });
     }
@@ -134,7 +137,10 @@
       for (const message of m.messages || []) {
         if (this.chatItems.has(message.id)) continue;
         const own = message.from === this.net.id, row = el('article', 'learn-chat-message'); row.classList.toggle('is-me', own);
-        const meta = el('div', 'learn-chat-meta'), name = el('strong', '', message.name + (own ? ' · 나' : '') + (message.role === 'owner' ? ' · 운영자' : ''));
+        const meta = el('div', 'learn-chat-meta'), name = el('strong'), author = el('span', '', message.name);
+        author.setAttribute('translate', 'no'); name.appendChild(author);
+        if (own) name.appendChild(document.createTextNode(' · 나'));
+        if (message.role === 'owner') name.appendChild(document.createTextNode(' · 운영자'));
         const stamp = el('time', '', new Date(message.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })); stamp.dateTime = new Date(message.at).toISOString();
         meta.append(name, stamp); row.append(meta, el('p', '', message.text)); this.chatLog.appendChild(row); this.chatItems.set(message.id, row);
         if (this.lesson?.role === 'owner') {
@@ -171,6 +177,8 @@
       const owner = m.role === 'owner', q = m.question, open = m.phase === 'open';
       this.root.dataset.role = m.role; this.root.dataset.phase = m.phase;
       this.root.querySelector('.learn-progress').textContent = `${m.answered}명 제출 · ${m.online}명 참여`;
+      this.root.querySelector('h2').setAttribute('translate', q ? 'no' : 'yes');
+      this.root.querySelector('.learn-question-options').setAttribute('translate', q?.type === 'choice' ? 'no' : 'yes');
       this.root.querySelector('h2').textContent = q?.text || '오늘은 어떤 생각을 나눌까요?';
       this.root.querySelector('.learn-question-options').textContent = q?.type === 'choice' ? q.options.map((v, i) => `${i + 1}. ${v}`).join('  ·  ') : q ? '주관식 · 내 생각을 자유롭게 적어요' : '질문을 기다리며 편하게 앉아요';
       this.root.querySelector('.learn-open-owner').hidden = !owner;
@@ -221,8 +229,8 @@
         }
         const signature = [member.c, member.h, member.ht, member.ac, member.gl, member.cl].join(':');
         if (card.signature !== signature) { card.pup.setLook(member.c, member.h, member.ht, member.ac, member.gl, member.cl); card.signature = signature; }
-        card.name.textContent = member.name + (member.id === this.net.id ? ' · 나' : '') + (member.role === 'owner' ? ' · 운영자' : '');
-        const answer = m.boards[member.id]; card.sign.textContent = answer?.text || (member.role === 'owner' ? '함께 생각해 봐요' : answer?.submitted ? m.phase === 'revealed' ? '답변 완료' : '답변 완료 · 공개 대기' : '생각하고 있어요');
+        card.name.textContent = member.name + (member.id === this.net.id ? uiText(' · 나') : '') + (member.role === 'owner' ? uiText(' · 운영자') : '');
+        const answer = m.boards[member.id]; card.sign.setAttribute('translate', answer?.text ? 'no' : 'yes'); card.sign.textContent = answer?.text || (member.role === 'owner' ? '함께 생각해 봐요' : answer?.submitted ? m.phase === 'revealed' ? '답변 완료' : '답변 완료 · 공개 대기' : '생각하고 있어요');
         card.sign.disabled = !answer?.text; card.sign.dataset.answered = !!answer; card.sign.title = answer?.text || '';
         card.seat.classList.toggle('is-me', member.id === this.net.id);
       }
@@ -360,7 +368,7 @@
       }
     }
     pointerDown() { return false; }
-    destroy() { clearTimeout(this.chatPendingTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.net.learning = null; this.net.learningChat = []; }
+    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); clearTimeout(this.chatPendingTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.net.learning = null; this.net.learningChat = []; }
   }
   MC.LearnGate = LearnGate; MC.LearnScene = LearnScene;
 })(window.MC = window.MC || {});

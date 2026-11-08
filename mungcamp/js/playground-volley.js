@@ -1,6 +1,7 @@
 /* 놀이터 안의 2인 배구장. 서버 상태 사이를 부드럽게 그린다. */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const V = MC.VolleyRules;
   const ellipse = (g, x, y, rx, ry, color) => { g.fillStyle = color; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
   class PlaygroundVolley {
@@ -93,14 +94,14 @@
       const { x, y, z } = this.layout();
       if (w <= 600 && y > 260) {
         g.textAlign = 'center'; g.fillStyle = '#466958'; g.font = '23px Jua, sans-serif';
-        g.fillText('숲속 멍이 배구', w / 2, y - 58);
+        g.fillText(uiText('숲속 멍이 배구'), w / 2, y - 58);
         g.font = '12px system-ui, sans-serif'; g.fillStyle = '#5c7865';
-        g.fillText('친구와 함께, 한 점씩 즐겁게', w / 2, y - 34);
+        g.fillText(uiText('친구와 함께, 한 점씩 즐겁게'), w / 2, y - 34);
       }
       g.save(); g.translate(x, y); g.scale(z, z);
       if (!MC.PlaygroundArt.arena(g)) { g.fillStyle = '#ddcba1'; g.fillRect(10, 295, 940, 196); }
       g.fillStyle = '#4c6451'; g.font = '18px Jua, sans-serif'; g.textAlign = 'center';
-      g.fillText('멍이', 432, 192); g.fillText('배구', 528, 192);
+      g.fillText(uiText('멍이'), 432, 192); g.fillText(uiText('배구'), 528, 192);
       if (!MC.PlaygroundArt.net(g, V.net, V.netTop - 10)) { g.fillStyle = '#a88455'; g.fillRect(472, V.netTop, 16, V.ground - V.netTop); }
       this.display.dogs.forEach((d, i) => {
         ellipse(g, d.x, V.ground + 5, 37 - (V.ground - d.y) * .07, 8, 'rgba(91,78,46,.18)');

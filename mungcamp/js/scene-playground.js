@@ -1,6 +1,7 @@
 /* 글램핑 옆 놀이터. 게임 진행은 서버, 움직임과 그림은 각 화면이 맡는다. */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const R = MC.PlaygroundRules;
   const ell = (g, x, y, rx, ry, color) => {
     g.fillStyle = color; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill();
@@ -134,7 +135,7 @@
       g.strokeStyle = 'rgba(255,242,200,.5)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(4, 3); g.lineTo(13, 25); g.lineTo(22, 3); g.stroke(); g.setLineDash([]);
       g.restore();
     }
-    g.fillStyle = '#79754e'; g.font = '18px Jua, sans-serif'; g.textAlign = 'center'; g.fillText('친구들이 모이는 자리', 700, 868);
+    g.fillStyle = '#79754e'; g.font = '18px Jua, sans-serif'; g.textAlign = 'center'; g.fillText(uiText('친구들이 모이는 자리'), 700, 868);
   }
 
   class PlaygroundScene {
@@ -228,7 +229,7 @@
       else if (game.phase === 'ready') status = `${seeker ? '나는 술래! 잠깐 눈을 감아요' : game.mode === 'hide' ? '나는 숨는 멍이 · 얼른 숨어요!' : '나는 도망가는 멍이 · 먼저 출발!'} · ${sec}초`;
       else status = `${seeker ? game.mode === 'hide' ? '나는 술래 · 덤불 가까이에서 수색!' : '나는 술래 · 가까이 가서 잡기!' : this.hidden ? '위치를 감췄어요 · 움직이면 밖으로 나와요' : '술래를 피해 달려요!'} · ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
       const statusEl = this.panel.querySelector('.pg-status');
-      if (statusEl.textContent !== status) statusEl.textContent = status;
+      if (statusEl.textContent !== uiText(status)) statusEl.textContent = uiText(status);
       this.panel.classList.toggle('is-playing', !idle);
       this.panel.dataset.mode = game?.mode || 'tag';
       document.querySelector('#session').classList.toggle('is-volley', volley);
@@ -236,7 +237,7 @@
       const instructions = volley ? '두 멍이가 한 편씩 맡아요. ← → 또는 A·D로 이동하고, ↑·W·Space로 점프해요. 휴대폰에서는 이동 버튼을 꾹 누르며 점프를 함께 누를 수 있어요. 몸에 닿은 공은 자동으로 튀어 올라요. 상대 코트 바닥에 공을 떨어뜨려 먼저 5점을 얻으면 이겨요.' : '방향키·WASD 또는 땅을 톡 눌러 이동해요. 처음 참가한 멍이가 놀이를 고르고 시작해요. 술래잡기는 가까이 가서 ‘잡기’ 또는 Space! 숨바꼭질은 덤불 안에서 ‘숨기’ 또는 Space로 위치를 완전히 감춰요. 가까이 와도 저절로 보이지 않아요. 술래는 덤불 가까이에서 ‘수색’ 또는 Space로 찾아요. 시야 밖과 장애물 뒤의 멍이도 보이지 않아요. 걸으면 숨기에서 나와요.';
       const help = this.panel.querySelector('.pg-instructions');
       const text = board ? '1~4명이 참가해요. 혼자 시작하면 산책봇과 대결해요. 내 차례에 주사위 버튼 또는 Space를 누르면 나온 수만큼 자동으로 이동해요. 지름길 ↗은 앞으로, 미끄럼 ↙은 뒤로! 30칸 보물섬에 먼저 닿으면 이겨요. 넘치는 수는 신경 쓰지 않아도 돼요. 22초 동안 누르지 않으면 자동으로 굴려요. 처음 참가한 멍이가 놀이를 고르고 시작해요.' : instructions;
-      if (help.textContent !== text) help.textContent = text;
+      if (help.textContent !== uiText(text)) help.textContent = uiText(text);
       if (board && idle && !this.board.open) this.panel.querySelector('details').open = true;
       this.scoreboard.hidden = !volley;
       const score = game?.volley?.score || [0, 0], names = this.scoreboard.querySelectorAll('.pg-side-name');
@@ -370,7 +371,7 @@
       g.drawImage(this.background, 0, 0, R.width, R.height);
       MC.PlaygroundArt.park(g);
       g.fillStyle = '#4c6249'; g.font = '22px Jua, sans-serif'; g.textAlign = 'center';
-      g.fillText(this.game?.mode === 'hide' ? '멍이 숨바꼭질 정원' : '숲속 멍이 놀이터', 700, 77);
+      g.fillText(uiText(this.game?.mode === 'hide' ? '멍이 숨바꼭질 정원' : '숲속 멍이 놀이터'), 700, 77);
       for (const b of R.bushes) ell(g, b.x, b.y + 8, b.r + 6, b.r * .55, 'rgba(63,95,54,.18)');
       g.restore();
       const items = [];
@@ -381,7 +382,7 @@
         const participant = this.game?.players.find(p => p.id === id), seeker = this.active && this.game.seeker === id;
         g.save(); if (participant?.caught && this.active) g.globalAlpha = .45; if (hidden) g.globalAlpha = .3;
         pup.draw(g, this.dpr || 1, true); g.restore();
-        if (seeker) { g.fillStyle = '#a24e38'; g.font = '15px Jua, sans-serif'; g.textAlign = 'center'; g.fillText('⚑ 술래', pup.x, pup.y - 79 * pup.k); }
+        if (seeker) { g.fillStyle = '#a24e38'; g.font = '15px Jua, sans-serif'; g.textAlign = 'center'; g.fillText(uiText('⚑ 술래'), pup.x, pup.y - 79 * pup.k); }
       } });
       items.push(actor(this.pup, this.net.id, this.player.y, this.hidden));
       for (const [id, v] of this.visitors) if (this.visible(id, v)) items.push(actor(v.pup, id, v.pos.y, !!v.st.hd));
@@ -402,12 +403,12 @@
       if (this.game?.phase === 'ready' && this.game.seeker === this.net.id) {
         g.fillStyle = '#354d40'; g.fillRect(0, 0, this.w, this.h);
         g.fillStyle = '#f6e7c9'; g.textAlign = 'center'; g.font = `${this.w < 500 ? 22 : 28}px Jua, sans-serif`;
-        g.fillText(this.game.mode === 'hide' ? '꼭꼭 숨어라, 머리카락 보일라' : '친구들아, 먼저 달려!', this.w / 2, this.h * .54);
-        g.font = '17px Jua, sans-serif'; g.fillText('친구들이 준비하고 있어요. 잠깐 눈을 감아요.', this.w / 2, this.h * .54 + 36);
+        g.fillText(uiText(this.game.mode === 'hide' ? '꼭꼭 숨어라, 머리카락 보일라' : '친구들아, 먼저 달려!'), this.w / 2, this.h * .54);
+        g.font = '17px Jua, sans-serif'; g.fillText(uiText('친구들이 준비하고 있어요. 잠깐 눈을 감아요.'), this.w / 2, this.h * .54 + 36);
       }
       // 구석의 작은 방향 안내로 넓은 운동장에서 길을 잃지 않는다.
       g.fillStyle = 'rgba(43,66,45,.62)'; g.font = '14px Jua, sans-serif'; g.textAlign = 'right';
-      g.fillText('글램핑 옆 · 멍이 놀이터', this.w - 20, this.h - 118);
+      g.fillText(uiText('글램핑 옆 · 멍이 놀이터'), this.w - 20, this.h - 118);
     }
     destroy() {
       this.volley.destroy(); this.board.destroy(); this.scoreboard.remove(); document.querySelector('#session').classList.remove('is-volley', 'volley-waiting', 'is-board', 'board-open');

@@ -1,6 +1,7 @@
 /* 물 위의 작은 생명과 유리 헬멧을 쓰고 산책하는 바닷속. 모두 캔버스에 그린다. */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const TAU = Math.PI * 2;
   const oval = (g, x, y, a, b) => { g.beginPath(); g.ellipse(x, y, a, b, 0, 0, TAU); };
   const tone = (hex, amount) => {
@@ -577,7 +578,7 @@
         // Labels use CSS pixels, so mobile scene scaling never shrinks the text.
         if (c.x < -30 || c.x > this.viewW + 30) continue;
         g.save(); g.font = '600 18px "Malgun Gothic", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-        const label = wait ? `${this.waitText(wait)} 후 열기` : `열기 · ${c.coins} 코인`;
+        const label = uiText(wait ? `${this.waitText(wait)} 후 열기` : `열기 · ${c.coins} 코인`);
         const width = g.measureText(label).width + 28, y = c.y - (wait ? 111 : 100) * k;
         const x = MC.clamp(c.x, width / 2 + 8, this.viewW - width / 2 - 8);
         this.chestLabels.push({ id: c.id, left: x - width / 2, width, y });

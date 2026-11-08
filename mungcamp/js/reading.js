@@ -72,6 +72,7 @@
     showShelf(focus = true) {
       const lastId = this.story && this.story.id;
       this.story = null;
+      this.title.setAttribute('translate', 'yes');
       this.title.textContent = '잠깐, 한 편';
       this.page.hidden = true;
       this.shelf.hidden = false;
@@ -110,6 +111,7 @@
     read(story) {
       this.story = story;
       this.at = this.progress[story.id] || 0;
+      this.title.setAttribute('translate', 'no');
       this.title.textContent = story.title;
       this.shelf.hidden = true;
       this.page.hidden = false;

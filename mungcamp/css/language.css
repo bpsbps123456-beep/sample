@@ -1,0 +1,22 @@
+.language-picker { position: fixed; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); z-index: 100; font: 13px/1.4 system-ui, sans-serif; }
+.language-picker select { max-width: 190px; min-height: 38px; padding: 7px 10px; border: 1px solid #e8d7b4; border-radius: 12px; background: #fff8e9; color: #453d30; font: inherit; box-shadow: 0 2px 8px #0002; cursor: pointer; }
+.language-picker select:focus-visible { outline: 3px solid #bd703d; outline-offset: 3px; }
+/* Keep the beach walk area clear; place the picker beside the scene exit. */
+body:has(#home[hidden]) > .language-picker { top: max(16px, env(safe-area-inset-top)); left: max(72px, calc(env(safe-area-inset-left) + 72px)); }
+/* The classroom uses that space for chat. Its lower-left corner stays clear. */
+body:has(#home[hidden]):has(.learning-room) > .language-picker { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); left: max(12px, env(safe-area-inset-left)); }
+html[lang="pt-BR"] { --font-display: system-ui, sans-serif; --font-body: system-ui, sans-serif; --font-hand: system-ui, sans-serif; --step--2: .8rem; --step--1: .9rem; --step-0: 1rem; --step-1: 1.15rem; --step-2: 1.35rem; --step-3: 1.7rem; --step-4: 3rem; }
+html[lang="pt-BR"] .swatch-default i::after { content: '•'; }
+html[lang="pt-BR"] .learn-gate h2, html[lang="pt-BR"] .learn-owner h2, html[lang="pt-BR"] .learn-detail h2, html[lang="pt-BR"] .learning-room h2 { font-size: 26px; line-height: 1.25; }
+html[lang="pt-BR"] .learn-gate button, html[lang="pt-BR"] .learning-room button, html[lang="pt-BR"] .learn-owner button, html[lang="pt-BR"] .learn-detail button { font-size: 14px; line-height: 1.4; }
+html[lang="pt-BR"] .camp-title { font-size: clamp(24px, 4vw, 40px); }
+html[lang="pt-BR"] .camp-tool { font-size: 15px; }
+html[lang="pt-BR"] .spot-name { font-size: 18px; white-space: normal; }
+html[lang="pt-BR"] .modal-card h2 { font-size: 24px; line-height: 1.3; }
+html[lang="pt-BR"] .nick-fine, html[lang="pt-BR"] .closet-hint { font-size: 14px; line-height: 1.5; }
+html[lang="pt-BR"] .learn-board h2 { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .language-picker select { max-width: 155px; font-size: 12px; }
+  body:has(#home[hidden]):not(:has(.learning-room)) > .language-picker select { max-width: 118px; }
+  html[lang="pt-BR"] .camp-tools-right { flex-wrap: wrap; }
+}

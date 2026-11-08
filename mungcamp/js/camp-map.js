@@ -4,6 +4,7 @@
    정자에는 목탁이 있다. 똑 치면 번뇌가 하나 줄어든다. */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
 
   const W = MC.CampSea.width;
   const H = 2100;
@@ -2288,7 +2289,7 @@
       if (this.near?.id === 'moktak' && !this.pavilionSeat && !this.pavilionPending && !this.pavilionMove) {
         g.font = '16px Jua, sans-serif'; g.textAlign = 'center';
         g.fillStyle = 'rgba(248,235,200,.86)';
-        g.fillText('방석을 눌러 쉬기', PAVILION.x - 68, PAVILION.y + 82);
+        g.fillText(uiText('방석을 눌러 쉬기'), PAVILION.x - 68, PAVILION.y + 82);
       }
       this.sea.drawGulls(g, left, top, right, bottom);
       // 줄전구 줄
@@ -2432,9 +2433,9 @@
         g.lineJoin = 'round';
         g.lineWidth = 6;
         g.strokeStyle = 'rgba(40,30,24,0.7)';
-        g.strokeText(tx.text, tx.x, tx.y - u * 100);
+        g.strokeText(uiText(tx.text), tx.x, tx.y - u * 100);
         g.fillStyle = '#fff3d6';
-        g.fillText(tx.text, tx.x, tx.y - u * 100);
+        g.fillText(uiText(tx.text), tx.x, tx.y - u * 100);
       }
       g.globalAlpha = 1;
       g.restore();

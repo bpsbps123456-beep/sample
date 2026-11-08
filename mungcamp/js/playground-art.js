@@ -1,6 +1,7 @@
 /* 놀이터 SVG를 한 번 읽고 화면 배율별로 재사용한다. 원본은 assets/playground. */
 (function (MC) {
   'use strict';
+  const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const base = new URL('../assets/playground/', document.currentScript.src);
   const shapes = {
     tree: [260, 340, 130, 312], bush: [240, 170, 120, 132],
@@ -57,13 +58,19 @@
     park: g => draw(g, 'park-details', 0, 0, 1),
   };
   MC.drawPlaygroundGate = (g, x, y) => {
-    if (MC.PlaygroundArt.gate(g, x, y)) return;
+    if (MC.PlaygroundArt.gate(g, x, y)) {
+      // The SVG keeps the wooden sign; draw its copy live so switching languages works.
+      g.save(); g.fillStyle = '#fff0c9'; g.textAlign = 'center';
+      g.font = '700 18.67px "Malgun Gothic", sans-serif';
+      g.letterSpacing = MC.I18n?.getLanguage() === 'pt-BR' ? '0px' : '3.33px';
+      g.fillText(uiText('놀이터'), x + 2 / 3, y - 118.67); g.restore(); return;
+    }
     // 느린 첫 접속에서도 입구가 바로 보인다.
     g.save(); g.translate(x, y);
     g.fillStyle = '#aa8056';
     for (const dx of [-106, 106]) g.fillRect(dx - 6, -140, 12, 155);
     g.fillStyle = '#bb9469'; g.fillRect(-125, -148, 250, 52);
     g.fillStyle = '#fff0ca'; g.textAlign = 'center'; g.font = '23px Jua, sans-serif';
-    g.fillText('놀이터', 0, -113); g.restore();
+    g.fillText(uiText('놀이터'), 0, -113); g.restore();
   };
 })(window.MC = window.MC || {});
