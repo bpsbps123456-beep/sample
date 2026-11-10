@@ -168,7 +168,7 @@
       if (['learn-chat', 'learn-chat-error', 'learn-chat-clear', 'learn-chat-delete'].includes(m.t)) { this.acceptChat(m); return; }
       if (m.t === 'learn-error') { this.starting = false; this.error(m.message); return; }
       if (m.t === 'learn-offline' || m.t === 'learn-denied') {
-        this.disconnected = true; this.stopWalking(); this.returnSeat.disabled = true; this.error('연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.');
+        this.disconnected = true; this.stopWalking(); this.returnSeat.disabled = true; this.error(m.message || '연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.');
         this.owner.close(); for (const input of this.owner.querySelectorAll('input,textarea,select,button')) input.disabled = true;
         this.form.querySelector('[type="submit"]').disabled = true;
         this.finishChat(); this.updateChatTools(); this.chatForm.querySelector('input').disabled = true; this.chatError('연결이 끊겼어요. 마을에서 다시 들어와 주세요.'); return;
@@ -202,7 +202,7 @@
       this.form.querySelector('textarea').required = q?.type === 'text';
       for (const input of this.form.querySelectorAll('input,textarea,button')) input.disabled = !open;
       this.form.querySelector('[type="submit"]').textContent = m.own ? '답 고쳐 놓기' : '팻말에 놓기';
-      this.form.querySelector('.learn-answer-actions span').textContent = m.phase === 'revealed' ? '답 공개 완료' : '공개 전에는 나만 보여요';
+      this.form.querySelector('.learn-answer-actions span').textContent = m.phase === 'revealed' || m.boards[this.net.id]?.revealed ? '답 공개 완료' : '공개 전에는 나만 보여요';
       this.owner.querySelector('.learn-owner-count').textContent = `${m.answered}명 제출 · ${m.online}명 참여 · ${open ? '응답 받는 중' : m.phase === 'revealed' ? '답 공개 완료' : m.phase === 'closed' ? '응답 마감' : '질문 준비 중'}`;
       this.owner.querySelector('[data-command="close"]').disabled = !open;
       this.owner.querySelector('[data-command="reveal"]').disabled = !['open', 'closed'].includes(m.phase);
@@ -223,7 +223,11 @@
           seat.dataset.id = member.id; seat.append(canvas, name, sign); this.floor.appendChild(seat);
           card = { seat, canvas, name, sign, context: canvas.getContext('2d'), pup: member.id === this.net.id ? this.pup : new MC.Pup({}) }; this.cards.set(member.id, card);
           sign.onclick = () => {
-            const answer = this.lesson?.boards[member.id]?.text; if (!answer) return;
+            const board = this.lesson?.boards[member.id];
+            if (this.lesson?.role === 'owner' && board?.submitted && !board.text && ['open', 'closed'].includes(this.lesson.phase)) {
+              this.stopWalking(); this.command('reveal-answer', { id: this.lesson.question.id, member: member.id }); return;
+            }
+            const answer = board?.text; if (!answer) return;
             this.stopWalking();
             this.detail.querySelector('h2').textContent = member.name + '의 팻말'; this.detail.querySelector('p').textContent = answer; this.detail.showModal();
           };
@@ -233,7 +237,9 @@
         card.name.textContent = member.name + (member.id === this.net.id ? uiText(' · 나') : '') + (member.role === 'owner' ? uiText(' · 운영자') : '');
         const answer = m.boards[member.id]; card.sign.setAttribute('translate', answer?.text ? 'no' : 'yes');
         card.sign.textContent = answer?.text || (answer?.submitted ? '답변 완료' : '');
-        card.sign.hidden = !answer; card.sign.disabled = !answer?.text; card.sign.dataset.answered = !!answer; card.sign.title = answer?.text || '';
+        const canReveal = owner && answer?.submitted && !answer.text && ['open', 'closed'].includes(m.phase);
+        card.sign.hidden = !answer; card.sign.disabled = !!this.disconnected || !answer?.text && !canReveal; card.sign.dataset.answered = !!answer;
+        card.sign.dataset.reveal = !!canReveal; card.sign.title = canReveal ? uiText('이 답변만 공개') : answer?.text || '';
         card.seat.classList.toggle('is-me', member.id === this.net.id);
       }
       for (const [id, card] of this.cards) if (!active.has(id)) { card.seat.remove(); this.cards.delete(id); }

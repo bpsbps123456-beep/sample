@@ -57,6 +57,7 @@
 .learning-room .learn-sign:hover { border-color: #cbb586; background: #f3e9cc; }
 .learning-room .learn-sign:disabled:hover { border-color: #a48c69; background: linear-gradient(135deg, #f1e5c6, #dbccaa); }
 .learning-room .learn-sign[data-answered='true'] { border-color: #b3bc8d; }
+.learning-room .learn-sign[data-reveal='true'] { border-color: var(--ember); cursor: pointer; }
 .learn-response { position: absolute; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(610px, calc(100% - 32px)); padding: 16px 20px; border: 1px solid var(--learn-border); border-radius: 26px; background: linear-gradient(135deg, #f1d39e08, transparent), var(--learn-panel); box-shadow: 0 12px 40px #101c2940, inset 0 1px #fff5da08; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
 .learn-response-note { margin: 0 0 11px; font-size: 12px; line-height: 1.6; color: #d2d8c7; }
 .learn-response-note:last-child { margin-bottom: 0; }

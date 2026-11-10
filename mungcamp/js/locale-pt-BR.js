@@ -488,6 +488,8 @@
 {n}명|{n} pessoas
 함께 생각해 봐요|Vamos pensar juntos
 답변 완료|Resposta enviada
+이 답변만 공개|Divulgar só esta resposta
+배움터 정원 30명이 모두 찼어요. 자리가 나면 다시 들어와 주세요.|A sala atingiu o limite de 30 pessoas. Tente entrar quando houver uma vaga.
 답변 완료 · 공개 대기|Resposta enviada · Aguardando divulgação
 생각하고 있어요|Pensando…
 둥근 자리로 돌아가기|Voltar à roda

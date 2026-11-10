@@ -124,7 +124,7 @@ function joinRoom(c, place) {
   // 가장 붐비지만 아직 자리가 있는 방: 사람들이 흩어지지 않고 모이도록
   let room = null;
   // 실내는 야외보다 낮은 정원을 둔다.
-  const cap = place === 'learn' ? 100 : place === 'map' ? MAP_CAP : place === 'tent' || place === 'lodge' ? TENT_CAP : ROOM_CAP;
+  const cap = place === 'learn' ? Learning.CAP : place === 'map' ? MAP_CAP : place === 'tent' || place === 'lodge' ? TENT_CAP : ROOM_CAP;
   for (const r of list) if (r.members.size < cap && (!room || r.members.size > room.members.size)) room = r;
   if (!room) {
     room = { id: ++roomSeq, place, members: new Set(), changed: new Map(), left: new Set() };
@@ -287,7 +287,10 @@ function onMessage(c, text) {
   if (m.t !== 's') return;
   const st = clean(m.s);
   if (!st) return;
-  if (st.p === 'learn' && (!learning.authorized(c) || c.room?.place !== 'learn' && learning.members().length >= 100)) {
+  if (st.p === 'learn' && learning.full(c)) {
+    send(c, { t: 'learn-denied', message: '배움터 정원 30명이 모두 찼어요. 자리가 나면 다시 들어와 주세요.' }); return;
+  }
+  if (st.p === 'learn' && !learning.authorized(c)) {
     send(c, { t: 'learn-denied', message: '비밀번호를 입력하고 배움터에 들어와 주세요.' }); return;
   }
   if (st.p === 'playground') {
