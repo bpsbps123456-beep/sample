@@ -124,13 +124,50 @@
       this.clearChatButton.disabled = !!this.disconnected || !this.chatItems.size;
       for (const button of this.chatLog.querySelectorAll('.learn-delete-message')) button.disabled = !!this.disconnected;
     }
+    showSpeech(message) {
+      const card = this.cards.get(message.from); if (!card || this.disconnected) return;
+      if (!card.bubble) {
+        card.bubble = el('div', 'learn-speech-bubble'); card.bubble.setAttribute('translate', 'no'); card.bubble.setAttribute('aria-hidden', 'true');
+        card.bubble.appendChild(el('span', 'learn-speech-text')); card.seat.appendChild(card.bubble);
+      }
+      clearTimeout(card.speechTimer); card.speechId = message.id;
+      card.bubble.querySelector('span').textContent = message.text; card.bubble.hidden = false;
+      this.sizeSpeech(card);
+      this.positionSeat(card, card.x, card.y);
+      card.speechTimer = setTimeout(() => this.hideSpeech(card), 6000);
+    }
+    hideSpeech(card) {
+      clearTimeout(card.speechTimer); card.speechId = null;
+      if (card.bubble) card.bubble.hidden = true;
+      card.seat.style.zIndex = 2 + Math.round(card.y || 0);
+    }
+    sizeSpeech(card) {
+      if (!card.speechId || !this.floorSize) return;
+      // 글이 바뀌거나 화면 크기가 바뀔 때만 읽고, 걷는 동안에는 transform만 바꾼다.
+      card.bubble.style.maxWidth = Math.max(1, Math.min(220, this.floorSize.width - 16)) + 'px';
+      card.bubbleSize = { width: card.bubble.offsetWidth, height: card.bubble.offsetHeight };
+      card.speechTransform = null; this.positionSpeech(card);
+    }
+    positionSpeech(card) {
+      const size = this.floorSize, bubble = card.bubbleSize; if (!size || !bubble) return;
+      const left = MC.clamp(card.x - bubble.width / 2, 8, Math.max(8, size.width - bubble.width - 8));
+      const below = card.y < bubble.height + 12;
+      const top = MC.clamp(below ? card.y + size.pupHeight + 10 : card.y - bubble.height - 10, 8, Math.max(8, size.height - bubble.height - 8));
+      const transform = `translate3d(${(left - card.x + size.seatWidth / 2).toFixed(2)}px, ${(top - card.y).toFixed(2)}px, 0)`;
+      if (card.speechTransform === transform) return;
+      card.bubble.style.transform = transform; card.speechTransform = transform;
+      card.bubble.dataset.side = below ? 'below' : 'above';
+      card.bubble.style.setProperty('--speech-tail', MC.clamp(card.x - left - 5, 12, bubble.width - 22).toFixed(2) + 'px');
+    }
     acceptChat(m) {
       if (m.t === 'learn-chat-error') { this.finishChat(); this.chatError(m.message); return; }
       if (m.t === 'learn-chat-delete') {
         this.chatItems.get(m.id)?.remove(); this.chatItems.delete(m.id); this.unreadChat.delete(m.id); this.chatUnread = this.unreadChat.size;
+        for (const card of this.cards.values()) if (card.speechId === m.id) this.hideSpeech(card);
         this.updateChatToggle(); this.updateChatTools(); this.chat.querySelector('.learn-chat-empty').hidden = !!this.chatItems.size; return;
       }
       if (m.t === 'learn-chat-clear') {
+        for (const card of this.cards.values()) this.hideSpeech(card);
         this.chatItems.clear(); this.chatLog.replaceChildren(); this.unreadChat.clear(); this.chatUnread = 0; this.updateChatToggle(); this.updateChatTools();
         this.chat.querySelector('.learn-chat-empty').hidden = false; return;
       }
@@ -145,6 +182,7 @@
         if (message.role === 'owner') name.appendChild(document.createTextNode(' · 운영자'));
         const stamp = el('time', '', new Date(message.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })); stamp.dateTime = new Date(message.at).toISOString();
         meta.append(name, stamp); row.append(meta, el('p', '', message.text)); this.chatLog.appendChild(row); this.chatItems.set(message.id, row);
+        if (!m.history) this.showSpeech(message);
         if (this.lesson?.role === 'owner') {
           const remove = el('button', 'learn-delete-message', '지우기'); remove.type = 'button'; remove.setAttribute('aria-label', message.name + '의 대화 지우기');
           remove.onclick = () => this.command('delete-chat', message.id); row.appendChild(remove);
@@ -168,6 +206,7 @@
       if (['learn-chat', 'learn-chat-error', 'learn-chat-clear', 'learn-chat-delete'].includes(m.t)) { this.acceptChat(m); return; }
       if (m.t === 'learn-error') { this.starting = false; this.error(m.message); return; }
       if (m.t === 'learn-offline' || m.t === 'learn-denied') {
+        for (const card of this.cards.values()) this.hideSpeech(card);
         this.disconnected = true; this.stopWalking(); this.returnSeat.disabled = true; this.error(m.message || '연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.');
         this.owner.close(); for (const input of this.owner.querySelectorAll('input,textarea,select,button')) input.disabled = true;
         this.form.querySelector('[type="submit"]').disabled = true;
@@ -242,7 +281,7 @@
         card.sign.dataset.reveal = !!canReveal; card.sign.title = canReveal ? uiText('이 답변만 공개') : answer?.text || '';
         card.seat.classList.toggle('is-me', member.id === this.net.id);
       }
-      for (const [id, card] of this.cards) if (!active.has(id)) { card.seat.remove(); this.cards.delete(id); }
+      for (const [id, card] of this.cards) if (!active.has(id)) { this.hideSpeech(card); card.seat.remove(); this.cards.delete(id); }
       this.arrangeSeats(m.roster); this.updateChatTools(); this.resizeFloor();
     }
     buildWalking() {
@@ -311,10 +350,14 @@
       this.returnSeat.hidden = !walk.free;
     }
     positionSeat(card, x, y) {
+      card.x = x; card.y = y;
       const transform = `translate3d(${(x - this.floorSize.seatWidth / 2).toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
-      if (card.transform === transform) return;
-      card.seat.style.transform = transform; card.transform = transform;
-      card.seat.style.zIndex = 2 + Math.round(y);
+      if (card.transform !== transform) {
+        card.seat.style.transform = transform; card.transform = transform;
+        if (card.speechId) this.positionSpeech(card);
+      }
+      const zIndex = (card.speechId ? 1000 : 2) + Math.round(y);
+      if (card.seat.style.zIndex !== String(zIndex)) card.seat.style.zIndex = zIndex;
     }
     arrangeSeats(roster) {
       const signature = roster.map(m => m.id).join(':'); if (this.seating === signature) return; this.seating = signature;
@@ -351,6 +394,7 @@
       }
       if (this.walk.target?.returning) this.walk.target = { ...this.cards.get(this.net.id).home, returning: true };
       this.updateWalking(0);
+      for (const card of this.cards.values()) this.sizeSpeech(card);
     }
     resizeFloor() {
       const response = this.root.querySelector('.learn-response');
@@ -387,7 +431,7 @@
       if (this.drawnBackdrop !== this.backdrop) { g.drawImage(this.backdrop, 0, 0); this.drawnBackdrop = this.backdrop; }
     }
     pointerDown() { return false; }
-    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
+    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); for (const card of this.cards.values()) clearTimeout(card.speechTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
   }
   MC.LearnGate = LearnGate; MC.LearnScene = LearnScene;
 })(window.MC = window.MC || {});

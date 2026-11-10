@@ -65,6 +65,9 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
   check(await viewer.page.locator('.learn-detail').evaluate(n => n.open && n.querySelector('p').textContent === '산책'), '작은 팻말을 누르면 답 전체 보기');
   await viewer.page.click('.learn-detail button'); await shot(viewer.page, 'learning-30-revealed-phone');
   await viewer.page.setViewportSize({ width: 1440, height: 900 }); await sleep(300);
+  for (const { ws } of friends) ws.send(JSON.stringify({ t: 'learn', action: 'chat', value: '함께 걸으며 이야기해요!' }));
+  await viewer.page.evaluate(() => MC.app.net.link.learn('chat', '친구들아 반가워!'));
+  check(await until(viewer.page, () => document.querySelectorAll('.learn-speech-bubble:not([hidden])').length === 30), '30명 동시 대화를 각 멍이의 말풍선으로 표시');
   const cdp = await viewer.ctx.newCDPSession(viewer.page); await cdp.send('Performance.enable');
   const before = (await cdp.send('Performance.getMetrics')).metrics;
   let tick = 0;
@@ -80,6 +83,10 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
   const after = (await cdp.send('Performance.getMetrics')).metrics;
   const delta = name => +(after.find(m => m.name === name).value - before.find(m => m.name === name).value).toFixed(3);
   check(await until(viewer.page, () => document.querySelectorAll('.learn-seat.is-roaming').length === 30), '30명 동시 이동을 서버에서 받아 화면에 반영');
+  check(await viewer.page.evaluate(() => {
+    const f = document.querySelector('.learn-floor'), floor = f.getBoundingClientRect(), bubbles = [...f.querySelectorAll('.learn-speech-bubble:not([hidden])')];
+    return bubbles.length === 30 && bubbles.every(n => { const r = n.getBoundingClientRect(); return r.left >= floor.left && r.right <= floor.right && r.top >= floor.top && r.bottom <= floor.bottom; }) && f.scrollWidth <= f.clientWidth + 1 && f.scrollHeight <= f.clientHeight + 1;
+  }), '30명이 말하며 움직여도 말풍선이 바닥 안에 표시되고 스크롤 없음');
   console.log('30명 이동 5초 측정:', JSON.stringify({ layouts: delta('LayoutCount'), scriptSeconds: delta('ScriptDuration'), taskSeconds: delta('TaskDuration') }));
   await shot(viewer.page, 'learning-30-moving-desktop'); clearInterval(movement);
   friends[0].ws.close(); friends[1].ws.close();

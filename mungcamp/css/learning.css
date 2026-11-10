@@ -49,6 +49,10 @@
 .learning-room .learn-return-seat { position: absolute; bottom: calc(var(--learn-floor-bottom, 100px) - 42px); left: 50%; transform: translateX(-50%); z-index: 1100; font-size: 25px; min-height: 38px; padding: 8px 16px; background: #1b2d2eea; border-color: #eddbad66; box-shadow: 0 5px 20px #11202540; }
 .learn-seat { min-width: 0; position: absolute; left: 0; top: 0; width: var(--seat-width, 150px); height: var(--seat-height, 124px); display: flex; flex-direction: column; align-items: center; border-radius: 26px; contain: layout style; }
 .learn-seat.is-me { background: radial-gradient(ellipse at 50% 40%, #ffe1a338, transparent 70%); }
+.learn-speech-bubble { position: absolute; top: 0; left: 0; width: max-content; max-width: 220px; margin: 0; padding: 9px 12px; border: 1px solid #baa882; border-radius: 16px; color: #34493e; background: #fff3d8; box-shadow: 0 4px 12px #14291d26; font: 13px/1.45 system-ui, sans-serif; pointer-events: none; }
+.learn-speech-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.learn-speech-bubble::after { content: ''; position: absolute; top: 100%; left: 0; width: 10px; height: 10px; margin-top: -5px; border: solid #baa882; border-width: 0 1px 1px 0; background: #fff3d8; transform: translateX(var(--speech-tail, 12px)) rotate(45deg); }
+.learn-speech-bubble[data-side='below']::after { top: 0; border-width: 1px 0 0 1px; }
 .learn-pup { width: var(--pup-width, 115px); height: var(--pup-height, 90px); flex: none; }
 .learn-seat-name { margin: 0 0 3px; padding: 1px 5px; flex: none; border: 1px solid #f1e5c41f; border-radius: 99px; color: #eee4ce; background: #182a2bd9; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--seat-font, 11px); }
 .learn-seat.is-me .learn-seat-name { color: #ffd3a2; border-color: #ffce8a55; }
