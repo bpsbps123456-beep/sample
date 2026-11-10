@@ -42,7 +42,7 @@
         state: () => ({ p: 'learn', x: Math.round(this.walk.x * 1000), y: Math.round(this.walk.y * 1000), q: this.walk.free ? 1 : 0, w: this.walk.moving ? 1 : 0, f: this.pup.flip || 1 }) };
       this.background = new Image(); this.background.onload = () => { this.backdrop = null; }; this.background.src = 'assets/learning-room.svg';
       this.root = el('section', 'learning-room'); this.root.setAttribute('aria-label', '숲속 배움터');
-      this.root.innerHTML = '<header class="learn-board"><div class="learn-board-top"><span class="learn-eyebrow">숲속 배움터</span><span class="learn-progress" role="status"></span></div><h2></h2><p class="learn-question-options"></p></header><div class="learn-floor" role="group" aria-label="멍이와 답변 팻말"></div><div class="learn-response"><p class="learn-response-note" role="status"></p><form class="learn-answer-form" hidden><fieldset class="learn-answer-choices"><legend>보기 중 하나를 골라요</legend></fieldset><label class="learn-text-label">내 팻말에 올릴 답<textarea name="answer" maxlength="180" rows="2" placeholder="내 생각을 적어 주세요"></textarea></label><div class="learn-answer-actions"><span>공개 전에는 나만 보여요</span><button type="submit" class="learn-primary">팻말에 놓기</button></div></form><button type="button" class="learn-open-owner" hidden>운영 도구 열기</button><p class="learn-error" role="status"></p></div>';
+      this.root.innerHTML = '<header class="learn-board"><div class="learn-board-top"><span class="learn-eyebrow">숲속 배움터</span><span class="learn-progress" role="status"></span></div><h2></h2><p class="learn-question-options"></p></header><div class="learn-floor" role="group" aria-label="멍이와 답변 팻말"></div><div class="learn-response"><p class="learn-response-note" role="status"></p><form class="learn-answer-form" hidden><fieldset class="learn-answer-choices"><legend>보기 중 하나를 골라요</legend></fieldset><label class="learn-text-label">내 팻말에 올릴 답<textarea name="answer" maxlength="180" rows="2" placeholder="내 생각을 적어 주세요"></textarea></label><div class="learn-answer-actions"><span>공개 전에는 나만 보여요</span><button type="submit" class="learn-primary">팻말에 놓기</button></div></form><p class="learn-error" role="status"></p></div><button type="button" class="learn-open-owner" aria-label="운영 도구 열기" title="운영 도구 열기" aria-haspopup="dialog" hidden><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>운영</span></button>';
       document.querySelector('#session').appendChild(this.root);
       this.buildChat();
       this.floor = this.root.querySelector('.learn-floor'); this.form = this.root.querySelector('.learn-answer-form');
@@ -354,7 +354,7 @@
     }
     resizeFloor() {
       const response = this.root.querySelector('.learn-response');
-      response.hidden = this.form.hidden && this.root.querySelector('.learn-open-owner').hidden && !this.root.querySelector('.learn-error').textContent;
+      response.hidden = this.form.hidden && !this.root.querySelector('.learn-error').textContent;
       this.floor.style.top = (this.root.querySelector('header').offsetTop + this.root.querySelector('header').offsetHeight + 16) + 'px';
       this.floor.style.bottom = (response.offsetHeight + 64) + 'px';
       this.root.style.setProperty('--learn-floor-top', this.floor.style.top);

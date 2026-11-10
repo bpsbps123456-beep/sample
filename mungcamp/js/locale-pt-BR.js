@@ -432,6 +432,7 @@
 공개 전에는 나만 보여요|Só você pode ver antes da divulgação
 팻말에 놓기|Colocar na plaquinha
 운영 도구 열기|Abrir ferramentas do professor
+운영|Painel
 배움터 운영 도구|Ferramentas do professor
 진행자 전용|Somente para o professor
 함께 생각을 나눠요|Vamos compartilhar ideias

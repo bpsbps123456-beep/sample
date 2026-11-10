@@ -89,8 +89,11 @@
 .learn-detail p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .learn-owner .learn-clear-chat { margin: -8px 0 24px; font-size: 25px; }
 #session[data-scene='learn'] #dock { top: 15px; bottom: auto; right: 75px; left: auto; transform: none; width: auto; padding: 0; background: var(--glass); border: 1px solid var(--glass-line); border-radius: 999px; }
-#session[data-scene='learn'] #dock .dock-btn { width: 48px; min-height: 42px; }
+#session[data-scene='learn'] #dock .dock-btn { width: 48px; min-width: 48px; min-height: 48px; padding: 5px; }
 #session[data-scene='learn'] #dock .dock-btn span { display: block; font: 11px/1.2 system-ui, sans-serif; }
+.learning-room .learn-open-owner { position: absolute; top: 15px; right: 133px; width: 48px; min-height: 50px; padding: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: var(--glass); border-color: var(--glass-line); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.learn-open-owner .ico { width: 22px; height: 22px; }
+.learn-open-owner span { font: 11px/1.2 system-ui, sans-serif; }
 #session[data-scene='learn'] #dock .dock-sep, #session[data-scene='learn'] #sceneSelfName, #session[data-scene='learn'] #guidance, #session[data-scene='learn'] [data-panel='breath'], #session[data-scene='learn'] #hideBtn { display: none; }
 #session[data-scene='learn'] .together { display: none; }
 /* 대화창은 같은 유리 재질로 교실 옆에 펼친다. */
@@ -144,6 +147,9 @@
   .learn-answer-actions > span { font-size: 10px; }
   .learn-chat-head { padding-block: 6px; }
   .learn-chat-form { padding: 7px 10px; }
+}
+@media (max-width: 400px) {
+  .learning-room[data-role='owner'] .learn-chat-toggle { width: 56px; padding-inline: 4px; font-size: 23px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 @media (min-width: 1000px) and (min-height: 601px) {
   .learning-room[data-chat-open='true'] .learn-board { left: calc((100% - 352px) / 2); width: min(740px, calc(100% - 400px)); }
