@@ -35,14 +35,14 @@
     constructor({ net }) {
       this.net = net; this.t = 0; this.w = 1; this.h = 1; this.cards = new Map(); this.lesson = null;
       this.pup = new MC.Pup({}); this.pup.x = -1000; this.pup.y = -1000; this.pup.k = 0;
-      // 둥근 자리에서 시작하되 바닥 터치·방향키로 자유롭게 걷는다. 답은 위치 메시지에 섞지 않는다.
+      // 각자의 자리에서 시작하되 바닥 터치·방향키로 자유롭게 걷는다. 답은 위치 메시지에 섞지 않는다.
       this.walk = { x: .5, y: .5, free: false, moving: false, keys: { x: 0, y: 0 }, target: null, peers: new Map() };
       this.crowd = { pup: this.pup, visitors: new Map(), setKeys: (x, y) => this.walkKeys(x, y),
         sync: list => { this.walk.peers = new Map(list.map(peer => [peer.id, peer.s])); }, hitVisitor() { return null; },
         state: () => ({ p: 'learn', x: Math.round(this.walk.x * 1000), y: Math.round(this.walk.y * 1000), q: this.walk.free ? 1 : 0, w: this.walk.moving ? 1 : 0, f: this.pup.flip || 1 }) };
-      this.background = new Image(); this.background.src = 'assets/learning-room.svg';
+      this.background = new Image(); this.background.onload = () => { this.backdrop = null; }; this.background.src = 'assets/learning-room.svg';
       this.root = el('section', 'learning-room'); this.root.setAttribute('aria-label', '숲속 배움터');
-      this.root.innerHTML = '<header class="learn-board"><div class="learn-board-top"><span class="learn-eyebrow">숲속 배움터</span><span class="learn-progress" role="status"></span></div><h2>오늘은 어떤 생각을 나눌까요?</h2><p class="learn-question-options"></p></header><div class="learn-floor" role="group" aria-label="멍이와 답변 팻말"></div><div class="learn-response"><p class="learn-response-note" role="status">서로의 생각에 천천히 귀 기울여요.</p><form class="learn-answer-form" hidden><fieldset class="learn-answer-choices"><legend>보기 중 하나를 골라요</legend></fieldset><label class="learn-text-label">내 팻말에 올릴 답<textarea name="answer" maxlength="180" rows="2" placeholder="내 생각을 적어 주세요"></textarea></label><div class="learn-answer-actions"><span>공개 전에는 나만 보여요</span><button type="submit" class="learn-primary">팻말에 놓기</button></div></form><button type="button" class="learn-open-owner" hidden>운영 도구 열기</button><p class="learn-error" role="status"></p></div>';
+      this.root.innerHTML = '<header class="learn-board"><div class="learn-board-top"><span class="learn-eyebrow">숲속 배움터</span><span class="learn-progress" role="status"></span></div><h2></h2><p class="learn-question-options"></p></header><div class="learn-floor" role="group" aria-label="멍이와 답변 팻말"></div><div class="learn-response"><p class="learn-response-note" role="status"></p><form class="learn-answer-form" hidden><fieldset class="learn-answer-choices"><legend>보기 중 하나를 골라요</legend></fieldset><label class="learn-text-label">내 팻말에 올릴 답<textarea name="answer" maxlength="180" rows="2" placeholder="내 생각을 적어 주세요"></textarea></label><div class="learn-answer-actions"><span>공개 전에는 나만 보여요</span><button type="submit" class="learn-primary">팻말에 놓기</button></div></form><button type="button" class="learn-open-owner" hidden>운영 도구 열기</button><p class="learn-error" role="status"></p></div>';
       document.querySelector('#session').appendChild(this.root);
       this.buildChat();
       this.floor = this.root.querySelector('.learn-floor'); this.form = this.root.querySelector('.learn-answer-form');
@@ -79,13 +79,15 @@
       window.addEventListener('mungcamp:languagechange', this.onLanguageChange);
       this.accept(net.learning || { t: 'learn-state', role: net.learnAccess?.role, phase: 'waiting', roster: [], boards: {}, online: 0, answered: 0 });
       this.acceptChat({ t: 'learn-chat', history: true, messages: net.learningChat || [] });
+      this.layoutObserver = new ResizeObserver(() => this.resizeFloor());
+      this.layoutObserver.observe(this.root.querySelector('.learn-board')); this.layoutObserver.observe(this.root.querySelector('.learn-response'));
     }
     buildChat() {
       this.chatItems = new Map(); this.chatUnread = 0; this.unreadChat = new Set();
       this.chatToggle = el('button', 'learn-chat-toggle', '대화'); this.chatToggle.type = 'button';
       this.chatToggle.setAttribute('aria-controls', 'learnChat'); this.chatToggle.setAttribute('aria-expanded', 'false');
       this.chat = el('aside', 'learn-chat'); this.chat.id = 'learnChat'; this.chat.hidden = true; this.chat.setAttribute('aria-label', '배움터 대화');
-      this.chat.innerHTML = '<header class="learn-chat-head"><div><h3>도란도란 대화</h3><p>배움터에 함께 있는 친구들이 봐요</p></div><button type="button" aria-label="대화 닫기">×</button></header><div class="learn-chat-log" role="log" aria-label="친구들과 나누는 대화" aria-live="polite" aria-relevant="additions"></div><p class="learn-chat-empty">반가운 인사로 대화를 시작해 보세요.</p><form class="learn-chat-form"><label class="learn-chat-label" for="learnChatInput">친구에게 전할 말</label><div><input id="learnChatInput" type="text" maxlength="180" autocomplete="off" enterkeyhint="send" placeholder="함께 이야기해요" required><button type="submit" class="learn-primary">보내기</button></div><p class="learn-chat-error" role="status"></p></form>';
+      this.chat.innerHTML = '<header class="learn-chat-head"><div><h3>도란도란 대화</h3></div><button type="button" aria-label="대화 닫기">×</button></header><div class="learn-chat-log" role="log" aria-label="친구들과 나누는 대화" aria-live="polite" aria-relevant="additions"></div><p class="learn-chat-empty"></p><form class="learn-chat-form"><label class="learn-chat-label" for="learnChatInput">친구에게 전할 말</label><div><input id="learnChatInput" type="text" maxlength="180" autocomplete="off" enterkeyhint="send" placeholder="함께 이야기해요" required><button type="submit" class="learn-primary">보내기</button></div><p class="learn-chat-error" role="status"></p></form>';
       const chatBody = el('div', 'learn-chat-body');
       this.chat.querySelector('header').after(chatBody);
       chatBody.append(this.chat.querySelector('.learn-chat-log'), this.chat.querySelector('.learn-chat-empty'));
@@ -161,7 +163,7 @@
       this.root.querySelector('.learn-error').textContent = ''; this.owner.querySelector('.learn-error').textContent = '';
       if (!this.net.link?.learn?.(action, value)) this.error('연결이 끊겼어요. 마을로 나가 비밀번호를 입력하고 다시 들어와 주세요.');
     }
-    error(message) { this.root.querySelector('.learn-error').textContent = message; this.owner.querySelector('.learn-error').textContent = message; }
+    error(message) { this.root.querySelector('.learn-error').textContent = message; this.owner.querySelector('.learn-error').textContent = message; this.resizeFloor(); }
     accept(m) {
       if (['learn-chat', 'learn-chat-error', 'learn-chat-clear', 'learn-chat-delete'].includes(m.t)) { this.acceptChat(m); return; }
       if (m.t === 'learn-error') { this.starting = false; this.error(m.message); return; }
@@ -172,18 +174,17 @@
         this.finishChat(); this.updateChatTools(); this.chatForm.querySelector('input').disabled = true; this.chatError('연결이 끊겼어요. 마을에서 다시 들어와 주세요.'); return;
       }
       if (m.t !== 'learn-state') return;
-      const previous = this.lesson?.question?.id, previousAnswer = this.lesson?.own?.text;
-      const firstSeat = !this.cards.has(this.net.id); this.lesson = m;
+      const previous = this.lesson?.question?.id; this.lesson = m;
       const owner = m.role === 'owner', q = m.question, open = m.phase === 'open';
       this.root.dataset.role = m.role; this.root.dataset.phase = m.phase;
       this.root.querySelector('.learn-progress').textContent = `${m.answered}명 제출 · ${m.online}명 참여`;
       this.root.querySelector('h2').setAttribute('translate', q ? 'no' : 'yes');
       this.root.querySelector('.learn-question-options').setAttribute('translate', q?.type === 'choice' ? 'no' : 'yes');
-      this.root.querySelector('h2').textContent = q?.text || '오늘은 어떤 생각을 나눌까요?';
-      this.root.querySelector('.learn-question-options').textContent = q?.type === 'choice' ? q.options.map((v, i) => `${i + 1}. ${v}`).join('  ·  ') : q ? '주관식 · 내 생각을 자유롭게 적어요' : '질문을 기다리며 편하게 앉아요';
+      this.root.querySelector('h2').textContent = q?.text || '';
+      this.root.querySelector('.learn-question-options').textContent = '';
       this.root.querySelector('.learn-open-owner').hidden = !owner;
       this.form.hidden = owner || !q || m.phase === 'revealed';
-      this.root.querySelector('.learn-response-note').textContent = owner ? '답 공개 후 이름 없이 취합한 결과를 볼 수 있어요.' : m.phase === 'waiting' ? '바닥을 톡 누르거나 방향키로 자유롭게 걸어요.' : m.phase === 'revealed' ? '모두의 생각이 팻말에 펼쳐졌어요!' : m.phase === 'closed' ? '응답을 마쳤어요. 곧 함께 답을 살펴봐요.' : m.own ? '내 팻말에 놓았어요. 마감 전에는 고칠 수 있어요.' : '생각을 적어 내 멍이 앞 팻말에 놓아 주세요.';
+      this.root.querySelector('.learn-response-note').textContent = '';
       if (q && previous !== q.id) {
         this.form.reset(); this.form.querySelector('fieldset').replaceChildren(el('legend', '', '보기 중 하나를 골라요'));
         q.options.forEach((v, i) => {
@@ -220,7 +221,7 @@
           const seat = el('article', 'learn-seat'), canvas = el('canvas', 'learn-pup'), name = el('p', 'learn-seat-name'), sign = el('button', 'learn-sign');
           canvas.width = 280; canvas.height = 220; canvas.setAttribute('aria-hidden', 'true'); sign.type = 'button';
           seat.dataset.id = member.id; seat.append(canvas, name, sign); this.floor.appendChild(seat);
-          card = { seat, canvas, name, sign, pup: member.id === this.net.id ? this.pup : new MC.Pup({}) }; this.cards.set(member.id, card);
+          card = { seat, canvas, name, sign, context: canvas.getContext('2d'), pup: member.id === this.net.id ? this.pup : new MC.Pup({}) }; this.cards.set(member.id, card);
           sign.onclick = () => {
             const answer = this.lesson?.boards[member.id]?.text; if (!answer) return;
             this.stopWalking();
@@ -230,23 +231,19 @@
         const signature = [member.c, member.h, member.ht, member.ac, member.gl, member.cl].join(':');
         if (card.signature !== signature) { card.pup.setLook(member.c, member.h, member.ht, member.ac, member.gl, member.cl); card.signature = signature; }
         card.name.textContent = member.name + (member.id === this.net.id ? uiText(' · 나') : '') + (member.role === 'owner' ? uiText(' · 운영자') : '');
-        const answer = m.boards[member.id]; card.sign.setAttribute('translate', answer?.text ? 'no' : 'yes'); card.sign.textContent = answer?.text || (member.role === 'owner' ? '함께 생각해 봐요' : answer?.submitted ? m.phase === 'revealed' ? '답변 완료' : '답변 완료 · 공개 대기' : '생각하고 있어요');
-        card.sign.disabled = !answer?.text; card.sign.dataset.answered = !!answer; card.sign.title = answer?.text || '';
+        const answer = m.boards[member.id]; card.sign.setAttribute('translate', answer?.text ? 'no' : 'yes');
+        card.sign.textContent = answer?.text || (answer?.submitted ? '답변 완료' : '');
+        card.sign.hidden = !answer; card.sign.disabled = !answer?.text; card.sign.dataset.answered = !!answer; card.sign.title = answer?.text || '';
         card.seat.classList.toggle('is-me', member.id === this.net.id);
       }
       for (const [id, card] of this.cards) if (!active.has(id)) { card.seat.remove(); this.cards.delete(id); }
       this.arrangeSeats(m.roster); this.updateChatTools(); this.resizeFloor();
-      if (firstSeat || m.own?.text && previousAnswer !== m.own.text) requestAnimationFrame(() => {
-        this.showMySeat();
-      });
     }
     buildWalking() {
-      this.returnSeat = el('button', 'learn-return-seat', '둥근 자리로 돌아가기'); this.returnSeat.type = 'button'; this.returnSeat.hidden = true;
+      this.returnSeat = el('button', 'learn-return-seat', '내 자리'); this.returnSeat.type = 'button'; this.returnSeat.hidden = true;
       this.returnSeat.onclick = () => {
         const card = this.cards.get(this.net.id); if (!card || this.disconnected) return;
-        const circle = card.seat.parentElement, step = parseFloat(getComputedStyle(circle).getPropertyValue('--circle-step'));
-        this.walk.target = { x: (circle.offsetLeft + parseFloat(card.seat.style.getPropertyValue('--seat-x')) / 100 * circle.clientWidth) / this.floor.clientWidth,
-          y: (circle.offsetTop + parseFloat(card.seat.style.getPropertyValue('--seat-row')) * step) / this.walkHeight(), returning: true };
+        this.walk.target = { ...card.home, returning: true };
         this.walk.keys = { x: 0, y: 0 }; this.returnSeat.blur();
       }; this.root.appendChild(this.returnSeat);
       this.floor.addEventListener('pointerdown', e => { if (!e.target.closest('button')) this.floorPress = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
@@ -254,24 +251,19 @@
       this.floor.addEventListener('pointerup', e => {
         const start = this.floorPress; this.floorPress = null;
         if (!start || start.id !== e.pointerId || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 9 || e.target.closest('button') || !this.leaveSeat()) return;
-        const box = this.floor.getBoundingClientRect(), seat = this.cards.get(this.net.id).seat;
+        const box = this.floor.getBoundingClientRect(), size = this.floorSize;
         this.walk.keys = { x: 0, y: 0 };
-        this.walk.target = { x: (e.clientX - box.left) / this.floor.clientWidth,
-          y: (e.clientY - box.top + this.floor.scrollTop - seat.querySelector('canvas').clientHeight * .75) / this.walkHeight() };
+        this.walk.target = { x: (e.clientX - box.left) / size.width,
+          y: (e.clientY - box.top - size.pupHeight * .75) / size.height };
       });
       this.root.addEventListener('focusin', e => { if (e.target.matches('input,textarea,select')) this.stopWalking(); });
     }
-    walkHeight() {
-      const circles = this.floor.querySelectorAll('.learn-circle'), last = circles[circles.length - 1];
-      return Math.max(this.floor.clientHeight, last ? last.offsetTop + last.offsetHeight + 72 : 1);
-    }
+    walkHeight() { return this.floorSize?.height || 1; }
     leaveSeat() {
       const card = this.cards.get(this.net.id);
       if (!card || this.disconnected || getComputedStyle(this.floor).visibility === 'hidden') return false;
       if (!this.walk.free) {
-        const box = card.seat.getBoundingClientRect(), floor = this.floor.getBoundingClientRect();
-        this.walk.x = (box.left - floor.left + box.width / 2) / this.floor.clientWidth;
-        this.walk.y = (box.top - floor.top + this.floor.scrollTop) / this.walkHeight(); this.walk.free = true;
+        Object.assign(this.walk, card.home); this.walk.free = true;
       }
       return true;
     }
@@ -280,15 +272,11 @@
       this.walk.keys = { x, y }; if (x || y) this.walk.target = null;
     }
     stopWalking() { this.walk.keys = { x: 0, y: 0 }; this.walk.target = null; this.walk.moving = false; }
-    showMySeat() {
-      const seat = this.cards.get(this.net.id)?.seat; if (!seat) return;
-      const box = seat.getBoundingClientRect(), floor = this.floor.getBoundingClientRect();
-      if (box.top < floor.top || box.bottom > floor.bottom) this.floor.scrollTop += box.top - floor.top - (floor.height - box.height) / 2;
-    }
     updateWalking(dt) {
       const walk = this.walk, own = this.cards.get(this.net.id); if (!own) return;
-      const width = Math.max(1, this.floor.clientWidth), height = this.walkHeight();
-      const half = own.seat.offsetWidth / 2 + 4, low = 4, high = Math.max(low, height - own.seat.offsetHeight - 8);
+      const size = this.floorSize; if (!size) return;
+      const { width, height, seatWidth, seatHeight } = size;
+      const half = seatWidth / 2 + 4, low = 4, high = Math.max(low, height - seatHeight - 8);
       const constrain = point => ({ x: MC.clamp(point.x * width, half, width - half) / width, y: MC.clamp(point.y * height, low, high) / height });
       if (walk.free && !this.disconnected) {
         const before = { x: walk.x, y: walk.y }, speed = 145;
@@ -302,8 +290,6 @@
         if (walk.moving && Math.abs(dx) > .1) this.pup.flip = dx < 0 ? -1 : 1;
         if (arrived) { if (walk.target.returning) walk.free = false; walk.target = null; walk.moving = false; }
       }
-      if (this.t < (this.walkPaintAt || 0)) return; this.walkPaintAt = this.t + 1 / 20;
-      const geometry = new Map([...this.cards].map(([id, card]) => [id, { width: card.seat.offsetWidth, height: card.seat.offsetHeight, left: card.seat.parentElement.offsetLeft, top: card.seat.parentElement.offsetTop }]));
       for (const [id, card] of this.cards) {
         const st = id === this.net.id ? { q: walk.free, x: walk.x * 1000, y: walk.y * 1000, w: walk.moving, f: this.pup.flip } : walk.peers.get(id);
         const free = !!st?.q; card.seat.classList.toggle('is-roaming', free); card.moving = !!st?.w;
@@ -311,64 +297,91 @@
           const target = { x: MC.clamp(st.x / 1000, 0, 1), y: MC.clamp(st.y / 1000, 0, 1) };
           const at = card.walkPosition || target, a = id === this.net.id ? 1 : 1 - Math.exp(-dt * 10);
           at.x += (target.x - at.x) * a; at.y += (target.y - at.y) * a; card.walkPosition = at;
-          const box = geometry.get(id), x = MC.clamp(at.x * width, box.width / 2 + 4, width - box.width / 2 - 4), y = MC.clamp(at.y * height, 4, height - box.height - 8);
-          card.seat.style.left = (x - box.left) + 'px'; card.seat.style.top = (y - box.top) + 'px'; card.seat.style.zIndex = 2 + Math.round(at.y * 1000);
+          const x = MC.clamp(at.x * width, half, width - half), y = MC.clamp(at.y * height, low, high);
+          this.positionSeat(card, x, y);
           card.pup.flip = st.f === -1 ? -1 : 1;
-        } else if (card.walkPosition) { card.walkPosition = null; card.seat.style.removeProperty('left'); card.seat.style.removeProperty('top'); card.seat.style.removeProperty('z-index'); }
+        } else { card.walkPosition = null; this.positionSeat(card, card.home.x * width, card.home.y * height); }
       }
       this.returnSeat.hidden = !walk.free;
-      if (walk.moving) this.showMySeat();
+    }
+    positionSeat(card, x, y) {
+      const transform = `translate3d(${(x - this.floorSize.seatWidth / 2).toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+      if (card.transform === transform) return;
+      card.seat.style.transform = transform; card.transform = transform;
+      card.seat.style.zIndex = 2 + Math.round(y);
     }
     arrangeSeats(roster) {
       const signature = roster.map(m => m.id).join(':'); if (this.seating === signature) return; this.seating = signature;
       const focused = this.floor.contains(document.activeElement) ? document.activeElement : null;
-      const places = {
-        1: [[50, 0]], 2: [[18, 0], [82, 0]], 3: [[50, 0], [18, 1], [82, 1]],
-        4: [[25, 0], [75, 0], [25, 1], [75, 1]],
-        5: [[30, 0], [70, 0], [16, 1], [84, 1], [50, 2]],
-        6: [[30, 0], [70, 0], [16, 1], [84, 1], [30, 2], [70, 2]]
-      };
-      const circles = [], count = Math.ceil(roster.length / 6);
-      for (let groupIndex = 0, offset = 0; groupIndex < count; groupIndex++) {
-        const size = Math.floor(roster.length / count) + (groupIndex < roster.length % count ? 1 : 0);
-        const group = roster.slice(offset, offset + size), circle = el('div', 'learn-circle'), center = el('div', 'learn-circle-center'); offset += size;
-        circle.dataset.count = group.length; circle.style.setProperty('--circle-rows', Math.max(...places[group.length].map(p => p[1])));
-        circle.setAttribute('role', 'group'); circle.setAttribute('aria-label', `도란도란 자리 ${circles.length + 1}`);
-        center.setAttribute('aria-hidden', 'true'); center.innerHTML = '<span>도란도란<small>서로의 생각을 들어요</small></span>'; circle.appendChild(center);
-        group.forEach((member, i) => {
-          const seat = this.cards.get(member.id).seat, [x, row] = places[group.length][i];
-          seat.style.setProperty('--seat-x', x + '%'); seat.style.setProperty('--seat-row', row); circle.appendChild(seat);
-        }); circles.push(circle);
+      this.floor.replaceChildren(...roster.map(member => this.cards.get(member.id).seat)); focused?.focus({ preventScroll: true });
+    }
+    layoutSeats() {
+      const width = Math.max(1, this.floor.clientWidth), height = Math.max(1, this.floor.clientHeight), count = this.cards.size;
+      if (!count) return;
+      // 인원과 화면 비율에 맞춰 모두 보이는 열 수를 고른다. 크기는 재배치할 때만 읽는다.
+      const withSigns = !!this.lesson?.question;
+      const dimensions = scale => ({ width: 150 * scale, height: 90 * scale + Math.max(9, 11 * scale) * 1.6 + 7 + (withSigns ? Math.max(24, 50 * scale) : 0) });
+      let best = { scale: 0, columns: 1, rows: count };
+      for (let columns = 1; columns <= count; columns++) {
+        const rows = Math.ceil(count / columns);
+        let low = 0, high = Math.max(0, Math.min(1, (width / columns - 12) / 150));
+        for (let step = 0; step < 12; step++) { const mid = (low + high) / 2; if (dimensions(mid).height <= height / rows - 12) low = mid; else high = mid; }
+        const scale = low;
+        if (scale > best.scale) best = { scale, columns, rows };
       }
-      this.floor.replaceChildren(...circles); focused?.focus({ preventScroll: true });
+      const scale = Math.max(.01, best.scale), { width: seatWidth, height: seatHeight } = dimensions(scale), pupHeight = 90 * scale;
+      this.floorSize = { width, height, seatWidth, seatHeight, pupHeight };
+      this.floor.style.setProperty('--seat-width', seatWidth + 'px'); this.floor.style.setProperty('--seat-height', seatHeight + 'px');
+      this.floor.style.setProperty('--pup-width', 115 * scale + 'px'); this.floor.style.setProperty('--pup-height', pupHeight + 'px');
+      this.floor.style.setProperty('--seat-font', Math.max(9, 11 * scale) + 'px');
+      this.floor.style.setProperty('--sign-height', Math.max(24, 50 * scale) + 'px');
+      let index = 0;
+      for (const card of this.cards.values()) {
+        const row = Math.floor(index / best.columns), column = index % best.columns;
+        const rowCount = Math.min(best.columns, count - row * best.columns);
+        card.home = { x: (column + .5 + (best.columns - rowCount) / 2) / best.columns,
+          y: ((row + .5) * height / best.rows - seatHeight / 2) / height };
+        card.transform = null; index++;
+      }
+      if (this.walk.target?.returning) this.walk.target = { ...this.cards.get(this.net.id).home, returning: true };
+      this.updateWalking(0);
     }
     resizeFloor() {
+      const response = this.root.querySelector('.learn-response');
+      response.hidden = this.form.hidden && this.root.querySelector('.learn-open-owner').hidden && !this.root.querySelector('.learn-error').textContent;
       this.floor.style.top = (this.root.querySelector('header').offsetTop + this.root.querySelector('header').offsetHeight + 16) + 'px';
-      this.floor.style.bottom = (this.root.querySelector('.learn-response').offsetHeight + 34) + 'px';
+      this.floor.style.bottom = (response.offsetHeight + 64) + 'px';
       this.root.style.setProperty('--learn-floor-top', this.floor.style.top);
       this.root.style.setProperty('--learn-floor-bottom', this.floor.style.bottom);
+      this.layoutSeats();
     }
-    resize(w, h, dpr) { this.w = w; this.h = h; this.dpr = dpr; this.resizeFloor(); }
+    resize(w, h, dpr) { this.w = w; this.h = h; this.dpr = dpr; this.drawnBackdrop = null; this.resizeFloor(); }
     update(dt) {
+      if (document.hidden) return;
       this.t += dt;
       this.updateWalking(Math.min(.05, dt));
-      if (this.t < (this.paintAt || 0)) return; this.paintAt = this.t + 1 / 20;
-      const floor = this.floor.getBoundingClientRect();
+      if (this.root.dataset.chatOpen === 'true' && (this.w < 1000 || this.h <= 600)) return;
       for (const card of this.cards.values()) {
-        const box = card.canvas.getBoundingClientRect(); if (box.bottom < floor.top || box.top > floor.bottom) continue;
+        // 위치는 매 프레임 보간하고, 캐릭터 그림은 정지 8fps·걷기 20fps로 제한한다.
+        if (this.t < (card.paintAt || 0)) continue;
+        const elapsed = Math.min(.15, this.t - (card.paintedAt || 0)); card.paintedAt = this.t; card.paintAt = this.t + 1 / (card.moving ? 20 : 8);
         const p = card.pup, before = { x: p.x, y: p.y, k: p.k };
-        p.x = 140; p.y = 204; p.k = 1.45; p.update(Math.min(.1, dt * 3), { noSleep: true, walking: card.moving });
-        const g = card.canvas.getContext('2d'); g.clearRect(0, 0, 280, 220); p.draw(g, 1, true); Object.assign(p, before);
+        p.x = 140; p.y = 204; p.k = 1.45; p.update(elapsed, { noSleep: true, walking: card.moving });
+        const g = card.context; g.clearRect(0, 0, 280, 220); p.draw(g, 1, true); Object.assign(p, before);
       }
     }
     draw(g) {
-      g.fillStyle = '#344944'; g.fillRect(0, 0, this.w, this.h);
-      if (this.background.complete && this.background.naturalWidth) {
-        const z = Math.max(this.w / 1400, this.h / 1000); g.drawImage(this.background, (this.w - 1400 * z) / 2, 0, 1400 * z, 1000 * z);
+      if (!this.backdrop || this.backdrop.width !== this.w || this.backdrop.height !== this.h) {
+        this.backdrop = document.createElement('canvas'); this.backdrop.width = this.w; this.backdrop.height = this.h;
+        const bg = this.backdrop.getContext('2d'); bg.fillStyle = '#344944'; bg.fillRect(0, 0, this.w, this.h);
+        if (this.background.complete && this.background.naturalWidth) {
+          const z = Math.max(this.w / 1400, this.h / 1000); bg.drawImage(this.background, (this.w - 1400 * z) / 2, 0, 1400 * z, 1000 * z);
+        }
       }
+      if (this.drawnBackdrop !== this.backdrop) { g.drawImage(this.backdrop, 0, 0); this.drawnBackdrop = this.backdrop; }
     }
     pointerDown() { return false; }
-    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); clearTimeout(this.chatPendingTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.net.learning = null; this.net.learningChat = []; }
+    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
   }
   MC.LearnGate = LearnGate; MC.LearnScene = LearnScene;
 })(window.MC = window.MC || {});

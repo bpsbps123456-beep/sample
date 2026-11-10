@@ -491,6 +491,7 @@
 답변 완료 · 공개 대기|Resposta enviada · Aguardando divulgação
 생각하고 있어요|Pensando…
 둥근 자리로 돌아가기|Voltar à roda
+내 자리|Meu lugar
 도란도란 자리 {n}|Roda de conversa {n}
 도란도란|Nossa roda
 서로의 생각을 들어요|Vamos escutar uns aos outros

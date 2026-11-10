@@ -55,7 +55,7 @@ main(async ({ check, until, person, presenceServer, staticServer, cleanup, shot,
   check(await b.page.evaluate(() => !document.querySelector('.learn-sign b')), 'HTML 답안을 글자로 표시');
   await owner.page.click('[data-dismiss]');
   await shot(owner.page, 'learning-desktop-revealed'); await shot(b.page, 'learning-phone-revealed');
-  check(await b.page.evaluate(() => { const f = document.querySelector('.learn-floor').getBoundingClientRect(), r = document.querySelector('.learn-response').getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect(); return f.top >= h.bottom && f.bottom <= r.top && r.bottom <= innerHeight && document.documentElement.scrollWidth === innerWidth; }), '휴대폰 칠판·멍이·조작부 겹침 방지');
+  check(await b.page.evaluate(() => { const f = document.querySelector('.learn-floor').getBoundingClientRect(), response = document.querySelector('.learn-response'), r = response.getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect(); return f.top >= h.bottom && (response.hidden ? f.bottom <= innerHeight : f.bottom <= r.top && r.bottom <= innerHeight) && document.documentElement.scrollWidth === innerWidth; }), '휴대폰 칠판·멍이·조작부 겹침 방지');
   await b.page.setViewportSize({ width: 844, height: 390 }); await sleep(200); await shot(b.page, 'learning-phone-landscape');
   await owner.page.click('.learn-open-owner');
   await owner.page.selectOption('.learn-question-form [name="type"]', 'choice');
