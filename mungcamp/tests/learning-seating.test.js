@@ -39,7 +39,7 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
     const seats = [...f.querySelectorAll('.learn-seat')].map(n => n.getBoundingClientRect());
     const inside = r => r.left >= floor.left - 1 && r.right <= floor.right + 1 && r.top >= floor.top - 1 && r.bottom <= floor.bottom + 1;
     return seats.length === 30 && seats.every(inside) && seats.every((a, i) => seats.slice(i + 1).every(b => Math.min(a.right, b.right) - Math.max(a.left, b.left) < 1 || Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) < 1)) &&
-      [...f.querySelectorAll('canvas,.learn-seat-name,.learn-sign:not([hidden])')].every(n => inside(n.getBoundingClientRect())) &&
+      [...f.querySelectorAll('canvas,.learn-seat-name,.learn-status-sign:not([hidden]),.learn-sign:not([hidden])')].every(n => inside(n.getBoundingClientRect())) &&
       f.scrollHeight <= f.clientHeight + 1 && f.scrollWidth <= f.clientWidth + 1 && document.documentElement.scrollWidth === innerWidth;
   };
   const sizes = [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }];
@@ -48,6 +48,8 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
     check(await until(viewer.page, layout), `${viewport.width}×${viewport.height} 대기 중 30명 모두 스크롤·겹침 없이 표시`);
     if ([1440, 390].includes(viewport.width)) await shot(viewer.page, 'learning-30-idle-' + viewport.width);
   }
+  for (const { ws, state } of friends) { Object.assign(state, { sg: '쉬는중', ch: 1 }); ws.send(JSON.stringify({ t: 's', s: state })); }
+  check(await until(viewer.page, () => [...MC.app.state.sceneObj.cards.values()].filter(card => !card.status.hidden && card.pup.chairOn).length === 29), '일반 학생들까지 상태 팻말과 의자 동시 설치');
   friends[0].ws.send(JSON.stringify({ t: 'learn', action: 'start', value: { type: 'choice', text: '어떤 활동을 함께할까요?', options: ['산책', '독서', '공놀이', '그림', '음악', '휴식'] } }));
   await until(viewer.page, () => !!MC.app.state.sceneObj.lesson.question);
   const question = await viewer.page.evaluate(() => MC.app.state.sceneObj.lesson.question.id);
@@ -55,7 +57,14 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
   await until(viewer.page, () => MC.app.state.sceneObj.lesson.answered === 28);
   for (const viewport of sizes) {
     await viewer.page.setViewportSize(viewport);
-    check(await until(viewer.page, layout), `${viewport.width}×${viewport.height} 여섯 보기·제출 팻말이 있어도 30명 전체 표시`);
+    const fits = await until(viewer.page, layout);
+    check(fits, `${viewport.width}×${viewport.height} 의자·상태 팻말·제출 팻말이 있어도 30명 전체 표시`);
+    if (!fits) {
+      console.log(await viewer.page.evaluate(() => {
+        const floor = document.querySelector('.learn-floor').getBoundingClientRect(), sc = MC.app.state.sceneObj;
+        return { floor: floor.toJSON(), size: sc.floorSize, overflow: [...document.querySelectorAll('.learn-seat > *:not([hidden])')].filter(n => { const r = n.getBoundingClientRect(); return r.left < floor.left - 1 || r.right > floor.right + 1 || r.top < floor.top - 1 || r.bottom > floor.bottom + 1; }).map(n => ({ cls: n.className, rect: n.getBoundingClientRect().toJSON() })).slice(0, 5) };
+      })); await shot(viewer.page, 'learning-personal-overflow-' + viewport.width);
+    }
   }
   friends[0].ws.send(JSON.stringify({ t: 'learn', action: 'reveal' }));
   await until(viewer.page, () => MC.app.state.sceneObj.lesson.phase === 'revealed');

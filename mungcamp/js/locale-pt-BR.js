@@ -123,6 +123,15 @@
 장갑|Luvas
 다 됐어요|Pronto!
 내 멍이의 팻말|Plaquinha do meu cachorrinho
+내 멍이 · 팻말과 의자|Meu cachorrinho · plaquinha e cadeira
+내 멍이|Meu cachorrinho
+내 상태 팻말|Minha plaquinha de status
+예: 쉬는중|Ex.: Pausa
+네 글자까지 적어요. 답변 팻말과 따로 보여요.|Use até quatro caracteres. Sua resposta fica em outra plaquinha.
+팻말 세우기|Colocar plaquinha
+팻말 치우기|Remover plaquinha
+의자 펴기|Abrir cadeira
+의자 접기|Dobrar cadeira
 마을에서 내 멍이 곁에 세워요.|Coloque uma plaquinha ao lado do seu cachorrinho na vila.
 네 글자 이내로 적어주세요|Escreva até 4 caracteres
 업무중|Ocup

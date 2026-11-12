@@ -1,0 +1,92 @@
+'use strict';
+const { main } = require('./lib');
+main(async ({ check, until, person, presenceServer, cleanup, sleep, shot }) => {
+  const server = await presenceServer(); cleanup(server.close);
+  const owner = await person({ nick: '진행멍', viewport: { width: 1280, height: 900 } });
+  const a = await person({ nick: '쉬는멍', viewport: { width: 1280, height: 900 }, look: { c: 0, h: 1, ht: 1 } });
+  const b = await person({ nick: '친구멍', phone: true });
+  for (const p of [owner, a, b]) cleanup(p.close);
+  const enter = async (page, pin = '0000') => {
+    await page.goto(server.url); await until(page, () => MC.app.net.online);
+    await page.click('#learnBtn'); await page.fill('#learnPin', pin); await page.press('#learnPin', 'Enter');
+    await until(page, () => MC.app.state.sceneObj?.lesson?.roster.length);
+  };
+  await enter(owner.page, '8624'); await enter(a.page); await enter(b.page);
+  const aid = await a.page.evaluate(() => MC.app.net.id);
+  check(await a.page.evaluate(() => MC.app.state.sceneObj.lesson.role === 'member' && !document.querySelector('.learn-personal-open').disabled), '일반 학생에게 팻말·의자 도구 제공');
+  await a.page.click('.learn-seat.is-me canvas');
+  check(await a.page.evaluate(() => document.querySelector('.learn-personal').open && !MC.app.state.sceneObj.walk.free), '내 멍이를 눌러도 이동하지 않고 도구 열기');
+  await a.page.fill('#learnPersonalSign', '쉬는중이에요');
+  check(await a.page.inputValue('#learnPersonalSign') === '쉬는중이', '상태 팻말은 네 글자까지');
+  await a.page.fill('#learnPersonalSign', '시발'); await a.page.click('.learn-personal-form [type="submit"]');
+  check(await a.page.evaluate(() => document.querySelector('.learn-personal').open && !!document.querySelector('.learn-personal-error').textContent && !MC.app.state.sceneObj.personalSign), '험한 말은 상태 팻말로 등록하지 않음');
+  await a.page.fill('#learnPersonalSign', '쉬는중'); await a.page.click('.learn-personal-form [type="submit"]');
+  check(await until(b.page, id => document.querySelector(`[data-id="${id}"] .learn-status-sign`)?.textContent === '쉬는중', aid), '일반 학생의 상태 팻말을 다른 학생에게 동기화');
+  await a.page.click('.learn-personal-open'); await a.page.fill('#learnPersonalSign', '생각중'); await a.page.click('.learn-personal-form [type="submit"]');
+  check(await until(b.page, id => document.querySelector(`[data-id="${id}"] .learn-status-sign`)?.textContent === '생각중', aid), '이미 세운 상태 팻말도 수정해 친구에게 공유');
+  await a.page.click('.learn-personal-open'); await a.page.fill('#learnPersonalSign', '쉬는중'); await a.page.click('.learn-personal-form [type="submit"]');
+  check(await owner.page.evaluate(id => !MC.app.state.sceneObj.lesson.boards[id] && !MC.app.state.sceneObj.lesson.own, aid), '상태 팻말이 수업 답변으로 제출되지 않음');
+  await a.page.click('.learn-personal-open'); await a.page.click('.learn-personal-chair');
+  check(await until(b.page, id => MC.app.state.sceneObj.cards.get(id)?.pup.chairOn, aid), '일반 학생의 의자가 다른 화면에도 펼쳐짐');
+  const at = await a.page.evaluate(() => ({ x: MC.app.state.sceneObj.walk.x, y: MC.app.state.sceneObj.walk.y }));
+  await a.page.press('#learnPersonalSign', 'ArrowRight'); await a.page.press('#learnPersonalSign', 'c'); await sleep(250);
+  check(await a.page.evaluate(pos => { const sc = MC.app.state.sceneObj; return sc.pup.chairOn && !sc.walk.free && sc.walk.x === pos.x && sc.walk.y === pos.y; }, at), '도구 입력 중 방향키·C가 이동이나 의자 접기를 실행하지 않음');
+  await a.page.keyboard.press('Escape'); await a.page.locator('.learn-personal-open').blur();
+  await a.page.keyboard.press('c');
+  check(await until(b.page, id => !MC.app.state.sceneObj.cards.get(id)?.pup.chairOn, aid), 'C로 의자를 접고 친구 화면에 공유');
+  await a.page.keyboard.press('c'); await until(a.page, () => MC.app.state.sceneObj.pup.chair === 1); await sleep(2500);
+  check(await a.page.evaluate(() => {
+    const canvas = document.querySelector('.learn-seat.is-me canvas'), { width, height } = canvas;
+    const pixels = canvas.getContext('2d').getImageData(0, 0, width, height).data;
+    for (let x = 0; x < width; x++) if (pixels[x * 4 + 3] || pixels[((height - 1) * width + x) * 4 + 3]) return false;
+    for (let y = 0; y < height; y++) if (pixels[y * width * 4 + 3] || pixels[(y * width + width - 1) * 4 + 3]) return false;
+    const pup = MC.app.state.sceneObj.pup;
+    return pup.chair === 1 && Math.abs(pup.hop) < 5 && pixels.filter((v, i) => i % 4 === 3 && v).length > 8000;
+  }), '모자 쓴 멍이·의자가 잘리지 않고 승하차 후 물리와 그림이 안정됨');
+  await shot(a.page, 'learning-personal-chair-desktop');
+  await owner.page.click('.learn-open-owner'); await owner.page.selectOption('[name="type"]', 'text');
+  await owner.page.fill('[name="question"]', '오늘의 생각은?'); await owner.page.click('.learn-question-form [type="submit"]');
+  await until(a.page, () => !!MC.app.state.sceneObj.lesson.question);
+  await a.page.fill('.learn-answer-form textarea', '천천히 쉬며 생각할래요'); await a.page.click('.learn-answer-form [type="submit"]');
+  check(await until(owner.page, id => {
+    const card = MC.app.state.sceneObj.cards.get(id), answer = MC.app.state.sceneObj.lesson.boards[id];
+    return card.status.textContent === '쉬는중' && !card.status.hidden && !card.sign.hidden && answer?.submitted && !answer.text && card.pup.chairOn;
+  }, aid), '의자·공개 상태 팻말과 비공개 답변 팻말이 동시에 유지됨');
+  await a.page.locator('.learn-answer-form [type="submit"]').blur();
+  await a.page.keyboard.down('ArrowLeft'); await sleep(350); await a.page.keyboard.up('ArrowLeft');
+  check(await until(b.page, id => { const card = MC.app.state.sceneObj.cards.get(id); return !card?.pup.chairOn && card?.seat.classList.contains('is-roaming'); }, aid), '걷기 시작하면 본인과 친구 화면에서 의자를 접음');
+  await a.page.keyboard.press('c');
+  check(await until(b.page, id => MC.app.state.sceneObj.cards.get(id)?.pup.chairOn, aid), '산책 후 멈춘 자리에서도 의자 설치 가능');
+  await a.page.click('.learn-return-seat');
+  check(await until(a.page, () => !MC.app.state.sceneObj.walk.free && !MC.app.state.sceneObj.pup.chairOn), '내 자리 복귀 때도 의자를 접고 이동');
+  check(await a.page.evaluate(() => MC.app.state.sceneObj.personalSign === '쉬는중' && MC.app.state.sceneObj.lesson.own.text === '천천히 쉬며 생각할래요'), '이동·복귀 후 두 팻말 내용 유지');
+  await a.page.reload(); await until(a.page, () => MC.app.net.online && document.querySelector('.learn-gate[open]')); await a.page.fill('#learnPin', '0000'); await a.page.press('#learnPin', 'Enter');
+  check(await until(a.page, () => MC.app.state.sceneObj?.personalSign === '쉬는중' && !document.querySelector('.learn-seat.is-me .learn-status-sign').hidden && !MC.app.state.sceneObj.pup.chairOn), '재입장하면 상태 팻말을 복원하고 의자는 접힌 상태로 시작');
+  check(await a.page.evaluate(() => !MC.app.camp.sign), '배움터 상태 팻말은 마을 팻말에 영향을 주지 않음');
+  await b.page.click('.learn-personal-open'); await b.page.click('.learn-personal-chair'); await b.page.fill('#learnPersonalSign', '독서중'); await b.page.click('.learn-personal-form [type="submit"]');
+  check(await until(a.page, () => [...MC.app.state.sceneObj.cards.values()].some(card => card.name.textContent.startsWith('친구멍') && card.status.textContent === '독서중' && card.pup.chairOn)), '휴대폰 일반 학생도 팻말·의자 설치 가능');
+  await until(b.page, () => MC.app.state.sceneObj.pup.chair === 1); await sleep(350); await shot(b.page, 'learning-personal-phone');
+  const sizes = [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }];
+  for (const size of sizes) {
+    await a.page.setViewportSize(size); await a.page.click('.learn-personal-open');
+    check(await a.page.evaluate(() => {
+      const dialog = document.querySelector('.learn-personal').getBoundingClientRect(), button = document.querySelector('.learn-personal-open').getBoundingClientRect();
+      return dialog.left >= 0 && dialog.right <= innerWidth && dialog.top >= 0 && dialog.bottom <= innerHeight && button.left >= 0 && button.right <= innerWidth && document.documentElement.scrollWidth === innerWidth;
+    }), `${size.width}×${size.height} 도구 버튼·창이 화면 안에 표시`);
+    await a.page.keyboard.press('Escape');
+  }
+  await a.page.evaluate(() => MC.I18n.setLanguage('pt-BR')); await a.page.click('.learn-personal-open');
+  check(await until(a.page, () => document.querySelector('.learn-personal h2').textContent === 'Meu cachorrinho' && document.querySelector('.learn-personal-chair').textContent === 'Abrir cadeira' && document.querySelector('.learn-seat.is-me .learn-status-sign').textContent === '쉬는중'), '도구 안내는 번역하고 학생의 상태 팻말 원문은 유지');
+  await a.page.keyboard.press('Escape'); await a.page.evaluate(() => MC.I18n.setLanguage('ko'));
+  await a.page.click('.learn-personal-open'); await a.page.click('.learn-personal-remove');
+  check(await until(b.page, () => [...MC.app.state.sceneObj.cards.values()].some(card => card.name.textContent.startsWith('쉬는멍') && card.status.hidden && !card.status.textContent)), '팻말을 치우면 친구 화면에서도 제거');
+  check(await a.page.evaluate(() => MC.netClean({ p: 'learn', x: 0, y: 0, sg: '123456', ch: 1, w: 1 }).sg === '1234' && MC.netClean({ p: 'learn', x: 0, y: 0, ch: 1, w: 1 }).ch === 0 && MC.netClean({ p: 'lodge', x: 0, y: 0, sg: '1234' }).sg === ''), '수신 상태의 글자 제한·이동 중 의자 접기·다른 장소 제한');
+  await a.page.click('.learn-personal-open'); await server.close();
+  check(await until(a.page, () => {
+    const sc = MC.app.state.sceneObj;
+    return sc.disconnected && !sc.personal.open && sc.personalOpen.disabled && [...sc.personal.querySelectorAll('input,button')].every(n => n.disabled);
+  }), '연결이 끊기면 도구 창을 닫고 변경 차단');
+  await a.page.click('#exitBtn');
+  check(await until(a.page, () => MC.app.state.view === 'home' && !document.querySelector('.learn-personal')), '퇴장 시 도구 창과 이벤트 정리');
+  check(![...owner.errors, ...a.errors, ...b.errors].length, '전체 조작 중 브라우저 오류 없음', [...owner.errors, ...a.errors, ...b.errors]);
+});

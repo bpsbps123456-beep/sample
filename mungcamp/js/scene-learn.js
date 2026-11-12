@@ -40,11 +40,13 @@
     constructor({ net }) {
       this.net = net; this.t = 0; this.w = 1; this.h = 1; this.cards = new Map(); this.lesson = null;
       this.pup = new MC.Pup({}); this.pup.x = -1000; this.pup.y = -1000; this.pup.k = 0;
+      this.personalSign = MC.cleanSign(MC.store.get('learnSign', ''));
       // 각자의 자리에서 시작하되 바닥 터치·방향키로 자유롭게 걷는다. 답은 위치 메시지에 섞지 않는다.
       this.walk = { x: .5, y: .5, free: false, moving: false, keys: { x: 0, y: 0 }, target: null, peers: new Map() };
       this.crowd = { pup: this.pup, visitors: new Map(), setKeys: (x, y) => this.walkKeys(x, y),
-        sync: list => { this.walk.peers = new Map(list.map(peer => [peer.id, peer.s])); }, hitVisitor() { return null; },
-        state: () => ({ p: 'learn', x: Math.round(this.walk.x * 1000), y: Math.round(this.walk.y * 1000), q: this.walk.free ? 1 : 0, w: this.walk.moving ? 1 : 0, f: this.pup.flip || 1 }) };
+        sync: list => { this.walk.peers = new Map(list.map(peer => [peer.id, peer.s])); this.syncPersonal(); }, hitVisitor() { return null; },
+        toggleChair: () => this.toggleChair(),
+        state: () => ({ p: 'learn', x: Math.round(this.walk.x * 1000), y: Math.round(this.walk.y * 1000), q: this.walk.free ? 1 : 0, w: this.walk.moving ? 1 : 0, f: this.pup.flip || 1, ch: this.pup.chairOn && !this.walk.moving ? 1 : 0, sg: this.personalSign }) };
       this.background = new Image(); this.background.onload = () => { this.backdrop = null; }; this.background.src = 'assets/learning-room.svg';
       this.root = el('section', 'learning-room'); this.root.setAttribute('aria-label', '숲속 배움터');
       this.root.innerHTML = '<header class="learn-board"><div class="learn-board-top"><span class="learn-eyebrow">숲속 배움터</span><span class="learn-progress" role="status"></span></div><h2></h2><p class="learn-question-options"></p></header><div class="learn-floor" role="group" aria-label="멍이와 답변 팻말"></div><div class="learn-response"><p class="learn-response-note" role="status"></p><form class="learn-answer-form" hidden><fieldset class="learn-answer-choices"><legend>보기 중 하나를 골라요</legend></fieldset><label class="learn-text-label">내 팻말에 올릴 답<textarea name="answer" maxlength="180" rows="2" placeholder="내 생각을 적어 주세요"></textarea></label><div class="learn-answer-actions"><span>공개 전에는 나만 보여요</span><button type="submit" class="learn-primary">팻말에 놓기</button></div></form><p class="learn-error" role="status"></p></div><button type="button" class="learn-open-owner" aria-label="운영 도구 열기" title="운영 도구 열기" aria-haspopup="dialog" hidden><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>운영</span></button>';
@@ -85,6 +87,7 @@
       this.detail = el('dialog', 'learn-detail'); this.detail.setAttribute('aria-label', '팻말 답변 자세히 보기');
       this.detail.innerHTML = '<h2></h2><p></p><button type="button">닫기</button>';
       this.detail.querySelector('button').onclick = () => this.detail.close(); document.body.appendChild(this.detail);
+      this.buildPersonal();
       this.onLanguageChange = () => { if (this.lesson) this.accept(this.lesson); this.updateChatToggle(); this.resizeFloor(); };
       window.addEventListener('mungcamp:languagechange', this.onLanguageChange);
       this.accept(net.learning || { t: 'learn-state', role: net.learnAccess?.role, phase: 'waiting', roster: [], boards: {}, online: 0, answered: 0 });
@@ -155,6 +158,61 @@
       if (previous?.text !== notice?.text && document.activeElement !== input) input.value = notice?.text || '';
       this.noticeForm.querySelector('[type="submit"]').textContent = notice ? '공지 수정하기' : '공지 올리기';
       this.noticeForm.querySelector('.learn-notice-clear').disabled = !!this.disconnected || !notice;
+    }
+    buildPersonal() {
+      this.personalOpen = el('button', 'learn-personal-open'); this.personalOpen.type = 'button';
+      this.personalOpen.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-palette"/></svg>';
+      this.personalOpen.setAttribute('aria-label', '내 멍이 · 팻말과 의자'); this.personalOpen.title = uiText('내 멍이 · 팻말과 의자'); this.personalOpen.setAttribute('aria-haspopup', 'dialog');
+      this.root.querySelector('.learn-board-top').appendChild(this.personalOpen);
+      this.personal = el('dialog', 'learn-personal'); this.personal.setAttribute('aria-label', '내 멍이 · 팻말과 의자');
+      this.personal.innerHTML = '<div class="learn-owner-head"><h2>내 멍이</h2><button type="button" class="learn-personal-close" aria-label="닫기">×</button></div><button type="button" class="learn-personal-chair" aria-pressed="false">의자 펴기</button><form class="learn-personal-form"><label for="learnPersonalSign">내 상태 팻말<input id="learnPersonalSign" type="text" autocomplete="off" placeholder="예: 쉬는중"></label><p>네 글자까지 적어요. 답변 팻말과 따로 보여요.</p><p class="learn-personal-error learn-error" role="status"></p><div class="learn-notice-actions"><button type="submit" class="learn-primary">팻말 세우기</button><button type="button" class="learn-personal-remove">팻말 치우기</button></div></form>';
+      document.body.appendChild(this.personal);
+      this.personalOpen.onclick = () => this.openPersonal();
+      this.personal.querySelector('.learn-personal-close').onclick = () => this.personal.close();
+      this.personal.querySelector('.learn-personal-chair').onclick = () => this.toggleChair();
+      const input = this.personal.querySelector('input');
+      const limit = () => { input.value = Array.from(input.value.normalize('NFC')).slice(0, 4).join(''); };
+      input.addEventListener('input', e => { if (!e.isComposing) limit(); }); input.addEventListener('compositionend', limit);
+      this.personal.querySelector('form').onsubmit = e => {
+        e.preventDefault(); if (this.disconnected) return;
+        const value = MC.cleanSign(input.value);
+        if (!value) { this.personal.querySelector('.learn-personal-error').textContent = '팻말에 적을 짧은 말을 골라주세요'; return; }
+        this.setPersonalSign(value); this.personal.close();
+      };
+      this.personal.querySelector('.learn-personal-remove').onclick = () => { if (!this.disconnected) { this.setPersonalSign(''); this.personal.close(); } };
+    }
+    openPersonal() {
+      if (this.disconnected) return;
+      this.stopWalking(); this.personal.querySelector('input').value = this.personalSign;
+      this.personal.querySelector('.learn-personal-error').textContent = '';
+      this.personal.querySelector('.learn-personal-remove').disabled = !this.personalSign;
+      if (!this.personal.open) this.personal.showModal();
+    }
+    setPersonalSign(value) {
+      this.personalSign = value; MC.store.set('learnSign', value); this.syncPersonal();
+    }
+    toggleChair() {
+      if (this.disconnected) return null;
+      this.stopWalking(); this.pup.setChair(!this.pup.chairOn); this.syncPersonal();
+      return this.pup.chairOn;
+    }
+    syncPersonal() {
+      let withSigns = false;
+      for (const [id, card] of this.cards) {
+        const own = id === this.net.id, st = own ? { sg: this.personalSign, ch: this.pup.chairOn, w: this.walk.moving } : this.walk.peers.get(id);
+        const text = MC.cleanSign(st?.sg);
+        if (card.status.textContent !== text) card.status.textContent = text;
+        if (card.status.hidden !== !text) card.status.hidden = !text;
+        withSigns ||= !!text;
+        card.pup.setChair(!!st?.ch && !st?.w);
+      }
+      const button = this.personal?.querySelector('.learn-personal-chair');
+      if (button) {
+        const pressed = String(this.pup.chairOn), label = uiText(this.pup.chairOn ? '의자 접기' : '의자 펴기');
+        if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
+        if (button.textContent !== label) button.textContent = label;
+      }
+      if (this.hasPersonalSigns !== withSigns) { this.hasPersonalSigns = withSigns; if (this.floorSize) this.layoutSeats(); }
     }
     showSpeech(message) {
       const card = this.cards.get(message.from); if (!card || this.disconnected) return;
@@ -244,6 +302,8 @@
       if (m.t === 'learn-offline' || m.t === 'learn-denied') {
         for (const card of this.cards.values()) this.hideSpeech(card);
         this.disconnected = true; this.stopWalking(); this.returnSeat.disabled = true; this.error(m.message || '연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.');
+        this.personal.close(); this.personalOpen.disabled = true;
+        for (const input of this.personal.querySelectorAll('input,button')) input.disabled = true;
         this.owner.close(); for (const input of this.owner.querySelectorAll('input,textarea,select,button')) input.disabled = true;
         this.form.querySelector('[type="submit"]').disabled = true;
         this.finishChat(); this.updateChatTools(); this.chatForm.querySelector('input').disabled = true; this.chatError('연결이 끊겼어요. 마을에서 다시 들어와 주세요.'); return;
@@ -294,10 +354,15 @@
       for (const member of m.roster) {
         active.add(member.id); let card = this.cards.get(member.id);
         if (!card) {
-          const seat = el('article', 'learn-seat'), canvas = el('canvas', 'learn-pup'), name = el('p', 'learn-seat-name'), sign = el('button', 'learn-sign');
-          canvas.width = 280; canvas.height = 220; canvas.setAttribute('aria-hidden', 'true'); sign.type = 'button';
-          seat.dataset.id = member.id; seat.append(canvas, name, sign); this.floor.appendChild(seat);
-          card = { seat, canvas, name, sign, context: canvas.getContext('2d'), pup: member.id === this.net.id ? this.pup : new MC.Pup({}) }; this.cards.set(member.id, card);
+          const seat = el('article', 'learn-seat'), canvas = el('canvas', 'learn-pup'), name = el('p', 'learn-seat-name'), status = el('p', 'learn-status-sign'), sign = el('button', 'learn-sign');
+          canvas.width = 320; canvas.height = 300; canvas.setAttribute('aria-hidden', 'true'); sign.type = 'button'; status.hidden = true; status.setAttribute('translate', 'no');
+          if (member.id === this.net.id) {
+            canvas.removeAttribute('aria-hidden'); canvas.setAttribute('role', 'button'); canvas.tabIndex = 0; canvas.setAttribute('aria-label', '내 멍이 · 팻말과 의자'); canvas.setAttribute('aria-haspopup', 'dialog');
+            canvas.onclick = () => this.openPersonal(); canvas.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); this.openPersonal(); } };
+          }
+          const placards = el('div', 'learn-placards'); placards.append(status, sign);
+          seat.dataset.id = member.id; seat.append(canvas, name, placards); this.floor.appendChild(seat);
+          card = { seat, canvas, name, status, sign, context: canvas.getContext('2d'), pup: member.id === this.net.id ? this.pup : new MC.Pup({}) }; this.cards.set(member.id, card);
           sign.onclick = () => {
             const board = this.lesson?.boards[member.id];
             if (this.lesson?.role === 'owner' && board?.submitted && !board.text && ['open', 'closed'].includes(this.lesson.phase)) {
@@ -320,20 +385,21 @@
         card.seat.classList.toggle('is-me', member.id === this.net.id);
       }
       for (const [id, card] of this.cards) if (!active.has(id)) { this.hideSpeech(card); card.seat.remove(); this.cards.delete(id); }
-      this.arrangeSeats(m.roster); this.updateChatTools(); this.resizeFloor();
+      this.arrangeSeats(m.roster); this.syncPersonal(); this.updateChatTools(); this.resizeFloor();
     }
     buildWalking() {
       this.returnSeat = el('button', 'learn-return-seat', '내 자리'); this.returnSeat.type = 'button'; this.returnSeat.hidden = true;
       this.returnSeat.onclick = () => {
         const card = this.cards.get(this.net.id); if (!card || this.disconnected) return;
+        this.pup.setChair(false);
         this.walk.target = { ...card.home, returning: true };
         this.walk.keys = { x: 0, y: 0 }; this.returnSeat.blur();
       }; this.root.appendChild(this.returnSeat);
-      this.floor.addEventListener('pointerdown', e => { if (!e.target.closest('button')) this.floorPress = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+      this.floor.addEventListener('pointerdown', e => { if (!e.target.closest('button,[role="button"]')) this.floorPress = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
       this.floor.addEventListener('pointercancel', () => { this.floorPress = null; });
       this.floor.addEventListener('pointerup', e => {
         const start = this.floorPress; this.floorPress = null;
-        if (!start || start.id !== e.pointerId || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 9 || e.target.closest('button') || !this.leaveSeat()) return;
+        if (!start || start.id !== e.pointerId || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 9 || e.target.closest('button,[role="button"]') || !this.leaveSeat()) return;
         const box = this.floor.getBoundingClientRect(), size = this.floorSize;
         this.walk.keys = { x: 0, y: 0 };
         this.walk.target = { x: (e.clientX - box.left) / size.width,
@@ -345,6 +411,7 @@
     leaveSeat() {
       const card = this.cards.get(this.net.id);
       if (!card || this.disconnected || getComputedStyle(this.floor).visibility === 'hidden') return false;
+      this.pup.setChair(false);
       if (!this.walk.free) {
         Object.assign(this.walk, card.home); this.walk.free = true;
       }
@@ -407,21 +474,23 @@
       if (!count) return;
       // 인원과 화면 비율에 맞춰 모두 보이는 열 수를 고른다. 크기는 재배치할 때만 읽는다.
       const withSigns = !!this.lesson?.question;
-      const dimensions = scale => ({ width: 150 * scale, height: 90 * scale + Math.max(9, 11 * scale) * 1.6 + 7 + (withSigns ? Math.max(24, 50 * scale) : 0) });
+      const gap = count > 15 ? 6 : 12;
+      const dimensions = scale => ({ width: 150 * scale, height: 108 * scale + Math.max(9, 11 * scale) * 1.6 + 7 + Math.max(this.hasPersonalSigns ? Math.max(18, 24 * scale) : 0, withSigns ? Math.max(24, 50 * scale) : 0) });
       let best = { scale: 0, columns: 1, rows: count };
       for (let columns = 1; columns <= count; columns++) {
         const rows = Math.ceil(count / columns);
-        let low = 0, high = Math.max(0, Math.min(1, (width / columns - 12) / 150));
-        for (let step = 0; step < 12; step++) { const mid = (low + high) / 2; if (dimensions(mid).height <= height / rows - 12) low = mid; else high = mid; }
+        let low = 0, high = Math.max(0, Math.min(1, (width / columns - gap) / 150));
+        for (let step = 0; step < 12; step++) { const mid = (low + high) / 2; if (dimensions(mid).height <= height / rows - gap) low = mid; else high = mid; }
         const scale = low;
         if (scale > best.scale) best = { scale, columns, rows };
       }
-      const scale = Math.max(.01, best.scale), { width: seatWidth, height: seatHeight } = dimensions(scale), pupHeight = 90 * scale;
+      const scale = Math.max(.01, best.scale), { width: seatWidth, height: seatHeight } = dimensions(scale), pupHeight = 108 * scale;
       this.floorSize = { width, height, seatWidth, seatHeight, pupHeight };
       this.floor.style.setProperty('--seat-width', seatWidth + 'px'); this.floor.style.setProperty('--seat-height', seatHeight + 'px');
       this.floor.style.setProperty('--pup-width', 115 * scale + 'px'); this.floor.style.setProperty('--pup-height', pupHeight + 'px');
       this.floor.style.setProperty('--seat-font', Math.max(9, 11 * scale) + 'px');
       this.floor.style.setProperty('--sign-height', Math.max(24, 50 * scale) + 'px');
+      this.floor.style.setProperty('--status-height', Math.max(18, 24 * scale) + 'px');
       let index = 0;
       for (const card of this.cards.values()) {
         const row = Math.floor(index / best.columns), column = index % best.columns;
@@ -455,8 +524,11 @@
         if (this.t < (card.paintAt || 0)) continue;
         const elapsed = Math.min(.15, this.t - (card.paintedAt || 0)); card.paintedAt = this.t; card.paintAt = this.t + 1 / (card.moving ? 20 : 8);
         const p = card.pup, before = { x: p.x, y: p.y, k: p.k };
-        p.x = 140; p.y = 204; p.k = 1.45; p.update(elapsed, { noSleep: true, walking: card.moving });
-        const g = card.context; g.clearRect(0, 0, 280, 220); p.draw(g, 1, true); Object.assign(p, before);
+        p.x = 160; p.y = 280; p.k = 1.45;
+        // 그림은 적게 그려도 폴짝 뛰는 물리 계산은 짧게 나눠 의자 승하차가 발산하지 않게 한다.
+        const steps = Math.max(1, Math.ceil(elapsed * 60));
+        for (let i = 0; i < steps; i++) p.update(elapsed / steps, { noSleep: true, walking: card.moving });
+        const g = card.context; g.clearRect(0, 0, 320, 300); p.draw(g, 1, true); Object.assign(p, before);
       }
     }
     draw(g) {
@@ -470,7 +542,7 @@
       if (this.drawnBackdrop !== this.backdrop) { g.drawImage(this.backdrop, 0, 0); this.drawnBackdrop = this.backdrop; }
     }
     pointerDown() { return false; }
-    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); for (const card of this.cards.values()) clearTimeout(card.speechTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
+    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); for (const card of this.cards.values()) clearTimeout(card.speechTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.personal.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
   }
   MC.LearnGate = LearnGate; MC.LearnScene = LearnScene;
 })(window.MC = window.MC || {});

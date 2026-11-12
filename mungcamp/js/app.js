@@ -1830,7 +1830,7 @@
       openOwner();
       return;
     }
-    if (document.querySelector('.learn-gate[open], .learn-owner[open], .learn-detail[open]')) return;
+    if (document.querySelector('.learn-gate[open], .learn-owner[open], .learn-detail[open], .learn-personal[open]')) return;
     if (nickOpen() || suggestOpen() || ownerOpen() || dressOpen() || signOpen()) return;
     const t = e.target;
     if (state.scene === 'learn' && t?.closest?.('input,textarea,select')) return;
