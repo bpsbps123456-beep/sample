@@ -3,6 +3,11 @@
   'use strict';
   const uiText = value => MC.I18n ? MC.I18n.t(value) : value;
   const el = (tag, cls, content) => { const node = document.createElement(tag); if (cls) node.className = cls; if (content != null) node.textContent = content; return node; };
+  // 서버가 자리별 색을 배정해 같은 이름의 친구도 구분한다. 연보라 대신 숲·바다·살구 계열을 쓴다.
+  const chatTint = index => {
+    const hues = [35, 155, 210, 340, 75, 185, 10, 130, 230, 320, 55, 170, 200, 350, 95, 220, 25, 145, 240, 330, 65, 180, 0, 120, 205, 310, 45, 160, 20, 190];
+    return `hsl(${hues[Number.isInteger(index) && index >= 0 && index < hues.length ? index : 0]} 58% 79%)`;
+  };
   class LearnGate {
     constructor(net, enter) {
       this.net = net; this.enter = enter;
@@ -59,10 +64,15 @@
       this.owner.querySelector('.learn-live-actions').appendChild(reset);
       const clearChat = el('button', 'learn-clear-chat', '대화 기록 지우기'); clearChat.type = 'button';
       clearChat.onclick = () => this.command('clear-chat'); this.owner.querySelector('.learn-results').after(clearChat);
+      this.noticeForm = el('form', 'learn-notice-form');
+      this.noticeForm.innerHTML = '<h3>대화방 공지</h3><label for="learnNoticeInput">상단에 고정할 안내<textarea id="learnNoticeInput" maxlength="280" rows="3" placeholder="친구들에게 꼭 전할 안내를 적어 주세요" required></textarea></label><p>대화창을 접어도 공지가 보여요. 최대 280자까지 적을 수 있어요.</p><div class="learn-notice-actions"><button type="submit" class="learn-primary">공지 올리기</button><button type="button" class="learn-notice-clear">공지 내리기</button></div>';
+      this.owner.querySelector('.learn-question-form').before(this.noticeForm);
+      this.noticeForm.onsubmit = e => { e.preventDefault(); this.command('set-notice', this.noticeForm.querySelector('textarea').value); };
+      this.noticeForm.querySelector('.learn-notice-clear').onclick = () => this.command('clear-notice');
       this.root.querySelector('.learn-open-owner').onclick = () => { this.stopWalking(); this.owner.showModal(); };
       this.owner.querySelector('[data-dismiss]').onclick = () => this.owner.close();
       this.owner.querySelectorAll('[data-command]').forEach(button => { button.onclick = () => this.command(button.dataset.command); });
-      const questionForm = this.owner.querySelector('form');
+      const questionForm = this.owner.querySelector('.learn-question-form');
       questionForm.elements.type.onchange = () => {
         const choice = questionForm.elements.type.value === 'choice';
         questionForm.querySelector('.learn-options-label').hidden = !choice; questionForm.elements.options.required = choice;
@@ -94,6 +104,18 @@
       const tools = el('div', 'learn-chat-tools'); tools.hidden = true;
       this.clearChatButton = el('button', 'learn-chat-clear', '대화 전체 지우기'); this.clearChatButton.type = 'button';
       this.clearChatButton.onclick = () => this.command('clear-chat'); tools.appendChild(this.clearChatButton); chatBody.before(tools);
+      this.chatNotice = el('section', 'learn-chat-notice'); this.chatNotice.hidden = true; this.chatNotice.setAttribute('aria-label', '고정 공지');
+      this.chatNotice.append(el('h4', '', '고정 공지'), el('p')); tools.before(this.chatNotice);
+      this.chatNotice.querySelector('p').setAttribute('translate', 'no');
+      const readNotice = el('button', 'learn-notice-read', '전체 보기'); readNotice.type = 'button';
+      readNotice.onclick = () => { this.stopWalking(); this.detail.querySelector('h2').textContent = uiText('고정 공지'); this.detail.querySelector('p').textContent = this.lesson?.notice?.text || ''; this.detail.showModal(); };
+      this.chatNotice.appendChild(readNotice);
+      this.noticePreview = el('button', 'learn-notice-preview'); this.noticePreview.type = 'button'; this.noticePreview.hidden = true;
+      this.noticePreview.append(el('strong', '', '공지'), el('span')); this.noticePreview.setAttribute('aria-controls', 'learnChat');
+      this.noticePreview.querySelector('span').setAttribute('translate', 'no');
+      this.noticePreview.onclick = () => { this.toggleChat(true); this.chatNotice.querySelector('p').focus(); };
+      this.chatNotice.querySelector('p').tabIndex = 0;
+      this.root.querySelector('.learn-board-top').after(this.noticePreview);
       this.root.append(this.chatToggle, this.chat);
       this.chatLog = this.chat.querySelector('.learn-chat-log'); this.chatForm = this.chat.querySelector('form');
       this.chatToggle.onclick = () => this.toggleChat(this.chat.hidden);
@@ -122,7 +144,17 @@
       const owner = this.lesson?.role === 'owner';
       this.chat.querySelector('.learn-chat-tools').hidden = !owner;
       this.clearChatButton.disabled = !!this.disconnected || !this.chatItems.size;
-      for (const button of this.chatLog.querySelectorAll('.learn-delete-message')) button.disabled = !!this.disconnected;
+      for (const button of this.chatLog.querySelectorAll('button')) button.disabled = !!this.disconnected;
+    }
+    updateNotice(notice, previous) {
+      this.chatNotice.hidden = !notice; this.noticePreview.hidden = !notice;
+      this.noticePreview.querySelector('span').textContent = notice?.text || '';
+      this.noticePreview.setAttribute('aria-label', uiText('고정 공지') + ': ' + (notice?.text || ''));
+      this.chatNotice.querySelector('p').textContent = notice?.text || '';
+      const input = this.noticeForm.querySelector('textarea');
+      if (previous?.text !== notice?.text && document.activeElement !== input) input.value = notice?.text || '';
+      this.noticeForm.querySelector('[type="submit"]').textContent = notice ? '공지 수정하기' : '공지 올리기';
+      this.noticeForm.querySelector('.learn-notice-clear').disabled = !!this.disconnected || !notice;
     }
     showSpeech(message) {
       const card = this.cards.get(message.from); if (!card || this.disconnected) return;
@@ -176,6 +208,8 @@
       for (const message of m.messages || []) {
         if (this.chatItems.has(message.id)) continue;
         const own = message.from === this.net.id, row = el('article', 'learn-chat-message'); row.classList.toggle('is-me', own);
+        row.style.setProperty('--chat-tint', chatTint(message.chatColor));
+        row.dataset.from = message.from;
         const meta = el('div', 'learn-chat-meta'), name = el('strong'), author = el('span', '', message.name);
         author.setAttribute('translate', 'no'); name.appendChild(author);
         if (own) name.appendChild(document.createTextNode(' · 나'));
@@ -184,8 +218,10 @@
         meta.append(name, stamp); row.append(meta, el('p', '', message.text)); this.chatLog.appendChild(row); this.chatItems.set(message.id, row);
         if (!m.history) this.showSpeech(message);
         if (this.lesson?.role === 'owner') {
+          const actions = el('div', 'learn-message-actions'), pin = el('button', 'learn-pin-message', '공지로 고정'); pin.type = 'button';
+          pin.setAttribute('aria-label', message.name + '의 대화를 공지로 고정'); pin.onclick = () => this.command('pin-chat', message.id);
           const remove = el('button', 'learn-delete-message', '지우기'); remove.type = 'button'; remove.setAttribute('aria-label', message.name + '의 대화 지우기');
-          remove.onclick = () => this.command('delete-chat', message.id); row.appendChild(remove);
+          remove.onclick = () => this.command('delete-chat', message.id); actions.append(pin, remove); row.appendChild(actions);
         }
         if (!m.history && own) {
           mine = true; const input = this.chatForm.querySelector('input');
@@ -213,7 +249,8 @@
         this.finishChat(); this.updateChatTools(); this.chatForm.querySelector('input').disabled = true; this.chatError('연결이 끊겼어요. 마을에서 다시 들어와 주세요.'); return;
       }
       if (m.t !== 'learn-state') return;
-      const previous = this.lesson?.question?.id; this.lesson = m;
+      const previous = this.lesson?.question?.id, previousNotice = this.lesson?.notice; this.lesson = m;
+      this.updateNotice(m.notice, previousNotice);
       const owner = m.role === 'owner', q = m.question, open = m.phase === 'open';
       this.root.dataset.role = m.role; this.root.dataset.phase = m.phase;
       this.root.querySelector('.learn-progress').textContent = `${m.answered}명 제출 · ${m.online}명 참여`;
@@ -274,6 +311,7 @@
         const signature = [member.c, member.h, member.ht, member.ac, member.gl, member.cl].join(':');
         if (card.signature !== signature) { card.pup.setLook(member.c, member.h, member.ht, member.ac, member.gl, member.cl); card.signature = signature; }
         card.name.textContent = member.name + (member.id === this.net.id ? uiText(' · 나') : '') + (member.role === 'owner' ? uiText(' · 운영자') : '');
+        card.name.style.color = chatTint(member.chatColor);
         const answer = m.boards[member.id]; card.sign.setAttribute('translate', answer?.text ? 'no' : 'yes');
         card.sign.textContent = answer?.text || (answer?.submitted ? '답변 완료' : '');
         const canReveal = owner && answer?.submitted && !answer.text && ['open', 'closed'].includes(m.phase);
@@ -399,8 +437,9 @@
     resizeFloor() {
       const response = this.root.querySelector('.learn-response');
       response.hidden = this.form.hidden && !this.root.querySelector('.learn-error').textContent;
-      this.floor.style.top = (this.root.querySelector('header').offsetTop + this.root.querySelector('header').offsetHeight + 16) + 'px';
-      this.floor.style.bottom = (response.offsetHeight + 64) + 'px';
+      const compactChat = this.root.dataset.chatOpen === 'true' && !!this.lesson?.notice && (this.w < 1000 || this.h <= 600);
+      this.floor.style.top = (this.root.querySelector('header').offsetTop + this.root.querySelector('header').offsetHeight + (compactChat ? 8 : 16)) + 'px';
+      this.floor.style.bottom = (response.offsetHeight + (compactChat ? 26 : 64)) + 'px';
       this.root.style.setProperty('--learn-floor-top', this.floor.style.top);
       this.root.style.setProperty('--learn-floor-bottom', this.floor.style.bottom);
       this.layoutSeats();

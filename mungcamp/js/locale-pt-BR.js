@@ -467,6 +467,21 @@
 전송을 확인하지 못했어요. 연결 후 다시 확인해 주세요.|Não foi possível confirmar o envio. Verifique após reconectar.
 대화 · {n}|Conversa · {n}
 대화 접기|Recolher conversa
+대화방 공지|Aviso da conversa
+상단에 고정할 안내|Aviso para fixar no topo
+친구들에게 꼭 전할 안내를 적어 주세요|Escreva um aviso para os amigos
+대화창을 접어도 공지가 보여요. 최대 280자까지 적을 수 있어요.|O aviso aparece mesmo com a conversa fechada. Até 280 caracteres.
+공지 올리기|Publicar aviso
+공지 수정하기|Editar aviso
+공지 내리기|Remover aviso
+공지|Aviso
+고정 공지|Aviso fixado
+전체 보기|Ver tudo
+공지로 고정|Fixar como aviso
+{name}의 대화를 공지로 고정|Fixar mensagem de {name} como aviso
+고정 공지: {text}|Aviso fixado: {text}
+고정할 대화를 찾지 못했어요.|Não foi possível encontrar a mensagem para fixar.
+상단에 고정할 공지를 적어 주세요.|Escreva um aviso para fixar no topo.
 연결이 끊겼어요. 마을로 나가 비밀번호를 입력하고 다시 들어와 주세요.|Conexão perdida. Volte à vila e entre novamente com a senha.
 연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.|Conexão perdida. Volte à vila e entre novamente.
 연결이 끊겼어요. 마을에서 다시 들어와 주세요.|Conexão perdida. Entre novamente pela vila.

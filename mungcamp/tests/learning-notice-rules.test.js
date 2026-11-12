@@ -1,0 +1,48 @@
+'use strict';
+const assert = require('assert/strict'), Learning = require('../server/learning');
+const clients = new Set(), sent = [];
+const lesson = new Learning((c, m) => sent.push({ to: c.id, ...structuredClone(m) }), () => clients);
+const join = (id, pin = '0000') => {
+  const c = { id, state: { n: '같은 이름' }, room: { place: 'learn' } }; clients.add(c);
+  lesson.command(c, 'enter', pin); return c;
+};
+const owner = join('owner', '8624'), a = join('a'), b = join('b');
+for (const c of [a, b, { id: 'outsider', room: { place: 'learn' }, state: {} }]) {
+  lesson.command(c, 'set-notice', '권한 없는 공지'); assert.equal(lesson.notice, null);
+}
+lesson.command(owner, 'set-notice', '  내일\n다시 만나요 <b>멍!</b>  ');
+assert.equal(lesson.notice.text, '내일 다시 만나요 <b>멍!</b>');
+assert.equal(lesson.snapshot(a).notice.text, lesson.notice.text);
+assert.deepEqual(sent.filter(m => m.t === 'learn-state').slice(-3).map(m => m.to), ['owner', 'a', 'b']);
+const late = join('late'); assert.deepEqual(lesson.snapshot(late).notice, lesson.notice);
+lesson.command(a, 'clear-notice'); assert.ok(lesson.notice);
+lesson.command(owner, 'set-notice', ''); assert.ok(lesson.notice);
+lesson.command(owner, 'set-notice', {}); assert.ok(lesson.notice);
+lesson.command(a, 'chat', '이 대화를 고정해요');
+lesson.command(a, 'pin-chat', lesson.messages[0].id); assert.notEqual(lesson.notice.text, '이 대화를 고정해요');
+lesson.command(owner, 'pin-chat', lesson.messages[0].id); assert.equal(lesson.notice.text, '이 대화를 고정해요');
+for (const id of ['1', -1, 1.5, null, {}, 999]) lesson.command(owner, 'pin-chat', id);
+assert.equal(lesson.notice.text, '이 대화를 고정해요');
+lesson.command(owner, 'clear-chat'); assert.equal(lesson.notice.text, '이 대화를 고정해요');
+lesson.command(owner, 'start', { type: 'text', text: '질문' });
+lesson.command(a, 'answer', { id: 1, answer: '비공개 답안' });
+lesson.command(owner, 'set-notice', '수정한 공지');
+assert.equal(lesson.snapshot(owner).boards.a.text, undefined);
+assert.equal(lesson.snapshot(a).own.text, '비공개 답안');
+lesson.command(owner, 'reset'); assert.equal(lesson.notice.text, '수정한 공지');
+lesson.command(owner, 'set-notice', '🐶'.repeat(300)); assert.equal(Array.from(lesson.notice.text).length, 280);
+const notice = lesson.notice;
+owner.room.place = 'map'; lesson.command(owner, 'clear-notice'); assert.deepEqual(lesson.notice, notice);
+owner.room.place = 'learn'; owner.learn.until = 0; lesson.command(owner, 'set-notice', '만료된 공지'); assert.deepEqual(lesson.notice, notice);
+lesson.command(owner, 'enter', '8624'); lesson.command(owner, 'clear-notice'); assert.equal(lesson.snapshot(a).notice, null);
+for (let i = clients.size; i < Learning.CAP; i++) join('member-' + i);
+const roster = lesson.snapshot(a).roster;
+assert.equal(roster.length, Learning.CAP);
+assert.equal(new Set(roster.map(m => m.chatColor)).size, Learning.CAP);
+assert.ok(roster.every(m => Number.isInteger(m.chatColor) && m.chatColor >= 0 && m.chatColor < Learning.CAP));
+const color = lesson.chatColor(a); a.state.n = '새 이름'; a.learn.chatAt = 0;
+lesson.command(a, 'chat', '색 유지'); assert.equal(lesson.messages.at(-1).chatColor, color);
+lesson.chatHistory(late); assert.equal(sent.at(-1).messages.at(-1).chatColor, color);
+b.closed = true; const newcomer = join('newcomer');
+assert.equal(new Set(lesson.snapshot(newcomer).roster.map(m => m.chatColor)).size, Learning.CAP);
+console.log('✓ 공지 작성·수정·고정·해제 권한, 실시간/늦은 입장, 공지 길이·잘못된 입력·만료 차단, 대화/답안 분리, 30명 색 중복 방지·이름 변경·기록 유지');

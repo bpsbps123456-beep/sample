@@ -1,0 +1,75 @@
+'use strict';
+const { main } = require('./lib');
+main(async ({ check, until, person, presenceServer, cleanup, shot }) => {
+  const server = await presenceServer(); cleanup(server.close);
+  const owner = await person({ nick: '선생멍', viewport: { width: 1440, height: 900 } });
+  const a = await person({ nick: '새싹멍', viewport: { width: 1280, height: 800 } });
+  const b = await person({ nick: '바다멍', phone: true });
+  for (const p of [owner, a, b]) cleanup(p.close);
+  const enter = async (p, pin) => {
+    await p.goto(server.url); await until(p, () => MC.app.net.online);
+    await p.click('#learnBtn'); await p.fill('#learnPin', pin); await p.press('#learnPin', 'Enter');
+    await until(p, () => MC.app.state.sceneObj?.lesson?.roster.length);
+  };
+  await enter(owner.page, '8624'); await enter(a.page, '0000');
+  await owner.page.click('.learn-open-owner');
+  await owner.page.fill('#learnNoticeInput', '잠시 뒤에 함께 생각을 나눠요. <b>준비해 주세요!</b>');
+  await owner.page.click('.learn-notice-form [type="submit"]');
+  check(await until(a.page, () => !document.querySelector('.learn-notice-preview').hidden && document.querySelector('.learn-chat').hidden), '대화창을 닫아도 칠판 위쪽에 공지 표시');
+  await owner.page.click('.learn-owner [data-dismiss]');
+  await a.page.click('.learn-notice-preview');
+  check(await until(a.page, () => !document.querySelector('.learn-chat').hidden && !document.querySelector('.learn-chat-notice').hidden), '상단 공지를 누르면 고정 공지와 대화 열림');
+  check(await a.page.evaluate(() => !document.querySelector('.learn-chat-notice b') && document.querySelector('.learn-chat-notice p').textContent.includes('<b>준비해 주세요!</b>')), '공지는 HTML 실행 없이 글자로 표시');
+  await enter(b.page, '0000');
+  check(await until(b.page, () => document.querySelector('.learn-notice-preview').textContent.includes('준비해 주세요')), '늦게 온 학생에게도 공지 전달');
+  await a.page.fill('#learnChatInput', '안녕하세요!'); await a.page.press('#learnChatInput', 'Enter');
+  await b.page.click('.learn-chat-toggle'); await b.page.fill('#learnChatInput', '저도 준비됐어요!'); await b.page.press('#learnChatInput', 'Enter');
+  await until(owner.page, () => MC.app.state.sceneObj.chatItems.size === 2);
+  await owner.page.click('.learn-chat-toggle');
+  const colors = await a.page.evaluate(() => [...document.querySelectorAll('.learn-chat-meta strong')].map(n => getComputedStyle(n).color));
+  check(colors.length === 2 && colors[0] !== colors[1], '학생마다 서로 다른 파스텔 닉네임 색');
+  check(JSON.stringify(colors) === JSON.stringify(await owner.page.evaluate(() => [...document.querySelectorAll('.learn-chat-meta strong')].map(n => getComputedStyle(n).color))), '보는 사람과 관계없이 같은 학생은 같은 색');
+  check(await a.page.evaluate(() => !document.querySelector('.learn-pin-message') && document.querySelector('.learn-open-owner').hidden), '학생에게 공지 관리 기능 숨김');
+  await owner.page.click('.learn-pin-message >> nth=1');
+  check(await until(b.page, () => document.querySelector('.learn-chat-notice p').textContent === '저도 준비됐어요!'), '운영자가 학생 대화를 공지로 고정');
+  await owner.page.click('.learn-open-owner');
+  const longNotice = '내일은 숲속 배움터에서 만나요. 준비물과 모임 시간을 꼭 확인해 주세요! '.repeat(8).slice(0, 280);
+  await owner.page.fill('#learnNoticeInput', longNotice); await owner.page.click('.learn-notice-form [type="submit"]');
+  await owner.page.click('.learn-owner [data-dismiss]');
+  await until(b.page, () => document.querySelector('.learn-chat-notice p').textContent.length === 280);
+  await b.page.click('.learn-notice-read');
+  check(await b.page.locator('.learn-detail p').textContent() === longNotice, '긴 공지는 전체 보기에서 원문 모두 읽기');
+  await b.page.click('.learn-detail button');
+  await b.page.evaluate(() => MC.I18n.setLanguage('pt-BR'));
+  check(await until(b.page, () => document.querySelector('.learn-chat-notice h4').textContent === 'Aviso fixado') && await b.page.locator('.learn-chat-notice p').textContent() === longNotice, '언어를 바꿔도 공지 원문은 유지하고 안내만 번역');
+  await b.page.evaluate(() => MC.I18n.setLanguage('ko'));
+  await owner.page.click('.learn-open-owner');
+  await owner.page.fill('[name="question"]', '내일 함께 하고 싶은 활동은 무엇인가요?');
+  await owner.page.fill('[name="options"]', '산책\n배구\n독서\n이야기\n휴식\n낚시');
+  await owner.page.click('.learn-question-form [type="submit"]');
+  await until(b.page, () => MC.app.state.sceneObj.lesson.question);
+  for (const { width, height } of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+    await b.page.setViewportSize({ width, height });
+    await b.page.click('.learn-chat-head button');
+    check(await until(b.page, () => {
+      const p = document.querySelector('.learn-notice-preview').getBoundingClientRect(), h = document.querySelector('.learn-board').getBoundingClientRect();
+      return p.height > 0 && p.top >= h.top && p.bottom <= h.bottom && p.right <= innerWidth;
+    }), `${width}×${height}: 질문이 있어도 닫힌 대화의 공지는 상단에 표시`);
+    await b.page.click('.learn-notice-preview');
+    check(await until(b.page, () => {
+      const box = s => document.querySelector(s).getBoundingClientRect();
+      const chat = box('.learn-chat'), notice = box('.learn-chat-notice'), body = box('.learn-chat-body'), send = box('.learn-chat-form button'), preview = box('.learn-notice-preview'), board = box('.learn-board');
+      return notice.bottom <= body.top + 1 && body.height > 45 && send.bottom <= chat.bottom && send.top >= notice.bottom && preview.bottom <= board.bottom && document.documentElement.scrollWidth === innerWidth;
+    }), `${width}×${height}: 긴 공지도 상단 고정, 대화 스크롤·전송·공지 미리보기 겹침 없음`);
+    if ([1440, 390, 320, 844].includes(width)) await shot(b.page, `learning-notice-${width}`);
+  }
+  await b.page.setViewportSize({ width: 390, height: 844 });
+  await owner.page.click('.learn-chat-clear');
+  check(await until(b.page, () => MC.app.state.sceneObj.chatItems.size === 0 && !document.querySelector('.learn-chat-notice').hidden), '대화 기록을 지워도 공지 유지');
+  await owner.page.click('.learn-open-owner'); await owner.page.click('.learn-notice-clear');
+  check(await until(b.page, () => document.querySelector('.learn-chat-notice').hidden && document.querySelector('.learn-notice-preview').hidden), '공지 내리기를 모두에게 즉시 반영');
+  await owner.page.click('.learn-owner [data-dismiss]');
+  server.proc.kill();
+  check(await until(owner.page, () => document.querySelector('#learnNoticeInput').disabled), '연결이 끊기면 공지 편집 중지');
+  check(!owner.errors.length && !a.errors.length && !b.errors.length, '공지와 색상 기능 브라우저 오류 없음', owner.errors.concat(a.errors, b.errors));
+});

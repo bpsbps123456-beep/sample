@@ -9,12 +9,18 @@ module.exports = class Learning {
   constructor(send, clients) {
     this.send = send; this.clients = clients; this.question = null; this.phase = 'waiting'; this.sequence = 0;
     this.answers = new Map(); this.revealed = new Set(); this.attempts = new Map();
-    this.messages = []; this.chatSequence = 0;
+    this.messages = []; this.chatSequence = 0; this.notice = null;
     this.memberPin = process.env.LEARN_PIN || '0000'; this.ownerPin = process.env.LEARN_OWNER_PIN || '8624';
   }
   authorized(c) { return c.learn && c.learn.until > Date.now(); }
   members() { return [...this.clients()].filter(c => !c.closed && c.room?.place === 'learn' && this.authorized(c)); }
   full(c) { return !(c.room?.place === 'learn' && this.authorized(c)) && this.members().length >= Learning.CAP; }
+  chatColor(c) {
+    if (Number.isInteger(c.learn.chatColor)) return c.learn.chatColor;
+    const used = new Set(this.members().filter(member => member !== c).map(member => member.learn.chatColor));
+    c.learn.chatColor = Array.from({ length: Learning.CAP }, (_, i) => i).find(i => !used.has(i));
+    return c.learn.chatColor;
+  }
   summary() {
     if (!this.question || this.phase !== 'revealed') return null;
     if (this.question.type === 'choice') return this.question.options.map((label, value) => ({ text: label, count: [...this.answers.values()].filter(a => a.value === value).length }));
@@ -33,8 +39,8 @@ module.exports = class Learning {
     }
     return { t: 'learn-state', role: c.learn.role, question: this.question, phase: this.phase,
       answered: this.answers.size, online: members.filter(m => m.learn.role === 'member').length, capacity: Learning.CAP,
-      own: this.answers.get(c.id) || null, boards, summary: this.summary(),
-      roster: members.map(m => ({ id: m.id, name: m.state.n || '멍이', role: m.learn.role,
+      own: this.answers.get(c.id) || null, boards, summary: this.summary(), notice: this.notice,
+      roster: members.map(m => ({ id: m.id, name: m.state.n || '멍이', role: m.learn.role, chatColor: this.chatColor(m),
         c: m.state.c, h: m.state.h, ht: m.state.ht, ac: m.state.ac, gl: m.state.gl, cl: m.state.cl })) };
   }
   publish() { for (const c of this.members()) this.send(c, this.snapshot(c)); }
@@ -59,7 +65,7 @@ module.exports = class Learning {
       if (!message) return fail('친구들에게 전할 말을 적어 주세요.');
       if (c.learn.chatAt && now - c.learn.chatAt < 1000) return fail('한 박자 쉬고 다시 보내 주세요.');
       c.learn.chatAt = now;
-      const item = { id: ++this.chatSequence, from: c.id, name: c.state.n || '멍이', role: c.learn.role, text: message, at: now };
+      const item = { id: ++this.chatSequence, from: c.id, name: c.state.n || '멍이', role: c.learn.role, chatColor: this.chatColor(c), text: message, at: now };
       this.messages.push(item); if (this.messages.length > 50) this.messages.shift();
       for (const member of this.members()) this.send(member, { t: 'learn-chat', messages: [item] });
       return;
@@ -80,7 +86,15 @@ module.exports = class Learning {
       this.answers.set(c.id, answer);
     } else {
       if (c.learn.role !== 'owner') return this.error(c, '이 기능은 진행자만 사용할 수 있어요.');
-      if (action === 'reveal-answer') {
+      if (action === 'set-notice' || action === 'pin-chat') {
+        const message = action === 'pin-chat' && Number.isSafeInteger(value) ? this.messages.find(item => item.id === value) : null;
+        if (action === 'pin-chat' && !message) return this.error(c, '고정할 대화를 찾지 못했어요.');
+        const noticeText = text(action === 'pin-chat' ? message.text : value, 280);
+        if (!noticeText) return this.error(c, '상단에 고정할 공지를 적어 주세요.');
+        this.notice = { text: noticeText, at: Date.now() };
+      } else if (action === 'clear-notice') {
+        this.notice = null;
+      } else if (action === 'reveal-answer') {
         if (!['open', 'closed'].includes(this.phase) || value?.id !== this.question?.id || typeof value?.member !== 'string' || !this.answers.has(value.member) || !this.members().some(member => member.id === value.member) || this.revealed.has(value.member)) return;
         this.revealed.add(value.member);
       } else if (action === 'delete-chat') {
