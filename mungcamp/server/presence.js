@@ -117,7 +117,11 @@ function clean(raw) {
 const rooms = new Map(PLACES.map((p) => [p, []]));
 let roomSeq = 0;
 const clients = new Set();
-const learning = new Learning(send, () => clients);
+const learning = new Learning(send, () => clients, c => {
+  leaveRoom(c);
+  c.state = clean({ ...c.state, p: 'map', x: 1850, y: 1050, w: 0, q: 0, ch: 0, sg: '' });
+  joinRoom(c, 'map');
+});
 
 function joinRoom(c, place) {
   const list = rooms.get(place);

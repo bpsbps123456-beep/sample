@@ -35,17 +35,24 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
   const denied = await exchange(extra, { t: 'learn', action: 'enter', value: '0000' }, 'learn-error');
   check(denied.message.includes('30명'), '정원 30명일 때 추가 비밀번호 입장도 차단');
   const layout = () => {
-    const f = document.querySelector('.learn-floor'), floor = f.getBoundingClientRect();
+    const f = document.querySelector('.learn-floor'), floor = f.getBoundingClientRect(), world = MC.app.state.sceneObj.floorSize;
     const seats = [...f.querySelectorAll('.learn-seat')].map(n => n.getBoundingClientRect());
-    const inside = r => r.left >= floor.left - 1 && r.right <= floor.right + 1 && r.top >= floor.top - 1 && r.bottom <= floor.bottom + 1;
+    const inside = r => r.left >= floor.left - 1 && r.right <= floor.right + 1 && r.top >= floor.top - f.scrollTop - 1 && r.bottom <= floor.top - f.scrollTop + world.height + 1;
     return seats.length === 30 && seats.every(inside) && seats.every((a, i) => seats.slice(i + 1).every(b => Math.min(a.right, b.right) - Math.max(a.left, b.left) < 1 || Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) < 1)) &&
       [...f.querySelectorAll('canvas,.learn-seat-name,.learn-status-sign:not([hidden]),.learn-sign:not([hidden])')].every(n => inside(n.getBoundingClientRect())) &&
-      f.scrollHeight <= f.clientHeight + 1 && f.scrollWidth <= f.clientWidth + 1 && document.documentElement.scrollWidth === innerWidth;
+      [...f.querySelectorAll('.learn-seat-name')].every(n => parseFloat(getComputedStyle(n).fontSize) >= (innerWidth <= 600 ? 16 : 18)) &&
+      f.scrollWidth <= f.clientWidth + 1 && document.documentElement.scrollWidth === innerWidth;
   };
   const sizes = [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }];
   for (const viewport of sizes) {
     await viewer.page.setViewportSize(viewport);
-    check(await until(viewer.page, layout), `${viewport.width}×${viewport.height} 대기 중 30명 모두 스크롤·겹침 없이 표시`);
+    check(await until(viewer.page, layout), `${viewport.width}×${viewport.height} 30명 이름을 줄이지 않고 교실 안에 겹침 없이 배치`);
+    check(await viewer.page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.learn-board .learn-eyebrow')).fontSize) === 35 && parseFloat(getComputedStyle(document.querySelector('.learn-chat-toggle')).fontSize) === 35), `${viewport.width}×${viewport.height} 배움터 제목과 대화 버튼 35px 유지`);
+    check(await viewer.page.evaluate(() => {
+      const floor = document.querySelector('.learn-floor'), last = floor.querySelector('.learn-seat:last-child'); floor.scrollTop = floor.scrollHeight;
+      const f = floor.getBoundingClientRect(), n = last.querySelector('.learn-seat-name').getBoundingClientRect();
+      const visible = n.top >= f.top - 1 && n.bottom <= f.bottom + 1; floor.scrollTop = 0; return visible;
+    }), `${viewport.width}×${viewport.height} 마지막 줄 닉네임도 스크롤해 읽을 수 있음`);
     if ([1440, 390].includes(viewport.width)) await shot(viewer.page, 'learning-30-idle-' + viewport.width);
   }
   for (const { ws, state } of friends) { Object.assign(state, { sg: '쉬는중', ch: 1 }); ws.send(JSON.stringify({ t: 's', s: state })); }
@@ -58,7 +65,7 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
   for (const viewport of sizes) {
     await viewer.page.setViewportSize(viewport);
     const fits = await until(viewer.page, layout);
-    check(fits, `${viewport.width}×${viewport.height} 의자·상태 팻말·제출 팻말이 있어도 30명 전체 표시`);
+    check(fits, `${viewport.width}×${viewport.height} 의자·나무 상태 팻말·답변 팻말을 읽을 크기로 30명 배치`);
     if (!fits) {
       console.log(await viewer.page.evaluate(() => {
         const floor = document.querySelector('.learn-floor').getBoundingClientRect(), sc = MC.app.state.sceneObj;
@@ -93,11 +100,18 @@ main(async ({ check, until, person, presenceServer, cleanup, shot, sleep }) => {
   const delta = name => +(after.find(m => m.name === name).value - before.find(m => m.name === name).value).toFixed(3);
   check(await until(viewer.page, () => document.querySelectorAll('.learn-seat.is-roaming').length === 30), '30명 동시 이동을 서버에서 받아 화면에 반영');
   check(await viewer.page.evaluate(() => {
-    const f = document.querySelector('.learn-floor'), floor = f.getBoundingClientRect(), bubbles = [...f.querySelectorAll('.learn-speech-bubble:not([hidden])')];
-    return bubbles.length === 30 && bubbles.every(n => { const r = n.getBoundingClientRect(); return r.left >= floor.left && r.right <= floor.right && r.top >= floor.top && r.bottom <= floor.bottom; }) && f.scrollWidth <= f.clientWidth + 1 && f.scrollHeight <= f.clientHeight + 1;
-  }), '30명이 말하며 움직여도 말풍선이 바닥 안에 표시되고 스크롤 없음');
+    const f = document.querySelector('.learn-floor'), floor = f.getBoundingClientRect(), world = MC.app.state.sceneObj.floorSize, bubbles = [...f.querySelectorAll('.learn-speech-bubble:not([hidden])')];
+    return bubbles.length === 30 && bubbles.every(n => { const r = n.getBoundingClientRect(); return r.left >= floor.left && r.right <= floor.right && r.top >= floor.top - f.scrollTop && r.bottom <= floor.top - f.scrollTop + world.height; }) && f.scrollWidth <= f.clientWidth + 1;
+  }), '30명이 말하며 움직여도 말풍선이 교실 콘텐츠 안에 표시');
   console.log('30명 이동 5초 측정:', JSON.stringify({ layouts: delta('LayoutCount'), scriptSeconds: delta('ScriptDuration'), taskSeconds: delta('TaskDuration') }));
   await shot(viewer.page, 'learning-30-moving-desktop'); clearInterval(movement);
+  await viewer.page.click('.learn-chat-toggle');
+  await viewer.page.locator('.learn-chat-log').evaluate(n => { n.scrollTop = 0; });
+  friends[0].ws.send(JSON.stringify({ t: 'learn', action: 'chat', value: '새 대화 확인 부탁해요' }));
+  check(await until(viewer.page, () => !document.querySelector('.learn-chat-jump').hidden && document.querySelector('.learn-chat-log').scrollTop < 5), '이전 대화 읽는 위치를 유지하고 새 대화 버튼 표시');
+  await viewer.page.click('.learn-chat-jump');
+  check(await viewer.page.locator('.learn-chat-log').evaluate(n => n.scrollHeight - n.scrollTop - n.clientHeight < 48), '새 대화 보기를 누르면 최신 글로 이동');
+  await viewer.page.click('.learn-chat-head button');
   friends[0].ws.close(); friends[1].ws.close();
   check(await until(viewer.page, () => MC.app.state.sceneObj.lesson.roster.length === 28 && document.querySelectorAll('.learn-seat').length === 28), '퇴장하면 빈 자리 정리');
   const joined = await exchange(extra, { t: 's', s: { p: 'learn', n: '추가입장', x: 500, y: 500 } }, 'learn-state');

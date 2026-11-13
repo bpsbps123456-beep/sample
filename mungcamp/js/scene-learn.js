@@ -53,6 +53,8 @@
       document.querySelector('#session').appendChild(this.root);
       this.buildChat();
       this.floor = this.root.querySelector('.learn-floor'); this.form = this.root.querySelector('.learn-answer-form');
+      this.floorSpace = el('div', 'learn-floor-space'); this.floorSpace.setAttribute('aria-hidden', 'true'); this.floor.prepend(this.floorSpace);
+      this.floor.tabIndex = 0;
       this.buildWalking();
       this.form.onsubmit = e => {
         e.preventDefault(); const q = this.lesson?.question; if (!q) return;
@@ -71,6 +73,7 @@
       this.owner.querySelector('.learn-question-form').before(this.noticeForm);
       this.noticeForm.onsubmit = e => { e.preventDefault(); this.command('set-notice', this.noticeForm.querySelector('textarea').value); };
       this.noticeForm.querySelector('.learn-notice-clear').onclick = () => this.command('clear-notice');
+      this.buildModeration();
       this.root.querySelector('.learn-open-owner').onclick = () => { this.stopWalking(); this.owner.showModal(); };
       this.owner.querySelector('[data-dismiss]').onclick = () => this.owner.close();
       this.owner.querySelectorAll('[data-command]').forEach(button => { button.onclick = () => this.command(button.dataset.command); });
@@ -121,6 +124,10 @@
       this.root.querySelector('.learn-board-top').after(this.noticePreview);
       this.root.append(this.chatToggle, this.chat);
       this.chatLog = this.chat.querySelector('.learn-chat-log'); this.chatForm = this.chat.querySelector('form');
+      this.jumpChat = el('button', 'learn-chat-jump', '새 대화 보기 ↓'); this.jumpChat.type = 'button'; this.jumpChat.hidden = true;
+      this.jumpChat.onclick = () => { this.chatLog.scrollTop = this.chatLog.scrollHeight; this.jumpChat.hidden = true; };
+      chatBody.appendChild(this.jumpChat);
+      this.chatLog.addEventListener('scroll', () => { if (this.chatLog.scrollHeight - this.chatLog.scrollTop - this.chatLog.clientHeight < 48) this.jumpChat.hidden = true; });
       this.chatToggle.onclick = () => this.toggleChat(this.chat.hidden);
       this.chat.querySelector('header button').onclick = () => this.toggleChat(false);
       this.chat.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); this.toggleChat(false); this.chatToggle.focus(); } });
@@ -137,7 +144,7 @@
       this.chat.hidden = !open; this.root.dataset.chatOpen = open;
       this.stopWalking();
       this.chatToggle.setAttribute('aria-expanded', String(open));
-      if (open) { this.chatUnread = 0; this.unreadChat.clear(); requestAnimationFrame(() => { this.chatLog.scrollTop = this.chatLog.scrollHeight; }); }
+      if (open) { this.chatUnread = 0; this.unreadChat.clear(); this.jumpChat.hidden = true; requestAnimationFrame(() => { this.chatLog.scrollTop = this.chatLog.scrollHeight; }); }
       this.updateChatToggle(); this.resizeFloor();
     }
     updateChatToggle() { this.chatToggle.textContent = this.chat.hidden ? `대화${this.chatUnread ? ' · ' + Math.min(99, this.chatUnread) : ''}` : '대화 접기'; }
@@ -158,6 +165,31 @@
       if (previous?.text !== notice?.text && document.activeElement !== input) input.value = notice?.text || '';
       this.noticeForm.querySelector('[type="submit"]').textContent = notice ? '공지 수정하기' : '공지 올리기';
       this.noticeForm.querySelector('.learn-notice-clear').disabled = !!this.disconnected || !notice;
+    }
+    buildModeration() {
+      this.memberTools = el('section', 'learn-members'); this.memberTools.setAttribute('aria-label', '참여자 관리');
+      this.memberTools.append(el('h3', '', '참여자 관리'), el('p', '', '내보낸 참여자는 마을로 돌아가요. 다시 들어오려면 비밀번호를 입력해야 해요.'), el('div', 'learn-member-list'));
+      this.noticeForm.before(this.memberTools);
+      this.kickDialog = el('dialog', 'learn-moderation'); this.kickDialog.setAttribute('aria-labelledby', 'learnKickTitle');
+      this.kickDialog.innerHTML = '<h2 id="learnKickTitle">참여자를 내보낼까요?</h2><p class="learn-kick-name" translate="no"></p><p>이 참여자는 배움터에서 나가 마을로 돌아가요. 제출한 답도 함께 지워져요.</p><div class="learn-notice-actions"><button type="button" data-cancel autofocus>취소</button><button type="button" class="learn-kick-confirm">내보내기</button></div>';
+      document.body.appendChild(this.kickDialog);
+      this.kickDialog.querySelector('[data-cancel]').onclick = () => this.kickDialog.close();
+      this.kickDialog.querySelector('.learn-kick-confirm').onclick = () => { this.command('kick', this.kickTarget); this.kickDialog.close(); };
+    }
+    updateMembers() {
+      const members = (this.lesson?.roster || []).filter(member => member.role === 'member');
+      const signature = JSON.stringify(members.map(member => [member.id, member.name, member.chatColor]));
+      if (signature === this.memberSignature) return; this.memberSignature = signature;
+      const list = this.memberTools.querySelector('.learn-member-list'); list.replaceChildren();
+      if (!members.length) list.appendChild(el('p', '', '아직 참여자가 없어요.'));
+      for (const member of members) {
+        const row = el('div', 'learn-member-row'), name = el('span', '', member.name), kick = el('button', 'learn-kick', '내보내기');
+        name.setAttribute('translate', 'no'); name.style.color = chatTint(member.chatColor); kick.type = 'button'; kick.disabled = !!this.disconnected;
+        kick.setAttribute('aria-label', member.name + ' 내보내기');
+        kick.onclick = () => { this.kickTarget = member.id; this.kickDialog.querySelector('.learn-kick-name').textContent = member.name; this.kickDialog.showModal(); };
+        row.append(name, kick); list.appendChild(row);
+      }
+      if (this.kickDialog.open && !members.some(member => member.id === this.kickTarget)) this.kickDialog.close();
     }
     buildPersonal() {
       this.personalOpen = el('button', 'learn-personal-open'); this.personalOpen.type = 'button';
@@ -242,7 +274,7 @@
       const size = this.floorSize, bubble = card.bubbleSize; if (!size || !bubble) return;
       const left = MC.clamp(card.x - bubble.width / 2, 8, Math.max(8, size.width - bubble.width - 8));
       const below = card.y < bubble.height + 12;
-      const top = MC.clamp(below ? card.y + size.pupHeight + 10 : card.y - bubble.height - 10, 8, Math.max(8, size.height - bubble.height - 8));
+      const top = MC.clamp(below ? card.y + size.seatHeight + 10 : card.y - bubble.height - 10, 8, Math.max(8, size.height - bubble.height - 8));
       const transform = `translate3d(${(left - card.x + size.seatWidth / 2).toFixed(2)}px, ${(top - card.y).toFixed(2)}px, 0)`;
       if (card.speechTransform === transform) return;
       card.bubble.style.transform = transform; card.speechTransform = transform;
@@ -257,6 +289,7 @@
         this.updateChatToggle(); this.updateChatTools(); this.chat.querySelector('.learn-chat-empty').hidden = !!this.chatItems.size; return;
       }
       if (m.t === 'learn-chat-clear') {
+        this.jumpChat.hidden = true;
         for (const card of this.cards.values()) this.hideSpeech(card);
         this.chatItems.clear(); this.chatLog.replaceChildren(); this.unreadChat.clear(); this.chatUnread = 0; this.updateChatToggle(); this.updateChatTools();
         this.chat.querySelector('.learn-chat-empty').hidden = false; return;
@@ -289,7 +322,8 @@
       while (this.chatItems.size > 50) { const key = this.chatItems.keys().next().value; this.chatItems.get(key).remove(); this.chatItems.delete(key); this.unreadChat.delete(key); }
       this.chatUnread = this.unreadChat.size; this.updateChatTools();
       this.chat.querySelector('.learn-chat-empty').hidden = !!this.chatItems.size; this.updateChatToggle();
-      if (follow || mine || m.history) requestAnimationFrame(() => { this.chatLog.scrollTop = this.chatLog.scrollHeight; });
+      if (follow || mine || m.history) { this.jumpChat.hidden = true; requestAnimationFrame(() => { this.chatLog.scrollTop = this.chatLog.scrollHeight; }); }
+      else if (!this.chat.hidden && (m.messages || []).length) this.jumpChat.hidden = false;
     }
     command(action, value) {
       this.root.querySelector('.learn-error').textContent = ''; this.owner.querySelector('.learn-error').textContent = '';
@@ -303,6 +337,7 @@
         for (const card of this.cards.values()) this.hideSpeech(card);
         this.disconnected = true; this.stopWalking(); this.returnSeat.disabled = true; this.error(m.message || '연결이 끊겼어요. 마을로 나가 다시 들어와 주세요.');
         this.personal.close(); this.personalOpen.disabled = true;
+        this.kickDialog.close();
         for (const input of this.personal.querySelectorAll('input,button')) input.disabled = true;
         this.owner.close(); for (const input of this.owner.querySelectorAll('input,textarea,select,button')) input.disabled = true;
         this.form.querySelector('[type="submit"]').disabled = true;
@@ -310,6 +345,7 @@
       }
       if (m.t !== 'learn-state') return;
       const previous = this.lesson?.question?.id, previousNotice = this.lesson?.notice; this.lesson = m;
+      this.updateMembers();
       this.updateNotice(m.notice, previousNotice);
       const owner = m.role === 'owner', q = m.question, open = m.phase === 'open';
       this.root.dataset.role = m.role; this.root.dataset.phase = m.phase;
@@ -356,6 +392,7 @@
         if (!card) {
           const seat = el('article', 'learn-seat'), canvas = el('canvas', 'learn-pup'), name = el('p', 'learn-seat-name'), status = el('p', 'learn-status-sign'), sign = el('button', 'learn-sign');
           canvas.width = 320; canvas.height = 300; canvas.setAttribute('aria-hidden', 'true'); sign.type = 'button'; status.hidden = true; status.setAttribute('translate', 'no');
+          sign.appendChild(el('span', 'learn-sign-text'));
           if (member.id === this.net.id) {
             canvas.removeAttribute('aria-hidden'); canvas.setAttribute('role', 'button'); canvas.tabIndex = 0; canvas.setAttribute('aria-label', '내 멍이 · 팻말과 의자'); canvas.setAttribute('aria-haspopup', 'dialog');
             canvas.onclick = () => this.openPersonal(); canvas.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); this.openPersonal(); } };
@@ -376,9 +413,10 @@
         const signature = [member.c, member.h, member.ht, member.ac, member.gl, member.cl].join(':');
         if (card.signature !== signature) { card.pup.setLook(member.c, member.h, member.ht, member.ac, member.gl, member.cl); card.signature = signature; }
         card.name.textContent = member.name + (member.id === this.net.id ? uiText(' · 나') : '') + (member.role === 'owner' ? uiText(' · 운영자') : '');
+        card.name.title = card.name.textContent;
         card.name.style.color = chatTint(member.chatColor);
         const answer = m.boards[member.id]; card.sign.setAttribute('translate', answer?.text ? 'no' : 'yes');
-        card.sign.textContent = answer?.text || (answer?.submitted ? '답변 완료' : '');
+        card.sign.querySelector('.learn-sign-text').textContent = answer?.text || (answer?.submitted ? '답변 완료' : '');
         const canReveal = owner && answer?.submitted && !answer.text && ['open', 'closed'].includes(m.phase);
         card.sign.hidden = !answer; card.sign.disabled = !!this.disconnected || !answer?.text && !canReveal; card.sign.dataset.answered = !!answer;
         card.sign.dataset.reveal = !!canReveal; card.sign.title = canReveal ? uiText('이 답변만 공개') : answer?.text || '';
@@ -403,7 +441,7 @@
         const box = this.floor.getBoundingClientRect(), size = this.floorSize;
         this.walk.keys = { x: 0, y: 0 };
         this.walk.target = { x: (e.clientX - box.left) / size.width,
-          y: (e.clientY - box.top - size.pupHeight * .75) / size.height };
+          y: (e.clientY - box.top + this.floor.scrollTop - size.pupHeight * .75) / size.height };
       });
       this.root.addEventListener('focusin', e => { if (e.target.matches('input,textarea,select')) this.stopWalking(); });
     }
@@ -453,6 +491,11 @@
         } else { card.walkPosition = null; this.positionSeat(card, card.home.x * width, card.home.y * height); }
       }
       this.returnSeat.hidden = !walk.free;
+      if (walk.free && (walk.moving || walk.target?.returning)) {
+        const top = own.y - 12, bottom = own.y + seatHeight + 12;
+        if (top < this.floor.scrollTop) this.floor.scrollTop = top;
+        else if (bottom > this.floor.scrollTop + this.floor.clientHeight) this.floor.scrollTop = bottom - this.floor.clientHeight;
+      }
     }
     positionSeat(card, x, y) {
       card.x = x; card.y = y;
@@ -467,30 +510,32 @@
     arrangeSeats(roster) {
       const signature = roster.map(m => m.id).join(':'); if (this.seating === signature) return; this.seating = signature;
       const focused = this.floor.contains(document.activeElement) ? document.activeElement : null;
-      this.floor.replaceChildren(...roster.map(member => this.cards.get(member.id).seat)); focused?.focus({ preventScroll: true });
+      this.floor.replaceChildren(this.floorSpace, ...roster.map(member => this.cards.get(member.id).seat)); focused?.focus({ preventScroll: true });
     }
     layoutSeats() {
-      const width = Math.max(1, this.floor.clientWidth), height = Math.max(1, this.floor.clientHeight), count = this.cards.size;
+      const width = Math.max(1, this.floor.clientWidth - 12), viewportHeight = Math.max(1, this.floor.clientHeight), count = this.cards.size;
       if (!count) return;
-      // 인원과 화면 비율에 맞춰 모두 보이는 열 수를 고른다. 크기는 재배치할 때만 읽는다.
+      // 이름과 팻말은 줄이지 않는다. 좁은 화면의 많은 인원은 바닥 안에서 스크롤해 읽는다.
       const withSigns = !!this.lesson?.question;
-      const gap = count > 15 ? 6 : 12;
-      const dimensions = scale => ({ width: 150 * scale, height: 108 * scale + Math.max(9, 11 * scale) * 1.6 + 7 + Math.max(this.hasPersonalSigns ? Math.max(18, 24 * scale) : 0, withSigns ? Math.max(24, 50 * scale) : 0) });
+      const gap = 12, font = this.w <= 600 ? 16 : 18;
+      const dimensions = scale => ({ width: 150 * scale, height: 108 * scale + 34 + (this.hasPersonalSigns ? 58 : 0) + (withSigns ? 68 : 0) });
       let best = { scale: 0, columns: 1, rows: count };
       for (let columns = 1; columns <= count; columns++) {
         const rows = Math.ceil(count / columns);
         let low = 0, high = Math.max(0, Math.min(1, (width / columns - gap) / 150));
-        for (let step = 0; step < 12; step++) { const mid = (low + high) / 2; if (dimensions(mid).height <= height / rows - gap) low = mid; else high = mid; }
+        for (let step = 0; step < 12; step++) { const mid = (low + high) / 2; if (dimensions(mid).height <= viewportHeight / rows - gap) low = mid; else high = mid; }
         const scale = low;
         if (scale > best.scale) best = { scale, columns, rows };
       }
-      const scale = Math.max(.01, best.scale), { width: seatWidth, height: seatHeight } = dimensions(scale), pupHeight = 108 * scale;
+      if (best.scale < .72) { best.columns = Math.max(1, Math.min(count, Math.floor(width / (150 * .72 + gap)))); best.rows = Math.ceil(count / best.columns); best.scale = Math.min(1, (width / best.columns - gap) / 150); }
+      const scale = Math.max(.72, best.scale), { width: seatWidth, height: seatHeight } = dimensions(scale), pupHeight = 108 * scale;
+      const height = Math.max(viewportHeight, best.rows * (seatHeight + gap)); this.floorSpace.style.height = height + 'px';
       this.floorSize = { width, height, seatWidth, seatHeight, pupHeight };
       this.floor.style.setProperty('--seat-width', seatWidth + 'px'); this.floor.style.setProperty('--seat-height', seatHeight + 'px');
       this.floor.style.setProperty('--pup-width', 115 * scale + 'px'); this.floor.style.setProperty('--pup-height', pupHeight + 'px');
-      this.floor.style.setProperty('--seat-font', Math.max(9, 11 * scale) + 'px');
-      this.floor.style.setProperty('--sign-height', Math.max(24, 50 * scale) + 'px');
-      this.floor.style.setProperty('--status-height', Math.max(18, 24 * scale) + 'px');
+      this.floor.style.setProperty('--seat-font', font + 'px');
+      this.floor.style.setProperty('--sign-height', '54px');
+      this.floor.style.setProperty('--status-height', '42px');
       let index = 0;
       for (const card of this.cards.values()) {
         const row = Math.floor(index / best.columns), column = index % best.columns;
@@ -542,7 +587,7 @@
       if (this.drawnBackdrop !== this.backdrop) { g.drawImage(this.backdrop, 0, 0); this.drawnBackdrop = this.backdrop; }
     }
     pointerDown() { return false; }
-    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); for (const card of this.cards.values()) clearTimeout(card.speechTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.personal.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
+    destroy() { window.removeEventListener('mungcamp:languagechange', this.onLanguageChange); this.layoutObserver.disconnect(); clearTimeout(this.chatPendingTimer); for (const card of this.cards.values()) clearTimeout(card.speechTimer); this.root.remove(); this.owner.remove(); this.detail.remove(); this.personal.remove(); this.kickDialog.remove(); this.cards.clear(); this.backdrop = null; this.net.learning = null; this.net.learningChat = []; }
   }
   MC.LearnGate = LearnGate; MC.LearnScene = LearnScene;
 })(window.MC = window.MC || {});

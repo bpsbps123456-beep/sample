@@ -6,8 +6,8 @@ const equal = (a, b) => typeof a === 'string' && crypto.timingSafeEqual(crypto.c
 // 질문과 답은 서버에만 둔다. 공개 전에는 본인 답만 전송한다.
 module.exports = class Learning {
   static CAP = 30;
-  constructor(send, clients) {
-    this.send = send; this.clients = clients; this.question = null; this.phase = 'waiting'; this.sequence = 0;
+  constructor(send, clients, evict = () => {}) {
+    this.send = send; this.clients = clients; this.evict = evict; this.question = null; this.phase = 'waiting'; this.sequence = 0;
     this.answers = new Map(); this.revealed = new Set(); this.attempts = new Map();
     this.messages = []; this.chatSequence = 0; this.notice = null;
     this.memberPin = process.env.LEARN_PIN || '0000'; this.ownerPin = process.env.LEARN_OWNER_PIN || '8624';
@@ -86,7 +86,13 @@ module.exports = class Learning {
       this.answers.set(c.id, answer);
     } else {
       if (c.learn.role !== 'owner') return this.error(c, '이 기능은 진행자만 사용할 수 있어요.');
-      if (action === 'set-notice' || action === 'pin-chat') {
+      if (action === 'kick') {
+        const target = this.members().find(member => member.id === value);
+        if (!target || target === c || target.learn.role === 'owner') return this.error(c, '현재 배움터에 있는 참여자만 내보낼 수 있어요.');
+        this.answers.delete(target.id); this.revealed.delete(target.id); target.learn = null;
+        this.send(target, { t: 'learn-kicked', message: '운영자가 배움터에서 내보냈어요. 마을로 돌아갑니다.' });
+        this.evict(target);
+      } else if (action === 'set-notice' || action === 'pin-chat') {
         const message = action === 'pin-chat' && Number.isSafeInteger(value) ? this.messages.find(item => item.id === value) : null;
         if (action === 'pin-chat' && !message) return this.error(c, '고정할 대화를 찾지 못했어요.');
         const noticeText = text(action === 'pin-chat' ? message.text : value, 280);

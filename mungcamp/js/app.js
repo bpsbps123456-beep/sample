@@ -202,6 +202,7 @@
   $('#learnBtn').addEventListener('click', () => learnGate.open());
   net.onLearning = m => {
     learnGate.accept(m);
+    if (m.t === 'learn-kicked') { if (state.scene === 'learn') goHome(); toast(m.message, 6000); return; }
     if (state.scene === 'learn' && state.sceneObj) state.sceneObj.accept(m);
   };
   const residents = new MC.Residents(camp);

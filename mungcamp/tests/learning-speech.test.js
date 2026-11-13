@@ -40,6 +40,7 @@ main(async ({ check, until, person, presenceServer, cleanup, sleep, shot }) => {
   await shot(owner.page, 'learning-speech-desktop'); await shot(b.page, 'learning-speech-phone');
   await owner.page.evaluate(() => MC.app.net.link.learn('delete-chat', 2));
   check(await until(b.page, () => !document.querySelector('.learn-speech-bubble:not([hidden])')), '운영자가 해당 대화를 지우면 말풍선도 즉시 제거');
+  await sleep(1050); // 실제 서버의 1초 전송 간격을 지킨다.
   await a.page.evaluate(() => MC.app.net.link.learn('chat', '화면 가장자리에서도 잘 보여요 '.repeat(12)));
   await until(a.page, () => !!document.querySelector('.learn-speech-bubble:not([hidden])'));
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
@@ -49,7 +50,7 @@ main(async ({ check, until, person, presenceServer, cleanup, sleep, shot }) => {
       check(await until(a.page, inside), `${viewport.width}×${viewport.height} 가장자리 ${x},${y}에서도 긴 말풍선 잘림·스크롤 없음`);
     }
   }
-  check(await a.page.locator('.learn-speech-bubble:not([hidden])').evaluate(n => n.getBoundingClientRect().height < 82 && n.textContent.length === 180), '긴 대화는 세 줄 안으로 줄이고 전체 내용은 기록에 유지');
+  check(await a.page.locator('.learn-speech-bubble:not([hidden])').evaluate(n => n.querySelector('span').getBoundingClientRect().height <= parseFloat(getComputedStyle(n).lineHeight) * 3 + 1 && n.textContent.length === 180), '큰 글씨의 긴 대화도 세 줄 안으로 줄이고 전체 내용은 기록에 유지');
   check(await until(owner.page, () => !document.querySelector('.learn-speech-bubble:not([hidden])'), null, 8000), '6초가 지나면 말풍선 자동 숨김');
   await a.page.evaluate(() => MC.app.net.link.learn('chat', '대화 정리 확인'));
   await until(b.page, () => !!document.querySelector('.learn-speech-bubble:not([hidden])'));

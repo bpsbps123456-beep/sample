@@ -584,5 +584,14 @@
 산호빛 니트|Suéter coral
 고래 티셔츠|Camiseta de baleia
 별빛 조끼|Colete de estrelas
+새 대화 보기 ↓|Ver novas mensagens ↓
+참여자 관리|Gerenciar participantes
+내보내기|Remover
+참여자를 내보낼까요?|Remover este participante?
+내보낸 참여자는 마을로 돌아가요. 다시 들어오려면 비밀번호를 입력해야 해요.|O participante volta para a vila. Para entrar novamente, precisa informar a senha.
+이 참여자는 배움터에서 나가 마을로 돌아가요. 제출한 답도 함께 지워져요.|O participante volta para a vila e sua resposta é apagada.
+아직 참여자가 없어요.|Ainda não há participantes.
+현재 배움터에 있는 참여자만 내보낼 수 있어요.|Só é possível remover participantes que estão na sala.
+운영자가 배움터에서 내보냈어요. 마을로 돌아갑니다.|Você foi removido da sala pelo organizador e voltou para a vila.
 `.trim().split('\n').map(line => { const at = line.indexOf('|'); return [line.slice(0, at), line.slice(at + 1)]; }));
 })(window.MC = window.MC || {});
